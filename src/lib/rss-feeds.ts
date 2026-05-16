@@ -8,47 +8,112 @@ export const RSS_FEEDS: FeedSource[] = [
   { name: "Ynet", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "general" },
   { name: "Ynet חדשות", url: "https://www.ynet.co.il/Integration/StoryRss1.xml", category: "general" },
   { name: "Walla", url: "https://rss.walla.co.il/feed/1", category: "general" },
-  { name: "Walla פוליטי", url: "https://rss.walla.co.il/feed/141", category: "politics" },
   { name: "מעריב", url: "https://www.maariv.co.il/Rss/RssFeedsMivzakWorker", category: "general" },
-  { name: "כלכליסט", url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-8,00.xml", category: "economy" },
   { name: "ישראל היום", url: "https://www.israelhayom.co.il/rss.xml", category: "general" },
-];
-
-export const POLITICIAN_NAMES = [
-  "נתניהו", "לפיד", "סמוטריץ'", "בן גביר", "גנץ", "ליברמן", "דרעי",
-  "גלנט", "סער", "איזנקוט", "גולדקנופף", "מיכאלי", "עבאס", "עודה",
-  "בנימין נתניהו", "יאיר לפיד", "בצלאל סמוטריץ'", "איתמר בן גביר",
-  "בני גנץ", "אביגדור ליברמן", "אריה דרעי", "יואב גלנט", "גדעון סער",
-  "גדי איזנקוט", "יצחק גולדקנופף", "מרב מיכאלי", "מנסור עבאס", "איימן עודה",
+  { name: "הארץ", url: "https://www.haaretz.co.il/cmlink/1.1617539", category: "general" },
+  { name: "כאן חדשות", url: "https://www.kan.org.il/feed/", category: "general" },
 ];
 
 export const NAME_TO_ID: Record<string, string> = {
-  "נתניהו": "netanyahu",
-  "בנימין נתניהו": "netanyahu",
-  "לפיד": "lapid",
-  "יאיר לפיד": "lapid",
-  "סמוטריץ'": "smotrich",
-  "בצלאל סמוטריץ'": "smotrich",
-  "בן גביר": "ben-gvir",
-  "איתמר בן גביר": "ben-gvir",
-  "גנץ": "gantz",
-  "בני גנץ": "gantz",
-  "ליברמן": "lieberman",
-  "אביגדור ליברמן": "lieberman",
-  "דרעי": "deri",
-  "אריה דרעי": "deri",
-  "גלנט": "gallant",
-  "יואב גלנט": "gallant",
-  "סער": "saar",
-  "גדעון סער": "saar",
-  "איזנקוט": "eisenkot",
-  "גדי איזנקוט": "eisenkot",
-  "גולדקנופף": "goldknopf",
-  "יצחק גולדקנופף": "goldknopf",
-  "מיכאלי": "michaeli",
-  "מרב מיכאלי": "michaeli",
-  "עבאס": "abbas",
-  "מנסור עבאס": "abbas",
-  "עודה": "odeh",
-  "איימן עודה": "odeh",
+  // ליכוד
+  "נתניהו": "netanyahu", "בנימין נתניהו": "netanyahu", "ביבי": "netanyahu",
+  "לוין": "yariv-levin", "יריב לוין": "yariv-levin",
+  "אוחנה": "amir-ohana", "אמיר אוחנה": "amir-ohana",
+  "ברקת": "nir-barkat", "ניר ברקת": "nir-barkat",
+  "דיכטר": "avi-dichter", "אבי דיכטר": "avi-dichter",
+  "ישראל כץ": "israel-katz",
+  "קרעי": "shlomo-karhi", "שלמה קרעי": "shlomo-karhi",
+  "רגב": "miri-regev", "מירי רגב": "miri-regev",
+  "מיקי זוהר": "miki-zohar", "זוהר": "miki-zohar",
+  "יואב קיש": "yoav-kisch", "קיש": "yoav-kisch",
+  "אלי כהן": "eli-cohen",
+  "אמסלם": "dudi-amsalem", "דוד אמסלם": "dudi-amsalem",
+  "שיקלי": "amichai-chikli", "עמיחי שיקלי": "amichai-chikli",
+  "סילמן": "idit-silman", "עידית סילמן": "idit-silman",
+  "חיים כץ": "haim-katz",
+  "ביטן": "david-bitan", "דוד ביטן": "david-bitan",
+  "אדלשטיין": "yuli-edelstein", "יולי אדלשטיין": "yuli-edelstein",
+  "דיסטל": "galit-distel", "גלית דיסטל": "galit-distel",
+  "ואטורי": "nissim-vaturi", "ניסים ואטורי": "nissim-vaturi",
+  "גוטליב": "tali-gottlieb", "טלי גוטליב": "tali-gottlieb",
+  "ביסמוט": "boaz-bismuth", "בועז ביסמוט": "boaz-bismuth",
+  "גמליאל": "gila-gamliel", "גילה גמליאל": "gila-gamliel",
+  "אופיר כץ": "ofir-katz",
+  "מאי גולן": "may-golan", "גולן": "may-golan",
+  "קלנר": "ariel-kallner", "אריאל קלנר": "ariel-kallner",
+  "גלנט": "gallant", "יואב גלנט": "gallant",
+
+  // יש עתיד
+  "לפיד": "lapid", "יאיר לפיד": "lapid",
+  "אלהרר": "karine-elharrar", "קארין אלהרר": "karine-elharrar",
+  "בן ברק": "ram-ben-barak", "רם בן ברק": "ram-ben-barak",
+  "סגלוביץ'": "yoav-segalovitz", "יואב סגלוביץ'": "yoav-segalovitz",
+  "טופורובסקי": "boaz-toporovsky", "בועז טופורובסקי": "boaz-toporovsky",
+  "להב הרצנו": "yorai-lahav", "יוראי להב הרצנו": "yorai-lahav",
+  "בליאק": "vladimir-beliak", "ולדימיר בליאק": "vladimir-beliak",
+  "מיקי לוי": "mickey-levy",
+  "אלעזר שטרן": "elazar-stern", "שטרן": "elazar-stern",
+
+  // הציונות הדתית
+  "סמוטריץ'": "smotrich", "בצלאל סמוטריץ'": "smotrich",
+  "אופיר סופר": "ofir-sofer", "סופר": "ofir-sofer",
+  "סטרוק": "orit-strook", "אורית סטרוק": "orit-strook",
+  "רוטמן": "simcha-rothman", "שמחה רוטמן": "simcha-rothman",
+  "סוכות": "zvi-sukkot", "צבי סוכות": "zvi-sukkot",
+
+  // ש"ס
+  "דרעי": "deri", "אריה דרעי": "deri",
+  "מרגי": "yaakov-margi", "יעקב מרגי": "yaakov-margi",
+  "מלכיאלי": "michael-malchieli", "מיכאל מלכיאלי": "michael-malchieli",
+  "ארבל": "moshe-arbel", "משה ארבל": "moshe-arbel",
+  "בוסו": "uriel-buso", "אוריאל בוסו": "uriel-buso",
+
+  // עוצמה יהודית
+  "בן גביר": "ben-gvir", "איתמר בן גביר": "ben-gvir",
+  "וסרלאוף": "yitzhak-wasserlauf", "יצחק וסרלאוף": "yitzhak-wasserlauf",
+  "פוגל": "zvika-fogel", "צביקה פוגל": "zvika-fogel",
+  "סון הר מלך": "limor-son-har-melech", "לימור סון הר מלך": "limor-son-har-melech",
+  "עמיחי אליהו": "amihai-eliyahu",
+  "אלמוג כהן": "almog-cohen",
+
+  // יהדות התורה
+  "גולדקנופף": "goldknopf", "יצחק גולדקנופף": "goldknopf",
+  "גפני": "moshe-gafni", "משה גפני": "moshe-gafni",
+  "פרוש": "meir-porush", "מאיר פרוש": "meir-porush",
+  "מקלב": "uri-maklev", "אורי מקלב": "uri-maklev",
+  "אייכלר": "israel-eichler", "ישראל אייכלר": "israel-eichler",
+
+  // המחנה הממלכתי
+  "גנץ": "gantz", "בני גנץ": "gantz",
+  "איזנקוט": "eisenkot", "גדי איזנקוט": "eisenkot",
+  "גינזבורג": "eitan-ginzburg", "איתן גינזבורג": "eitan-ginzburg",
+  "תמנו שטה": "pnina-tamano-shata", "פנינה תמנו שטה": "pnina-tamano-shata",
+  "טרופר": "hili-tropper", "חילי טרופר": "hili-tropper",
+
+  // ישראל ביתנו
+  "ליברמן": "lieberman", "אביגדור ליברמן": "lieberman",
+  "פורר": "oded-forer", "עודד פורר": "oded-forer",
+
+  // רע"מ
+  "עבאס": "abbas", "מנסור עבאס": "abbas",
+  "וליד טאהא": "walid-taha",
+
+  // חד"ש-תע"ל
+  "עודה": "odeh", "איימן עודה": "odeh",
+  "טיבי": "ahmad-tibi", "אחמד טיבי": "ahmad-tibi",
+  "תומא סלימאן": "aida-touma-suleiman", "עאידה תומא סלימאן": "aida-touma-suleiman",
+  "כסיף": "ofer-cassif", "עופר כסיף": "ofer-cassif",
+
+  // העבודה
+  "מיכאלי": "michaeli", "מרב מיכאלי": "michaeli",
+  "לזימי": "naama-lazimi", "נעמה לזימי": "naama-lazimi",
+  "קריב": "gilad-kariv", "גלעד קריב": "gilad-kariv",
+
+  // תקווה חדשה
+  "סער": "saar", "גדעון סער": "saar",
+  "אלקין": "zeev-elkin", "זאב אלקין": "zeev-elkin",
+  "השכל": "sharren-haskel", "שרן השכל": "sharren-haskel",
+
+  // נועם
+  "מעוז": "avi-maoz", "אבי מעוז": "avi-maoz",
 };

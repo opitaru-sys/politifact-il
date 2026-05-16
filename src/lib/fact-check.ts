@@ -2,6 +2,35 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { NAME_TO_ID } from "./rss-feeds";
 
+async function fetchArticleContent(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Badak-FactChecker/1.0" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const html = await res.text();
+    // Strip HTML tags, scripts, styles — extract text content
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.substring(0, 8000);
+  } catch {
+    return null;
+  }
+}
+
 const anthropic = new Anthropic();
 
 interface ExtractedClaim {
@@ -29,21 +58,23 @@ export async function extractClaims(
     messages: [
       {
         role: "user",
-        content: `אתה מנתח כתבות חדשותיות ישראליות. חלץ טענות עובדתיות שניתנות לבדיקה שנאמרו על ידי פוליטיקאים מהכתבה הבאה.
+        content: `אתה מנתח כתבות חדשותיות ישראליות ומחלץ טענות של פוליטיקאים שניתן לבדוק.
 
 כללים:
-- חלץ רק טענות עובדתיות שניתן לאמת (לא דעות, הבטחות, או תחזיות)
-- חלץ את הציטוט המדויק ככל האפשר
-- זהה את שם הפוליטיקאי
-- סווג את הנושא (כלכלה, ביטחון, חינוך, בריאות, חברה, ביטחון פנים, התנחלויות, דת ומדינה, וכד')
-- אם אין טענות עובדתיות שניתנות לבדיקה, החזר מערך ריק
+- חלץ טענות עובדתיות שנאמרו על ידי פוליטיקאים ישראליים או שמיוחסות להם
+- כולל: ציטוטים ישירים, פרפרזות, טענות שפוליטיקאי ידוע בהן, או עובדות שפוליטיקאי ציין
+- כולל: טענות על נתונים, סטטיסטיקות, תוצאות, מדיניות, אירועים היסטוריים
+- לא כולל: דעות טהורות, הבטחות עתידיות בלבד, או ספקולציות
+- זהה את שם הפוליטיקאי (שם מלא בעברית)
+- סווג את הנושא (כלכלה, ביטחון, חינוך, בריאות, חברה, ביטחון פנים, התנחלויות, דת ומדינה, חוץ, משפט, וכד')
+- אם אין טענות רלוונטיות, החזר מערך ריק []
 
 כותרת: ${articleTitle}
 תוכן: ${articleContent}
 מקור: ${articleSource}
 
 החזר JSON בפורמט הבא בלבד, בלי טקסט נוסף:
-[{"politicianName": "שם הפוליטיקאי", "quote": "הציטוט/הטענה", "topic": "נושא"}]`,
+[{"politicianName": "שם הפוליטיקאי", "quote": "הטענה כפי שנאמרה או יוחסה", "topic": "נושא"}]`,
       },
     ],
   });
@@ -109,7 +140,19 @@ export async function processArticle(articleId: string) {
   const article = await prisma.article.findUnique({ where: { id: articleId } });
   if (!article || article.processed) return [];
 
-  const claims = await extractClaims(article.title, article.content || "", article.source);
+  let content = article.content || "";
+  if (content.length < 200) {
+    const fullContent = await fetchArticleContent(article.url);
+    if (fullContent && fullContent.length > content.length) {
+      content = fullContent;
+      await prisma.article.update({
+        where: { id: articleId },
+        data: { content },
+      });
+    }
+  }
+
+  const claims = await extractClaims(article.title, content, article.source);
 
   const results = [];
 
@@ -137,7 +180,7 @@ export async function processArticle(articleId: string) {
         factSourceUrl: factCheck.factSourceUrl,
         topic: claim.topic,
         date: article.publishedAt || new Date(),
-        status: factCheck.confidence >= 0.7 ? "published" : "review",
+        status: factCheck.confidence >= 0.5 ? "published" : "review",
         confidence: factCheck.confidence,
       },
     });
@@ -156,11 +199,11 @@ export async function processArticle(articleId: string) {
   return results;
 }
 
-export async function processUnprocessedArticles() {
+export async function processUnprocessedArticles(limit: number = 50) {
   const articles = await prisma.article.findMany({
     where: { processed: false },
-    orderBy: { fetchedAt: "desc" },
-    take: 10,
+    orderBy: { fetchedAt: "asc" },
+    take: limit,
   });
 
   console.log(`Processing ${articles.length} unprocessed articles...`);

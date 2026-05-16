@@ -1,6 +1,6 @@
 import Parser from "rss-parser";
 import { prisma } from "./db";
-import { RSS_FEEDS, POLITICIAN_NAMES, type FeedSource } from "./rss-feeds";
+import { RSS_FEEDS, type FeedSource } from "./rss-feeds";
 
 const parser = new Parser({
   timeout: 10000,
@@ -8,10 +8,6 @@ const parser = new Parser({
     "User-Agent": "Badak-FactChecker/1.0",
   },
 });
-
-function containsPoliticianMention(text: string): boolean {
-  return POLITICIAN_NAMES.some((name) => text.includes(name));
-}
 
 export async function fetchFeed(feed: FeedSource) {
   try {
@@ -21,10 +17,6 @@ export async function fetchFeed(feed: FeedSource) {
     for (const item of result.items) {
       const title = item.title || "";
       const content = item.contentSnippet || item.content || "";
-      const combined = `${title} ${content}`;
-
-      if (!containsPoliticianMention(combined)) continue;
-
       const url = item.link;
       if (!url) continue;
 
