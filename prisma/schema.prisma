@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Politician {
+  id        String   @id @default(cuid())
+  name      String
+  party     String
+  role      String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  claims    Claim[]
+}
+
+model Claim {
+  id             String   @id @default(cuid())
+  politicianId   String
+  politician     Politician @relation(fields: [politicianId], references: [id])
+  quote          String
+  verdict        String   // "true" | "half-true" | "false"
+  explanation    String
+  source         String   // where the politician said it (e.g. "Ynet")
+  sourceUrl      String
+  factSource     String?  // authoritative data source
+  factSourceUrl  String?
+  topic          String
+  date           DateTime
+  status         String   @default("published") // "draft" | "review" | "published"
+  confidence     Float?   // AI confidence score 0-1
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([politicianId])
+  @@index([date])
+  @@index([verdict])
+}
+
+model Article {
+  id            String   @id @default(cuid())
+  title         String
+  url           String   @unique
+  source        String   // "ynet" | "n12" | "walla" | etc
+  content       String?
+  publishedAt   DateTime?
+  fetchedAt     DateTime @default(now())
+  processed     Boolean  @default(false)
+  extractedData String?  // JSON: extracted quotes and claims
+
+  @@index([source])
+  @@index([processed])
+}

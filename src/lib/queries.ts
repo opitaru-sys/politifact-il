@@ -1,0 +1,123 @@
+import { prisma } from "./db";
+import type { Verdict } from "@/data/mock";
+
+export async function getRecentClaims(days: number = 7) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  return prisma.claim.findMany({
+    where: {
+      date: { gte: cutoff },
+      status: "published",
+    },
+    include: { politician: true },
+    orderBy: { date: "desc" },
+  });
+}
+
+export async function getAllPoliticians() {
+  return prisma.politician.findMany({
+    include: {
+      claims: {
+        where: { status: "published" },
+      },
+    },
+  });
+}
+
+export async function getPoliticianById(id: string) {
+  return prisma.politician.findUnique({
+    where: { id },
+    include: {
+      claims: {
+        where: { status: "published" },
+        orderBy: { date: "desc" },
+      },
+    },
+  });
+}
+
+export interface PoliticianStatsRow {
+  politician: {
+    id: string;
+    name: string;
+    party: string;
+    role: string | null;
+    image: string | null;
+  };
+  totalClaims: number;
+  trueClaims: number;
+  halfTrueClaims: number;
+  falseClaims: number;
+  truthPercentage: number;
+}
+
+export async function getPoliticianStats(): Promise<PoliticianStatsRow[]> {
+  const politicians = await getAllPoliticians();
+
+  return politicians
+    .map((p) => {
+      const claims = p.claims;
+      const trueClaims = claims.filter((c) => c.verdict === "true").length;
+      const halfTrueClaims = claims.filter((c) => c.verdict === "half-true").length;
+      const falseClaims = claims.filter((c) => c.verdict === "false").length;
+      const total = claims.length;
+      const truthPercentage =
+        total > 0
+          ? Math.round(((trueClaims + halfTrueClaims * 0.5) / total) * 100)
+          : 0;
+
+      return {
+        politician: {
+          id: p.id,
+          name: p.name,
+          party: p.party,
+          role: p.role,
+          image: p.image,
+        },
+        totalClaims: total,
+        trueClaims,
+        halfTrueClaims,
+        falseClaims,
+        truthPercentage,
+      };
+    })
+    .filter((s) => s.totalClaims > 0)
+    .sort((a, b) => a.truthPercentage - b.truthPercentage);
+}
+
+export async function getPartyStats() {
+  const politicians = await getAllPoliticians();
+
+  const partyMap: Record<
+    string,
+    { trueClaims: number; halfTrue: number; falseClaims: number; total: number }
+  > = {};
+
+  for (const p of politicians) {
+    for (const claim of p.claims) {
+      if (!partyMap[p.party]) {
+        partyMap[p.party] = { trueClaims: 0, halfTrue: 0, falseClaims: 0, total: 0 };
+      }
+      partyMap[p.party].total++;
+      if (claim.verdict === "true") partyMap[p.party].trueClaims++;
+      if (claim.verdict === "half-true") partyMap[p.party].halfTrue++;
+      if (claim.verdict === "false") partyMap[p.party].falseClaims++;
+    }
+  }
+
+  return Object.entries(partyMap)
+    .map(([party, stats]) => ({
+      party,
+      ...stats,
+      truthPercentage: Math.round(
+        ((stats.trueClaims + stats.halfTrue * 0.5) / stats.total) * 100
+      ),
+    }))
+    .sort((a, b) => a.truthPercentage - b.truthPercentage);
+}
+
+export async function hasAnyPublishedClaims(): Promise<boolean> {
+  const count = await prisma.claim.count({ where: { status: "published" } });
+  return count > 0;
+}
