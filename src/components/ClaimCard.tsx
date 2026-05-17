@@ -1,15 +1,33 @@
-import { Claim, getPolitician } from "@/data/mock";
+import { Claim } from "@/data/mock";
 import { VerdictBadge } from "./VerdictBadge";
 import { PoliticianAvatar } from "./PoliticianAvatar";
+import { ReportButton } from "./ReportButton";
+import { CommentsSection } from "./CommentsSection";
+import { ShareButtons } from "./ShareButtons";
+import { shareTextForClaim } from "@/lib/share-text";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("he-IL", { day: "numeric", month: "short" });
 }
 
-export function ClaimCard({ claim }: { claim: Claim }) {
-  const politician = getPolitician(claim.politicianId);
-  if (!politician) return null;
+interface ClaimWithPolitician extends Claim {
+  _politician?: {
+    id: string;
+    name: string;
+    party: string;
+    image?: string | null;
+  };
+  _commentCount?: number;
+}
+
+export function ClaimCard({ claim }: { claim: ClaimWithPolitician }) {
+  const politician = claim._politician ?? {
+    id: claim.politicianId,
+    name: claim.politicianId,
+    party: "",
+    image: null,
+  };
 
   return (
     <div className="bg-white rounded-xl border border-border p-4 hover:shadow-md transition-shadow">
@@ -29,25 +47,47 @@ export function ClaimCard({ claim }: { claim: Claim }) {
         &ldquo;{claim.quote}&rdquo;
       </blockquote>
       <p className="text-sm text-gray-600 leading-relaxed">{claim.explanation}</p>
-      <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-        <div className="flex items-center gap-2">
-          <span>נאמר ב: {claim.source}</span>
+      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span>
+            נאמר ב:{" "}
+            <a
+              href={claim.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline font-medium"
+            >
+              {claim.source} ↗
+            </a>
+          </span>
           {claim.factSource && (
             <>
               <span>•</span>
-              <a
-                href={claim.factSourceUrl ?? undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline font-medium"
-              >
-                {claim.factSource} ←
-              </a>
+              {claim.factSourceUrl ? (
+                <a
+                  href={claim.factSourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  מקור בדיקה: {claim.factSource} ↗
+                </a>
+              ) : (
+                <span className="text-gray-500">מקור בדיקה: {claim.factSource}</span>
+              )}
             </>
           )}
         </div>
-        <span className="bg-gray-100 px-2 py-0.5 rounded shrink-0">{claim.topic}</span>
+        <div className="flex items-center gap-3 shrink-0">
+          <ReportButton claimId={claim.id} />
+          <span className="bg-gray-100 px-2 py-0.5 rounded">{claim.topic}</span>
+        </div>
       </div>
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+        <span className="text-xs text-gray-400 shrink-0">שתפו:</span>
+        <ShareButtons text={shareTextForClaim(politician.name, claim.verdict, claim.quote)} />
+      </div>
+      <CommentsSection claimId={claim.id} initialCount={claim._commentCount ?? 0} />
     </div>
   );
 }

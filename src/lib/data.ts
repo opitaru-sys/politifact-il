@@ -1,7 +1,10 @@
 import * as queries from "./queries";
 import * as mock from "@/data/mock";
 
-export async function getRecentClaims(days: number = 7): Promise<mock.Claim[]> {
+export const STATS_WINDOW_DAYS = 30;
+export const MIN_CLAIMS_FOR_RANKING = 2;
+
+export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise<(mock.Claim & { _politician?: { id: string; name: string; party: string; image?: string | null }; _commentCount?: number })[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
     const claims = await queries.getRecentClaims(days);
@@ -17,24 +20,40 @@ export async function getRecentClaims(days: number = 7): Promise<mock.Claim[]> {
       factSourceUrl: c.factSourceUrl,
       date: c.date.toISOString().split("T")[0],
       topic: c.topic,
+      _politician: {
+        id: c.politician.id,
+        name: c.politician.name,
+        party: c.politician.party,
+        image: c.politician.image,
+      },
+      _commentCount: c._count.comments,
     }));
   }
-  return mock.getRecentClaims(days);
+  return mock.getRecentClaims(days).map((c) => ({
+    ...c,
+    _politician: mock.getPolitician(c.politicianId)
+      ? { ...mock.getPolitician(c.politicianId)!, image: mock.getPolitician(c.politicianId)!.image ?? null }
+      : undefined,
+    _commentCount: 0,
+  }));
 }
 
 export async function getPoliticianStats(): Promise<queries.PoliticianStatsRow[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    return queries.getPoliticianStats();
+    const stats = await queries.getPoliticianStats();
+    return stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_RANKING);
   }
-  return mock.getPoliticianStats().map((s) => ({
-    ...s,
-    politician: {
-      ...s.politician,
-      role: s.politician.role ?? null,
-      image: s.politician.image ?? null,
-    },
-  }));
+  return mock.getPoliticianStats()
+    .filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_RANKING)
+    .map((s) => ({
+      ...s,
+      politician: {
+        ...s.politician,
+        role: s.politician.role ?? null,
+        image: s.politician.image ?? null,
+      },
+    }));
 }
 
 export async function getPartyStats() {
@@ -64,6 +83,13 @@ export async function getPoliticianById(id: string) {
         factSourceUrl: c.factSourceUrl,
         date: c.date.toISOString().split("T")[0],
         topic: c.topic,
+        _politician: {
+          id: p.id,
+          name: p.name,
+          party: p.party,
+          image: p.image,
+        },
+        _commentCount: c._count?.comments ?? 0,
       })),
     };
   }
@@ -73,7 +99,10 @@ export async function getPoliticianById(id: string) {
     ...politician,
     createdAt: new Date(),
     updatedAt: new Date(),
-    claims: mock.getClaimsForPolitician(id),
+    claims: mock.getClaimsForPolitician(id).map((c) => ({
+      ...c,
+      _politician: { id: politician.id, name: politician.name, party: politician.party, image: politician.image ?? null },
+    })),
   };
 }
 
@@ -84,4 +113,26 @@ export async function getAllPoliticianIds(): Promise<string[]> {
     return all.filter((p) => p.claims.length > 0).map((p) => p.id);
   }
   return mock.politicians.map((p) => p.id);
+}
+
+/** Lightweight list for search/autocomplete — pulls from real DB if available. */
+export async function getAllPoliticiansLite(): Promise<
+  { id: string; name: string; party: string; image: string | null }[]
+> {
+  const hasReal = await queries.hasAnyPublishedClaims();
+  if (hasReal) {
+    const all = await queries.getAllPoliticians();
+    return all.map((p) => ({
+      id: p.id,
+      name: p.name,
+      party: p.party,
+      image: p.image,
+    }));
+  }
+  return mock.politicians.map((p) => ({
+    id: p.id,
+    name: p.name,
+    party: p.party,
+    image: p.image ?? null,
+  }));
 }

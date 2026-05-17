@@ -35,10 +35,35 @@ model Claim {
   confidence     Float?   // AI confidence score 0-1
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  reports        Report[]
+  comments       Comment[]
 
   @@index([politicianId])
   @@index([date])
   @@index([verdict])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  claimId   String
+  claim     Claim    @relation(fields: [claimId], references: [id])
+  author    String   // free-text name; no auth yet
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([claimId])
+  @@index([createdAt])
+}
+
+model Report {
+  id        String   @id @default(cuid())
+  claimId   String
+  claim     Claim    @relation(fields: [claimId], references: [id])
+  reason    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([claimId])
 }
 
 model Article {

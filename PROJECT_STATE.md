@@ -1,7 +1,7 @@
-# Badak (בדק) — Project State
+# Baduk (בדוק) — Project State
 
 ## What This Is
-A viral Israeli politician fact-checking website. Inspired by the "when to shower" (canishower.com) site from the Iran war. Name "בדק" is short for "בדיקת עובדות".
+A viral Israeli politician fact-checking website. Inspired by the "when to shower" (canishower.com) site from the Iran war. Name "בדוק" means "checked/verified" and evokes "בדיקת עובדות".
 
 ## Core Concept
 - "שקרן השבוע" (Liar of the Week) hero section — rolling 7-day window

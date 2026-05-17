@@ -5,13 +5,20 @@ export interface FeedSource {
 }
 
 export const RSS_FEEDS: FeedSource[] = [
+  // High-yield politics-specific feeds (politicians' own quotes are common)
+  { name: "מעריב פוליטי", url: "https://www.maariv.co.il/Rss/RssFeedsPolitiMedini", category: "politics" },
+  { name: "Walla פוליטיקה", url: "https://rss.walla.co.il/feed/3", category: "politics" },
+
+  // General news feeds — lower yield but broader coverage
   { name: "Ynet", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "general" },
   { name: "Ynet חדשות", url: "https://www.ynet.co.il/Integration/StoryRss1.xml", category: "general" },
   { name: "Walla", url: "https://rss.walla.co.il/feed/1", category: "general" },
   { name: "מעריב", url: "https://www.maariv.co.il/Rss/RssFeedsMivzakWorker", category: "general" },
   { name: "ישראל היום", url: "https://www.israelhayom.co.il/rss.xml", category: "general" },
-  { name: "הארץ", url: "https://www.haaretz.co.il/cmlink/1.1617539", category: "general" },
-  { name: "כאן חדשות", url: "https://www.kan.org.il/feed/", category: "general" },
+  // הארץ feed has had XML parse errors — re-enable if it stabilises
+  // { name: "הארץ", url: "https://www.haaretz.co.il/cmlink/1.1617539", category: "general" },
+  // כאן throttles non-browser UAs heavily — skip for now
+  // { name: "כאן חדשות", url: "https://www.kan.org.il/feed/", category: "general" },
 ];
 
 export const NAME_TO_ID: Record<string, string> = {

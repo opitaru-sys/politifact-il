@@ -4,7 +4,9 @@ import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
-  const stats = await getPoliticianStats();
+  const ascending = await getPoliticianStats();
+  // Display top-down: most truthful first
+  const stats = [...ascending].reverse();
 
   return (
     <div>

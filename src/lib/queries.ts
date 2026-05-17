@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import type { Verdict } from "@/data/mock";
 
-export async function getRecentClaims(days: number = 7) {
+export async function getRecentClaims(days: number = 30) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
 
@@ -10,7 +10,10 @@ export async function getRecentClaims(days: number = 7) {
       date: { gte: cutoff },
       status: "published",
     },
-    include: { politician: true },
+    include: {
+      politician: true,
+      _count: { select: { comments: true } },
+    },
     orderBy: { date: "desc" },
   });
 }
@@ -32,6 +35,7 @@ export async function getPoliticianById(id: string) {
       claims: {
         where: { status: "published" },
         orderBy: { date: "desc" },
+        include: { _count: { select: { comments: true } } },
       },
     },
   });
@@ -120,4 +124,27 @@ export async function getPartyStats() {
 export async function hasAnyPublishedClaims(): Promise<boolean> {
   const count = await prisma.claim.count({ where: { status: "published" } });
   return count > 0;
+}
+
+/**
+ * Most recent activity timestamp — used to render "last updated" on the site.
+ * Returns the newest of: claim createdAt, article fetchedAt.
+ */
+export async function getLastUpdate(): Promise<Date | null> {
+  const [latestClaim, latestArticle] = await Promise.all([
+    prisma.claim.findFirst({
+      where: { status: "published" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+    prisma.article.findFirst({
+      orderBy: { fetchedAt: "desc" },
+      select: { fetchedAt: true },
+    }),
+  ]);
+  const dates: Date[] = [];
+  if (latestClaim?.createdAt) dates.push(latestClaim.createdAt);
+  if (latestArticle?.fetchedAt) dates.push(latestArticle.fetchedAt);
+  if (dates.length === 0) return null;
+  return new Date(Math.max(...dates.map((d) => d.getTime())));
 }

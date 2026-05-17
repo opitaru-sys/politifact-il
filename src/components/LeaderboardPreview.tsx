@@ -9,7 +9,7 @@ export function LeaderboardPreview({ stats }: { stats: PoliticianStatsRow[] }) {
         <a href="/leaderboard" className="text-sm text-blue-600 hover:underline">הכל →</a>
       </div>
       <div className="divide-y divide-border flex-1">
-        {stats.slice(0, 5).map((stat, i) => (
+        {[...stats].reverse().slice(0, 5).map((stat, i) => (
           <a
             key={stat.politician.id}
             href={`/politician/${stat.politician.id}`}

@@ -1,6 +1,49 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { NAME_TO_ID } from "./rss-feeds";
+import { getEnvVar } from "./env";
+
+/**
+ * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
+ * normalize verb conjugations (basic), collapse whitespace.
+ * Used for dedup so "אשב עם מי שיחזק" matches "אשב עם מי שמחזק".
+ */
+function normalizeHebrew(s: string): string {
+  return s
+    .replace(/[֑-ׇ]/g, "")        // niqqud / cantillation marks
+    .replace(/[^א-ת\s]/g, " ")     // keep only Hebrew letters + space
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Letter-level Jaccard similarity of two normalized strings. */
+function similarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const wordsA = new Set(a.split(" ").filter((w) => w.length > 2));
+  const wordsB = new Set(b.split(" ").filter((w) => w.length > 2));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersect = 0;
+  for (const w of wordsA) if (wordsB.has(w)) intersect++;
+  const union = wordsA.size + wordsB.size - intersect;
+  return intersect / union;
+}
+
+/**
+ * True if politician already has a near-identical published claim.
+ * Compares normalized quotes by word-set Jaccard ≥ 0.6.
+ */
+async function isDuplicate(politicianId: string, quote: string): Promise<boolean> {
+  const existing = await prisma.claim.findMany({
+    where: { politicianId, status: "published" },
+    select: { quote: true },
+    take: 200,
+  });
+  const target = normalizeHebrew(quote);
+  for (const e of existing) {
+    if (similarity(target, normalizeHebrew(e.quote)) >= 0.6) return true;
+  }
+  return false;
+}
 
 async function fetchArticleContent(url: string): Promise<string | null> {
   try {
@@ -31,7 +74,11 @@ async function fetchArticleContent(url: string): Promise<string | null> {
   }
 }
 
-const anthropic = new Anthropic();
+function getAnthropic() {
+  const apiKey = getEnvVar("ANTHROPIC_API_KEY");
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not found in env or .env.local");
+  return new Anthropic({ apiKey });
+}
 
 interface ExtractedClaim {
   politicianName: string;
@@ -52,29 +99,44 @@ export async function extractClaims(
   articleContent: string,
   articleSource: string,
 ): Promise<ExtractedClaim[]> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2000,
     messages: [
       {
         role: "user",
-        content: `אתה מנתח כתבות חדשותיות ישראליות ומחלץ טענות של פוליטיקאים שניתן לבדוק.
+        content: `אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ רק טענות שעומדות בכל הקריטריונים הבאים:
 
-כללים:
-- חלץ טענות עובדתיות שנאמרו על ידי פוליטיקאים ישראליים או שמיוחסות להם
-- כולל: ציטוטים ישירים, פרפרזות, טענות שפוליטיקאי ידוע בהן, או עובדות שפוליטיקאי ציין
-- כולל: טענות על נתונים, סטטיסטיקות, תוצאות, מדיניות, אירועים היסטוריים
-- לא כולל: דעות טהורות, הבטחות עתידיות בלבד, או ספקולציות
-- זהה את שם הפוליטיקאי (שם מלא בעברית)
-- סווג את הנושא (כלכלה, ביטחון, חינוך, בריאות, חברה, ביטחון פנים, התנחלויות, דת ומדינה, חוץ, משפט, וכד')
-- אם אין טענות רלוונטיות, החזר מערך ריק []
+✅ המקור: הפוליטיקאי עצמו אמר את הדבר (ציטוט ישיר או פרפרזה של דבריו). לא דברים שעיתונאי כתב עליו.
+✅ סוג הטענה: עובדה ציבורית הניתנת לאימות עצמאי — מספרים, סטטיסטיקות, החלטות מדיניות, פעולות ממשלתיות, נתונים היסטוריים, הישגים נטענים, אשמות קונקרטיות.
+✅ נושא ציבורי: הטענה נוגעת למדיניות, לכלכלה, לביטחון, לחברה, למשפט, להתנחלויות, לחינוך, לבריאות, או לפעולת הממשלה — דברים שמשפיעים על אזרחים.
+
+❌ דחה לחלוטין את כל אלה (אל תחלץ אותם, גם אם הפוליטיקאי אמר אותם):
+- הספדים, אמירות על נופלים בקרב, ביטויי צער, התנצלויות אישיות
+- ברכות, התרגשויות, הוקרות, מסרי כבוד, ציטוטי דברי תורה/שירה
+- אמירות אישיות-ביוגרפיות על אדם ספציפי (מי הוא היה, מה הוא אהב, על מה התחתן וכו')
+- הבטחות לעתיד שאי אפשר עדיין לאמת ("נקים ועדה", "נטפל בזה", "אני אדאג לכך")
+- דעות לא-עובדתיות ("זו טעות חמורה", "המצב בלתי נסבל", "צריך להתנגד")
+- רטוריקה פוליטית ללא תוכן עובדתי ("הם הורסים את המדינה", "אנחנו ננצח")
+- ציטוטים על שלום, יוקרה, רגשות, או אמירות סמליות
+
+דוגמאות:
+✅ "האבטלה ירדה ל-2.1%" — עובדה הניתנת לבדיקה
+✅ "ב-2024 הוצאנו 40 מיליארד שקל על המלחמה" — נתון בר-בדיקה
+✅ "פירוז חמאס לא קרה כי אל-חדד סירב" — אשמה קונקרטית הניתנת לאימות
+❌ "מעוז ז\"ל היה מפקד נערץ" — הספד אישי, לא עובדה ציבורית
+❌ "אני נכנס לאירוע, חייבים להגיע לפשרה" — הצהרה רטורית כללית, אין בה עובדה
+❌ "נתניהו שיקר על האבטלה" — דברי כתב, לא הפוליטיקאי
+❌ "נקים ועדת חקירה ביום הראשון" — הבטחה לעתיד
+
+זהה את שם הפוליטיקאי (שם מלא בעברית), סווג את הנושא, ואם אין טענות העונות לכל הקריטריונים — החזר [].
 
 כותרת: ${articleTitle}
 תוכן: ${articleContent}
 מקור: ${articleSource}
 
 החזר JSON בפורמט הבא בלבד, בלי טקסט נוסף:
-[{"politicianName": "שם הפוליטיקאי", "quote": "הטענה כפי שנאמרה או יוחסה", "topic": "נושא"}]`,
+[{"politicianName": "שם הפוליטיקאי", "quote": "מה שהפוליטיקאי אמר", "topic": "נושא"}]`,
       },
     ],
   });
@@ -91,7 +153,7 @@ export async function extractClaims(
 }
 
 export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckResult> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2000,
     messages: [
@@ -166,6 +228,12 @@ export async function processArticle(articleId: string) {
     const politician = await prisma.politician.findUnique({ where: { id: politicianId } });
     if (!politician) continue;
 
+    // Dedup: skip if this politician already has a near-identical quote
+    if (await isDuplicate(politicianId, claim.quote)) {
+      console.log(`Skipping duplicate for ${claim.politicianName}: ${claim.quote.substring(0, 50)}`);
+      continue;
+    }
+
     const factCheck = await factCheckClaim(claim);
 
     const saved = await prisma.claim.create({
@@ -180,7 +248,7 @@ export async function processArticle(articleId: string) {
         factSourceUrl: factCheck.factSourceUrl,
         topic: claim.topic,
         date: article.publishedAt || new Date(),
-        status: factCheck.confidence >= 0.5 ? "published" : "review",
+        status: "published",
         confidence: factCheck.confidence,
       },
     });
