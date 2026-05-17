@@ -49,6 +49,7 @@ export const NAME_TO_ID: Record<string, string> = {
   "מאי גולן": "may-golan", "גולן": "may-golan",
   "קלנר": "ariel-kallner", "אריאל קלנר": "ariel-kallner",
   "גלנט": "gallant", "יואב גלנט": "gallant",
+  "שטרית": "keti-shitrit", "קטי שטרית": "keti-shitrit",
 
   // יש עתיד
   "לפיד": "lapid", "יאיר לפיד": "lapid",

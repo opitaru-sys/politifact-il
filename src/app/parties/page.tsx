@@ -1,14 +1,31 @@
+import type { Metadata } from "next";
 import { getPartyStats } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = {
+  title: "השוואת מפלגות | בדוק",
+  description: "איזו מפלגה הכי אמינה? דירוג מפלגות ישראליות לפי אחוז טענות שנמצאו אמת",
+};
+
+function scoreColor(pct: number): string {
+  if (pct < 40) return "var(--verdict-false)";
+  if (pct < 60) return "var(--verdict-half)";
+  return "var(--verdict-true)";
+}
+
 export default async function PartiesPage() {
-  const stats = await getPartyStats();
+  const ascending = await getPartyStats();
+  const stats = [...ascending].reverse();
 
   return (
     <div>
-      <h1 className="text-2xl font-black mb-1">השוואת מפלגות</h1>
-      <p className="text-sm text-gray-500 mb-6">איזו מפלגה הכי אמינה? דירוג לפי אחוז טענות שנמצאו אמת</p>
+      <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">השוואה · 30 ימים אחרונים</div>
+      <h1 className="text-4xl font-black mb-3 tracking-tight">דירוג מפלגות</h1>
+      <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
+        איזו מפלגה הכי אמינה? דירוג לפי אחוז הטענות שנמצאו אמת מתוך הטענות שנבדקו{" "}
+        <span className="text-foreground font-bold">ב-30 הימים האחרונים</span>.
+      </p>
 
       <div className="space-y-3">
         {stats.map((stat, i) => {
@@ -17,27 +34,69 @@ export default async function PartiesPage() {
           const trueWidth = (stat.trueClaims / stat.total) * 100;
 
           return (
-            <div key={stat.party} className="bg-white rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-gray-400">{i + 1}</span>
-                  <span className="font-bold">{stat.party}</span>
+            <div
+              key={stat.party}
+              className="bg-card border border-border-strong px-5 py-4"
+              style={{ borderRadius: 4 }}
+            >
+              <div className="flex items-baseline justify-between mb-3">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-sm font-black text-foreground-muted tabular-nums">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="font-black text-lg tracking-tight">{stat.party}</span>
                 </div>
-                <span className={`font-bold ${stat.truthPercentage < 40 ? "text-red-600" : stat.truthPercentage < 60 ? "text-yellow-600" : "text-green-600"}`}>
-                  {stat.truthPercentage}% אמינות
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="font-black text-2xl tabular-nums leading-none"
+                    style={{ color: scoreColor(stat.truthPercentage) }}
+                  >
+                    {stat.truthPercentage}
+                    <span className="text-base">%</span>
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider text-foreground-muted">
+                    אמינות
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="h-2.5 overflow-hidden flex bg-muted"
+                style={{ borderRadius: 2 }}
+              >
+                <div
+                  className="h-full"
+                  style={{ width: `${falseWidth}%`, backgroundColor: "var(--verdict-false)" }}
+                />
+                <div
+                  className="h-full"
+                  style={{ width: `${halfWidth}%`, backgroundColor: "var(--verdict-half)" }}
+                />
+                <div
+                  className="h-full"
+                  style={{ width: `${trueWidth}%`, backgroundColor: "var(--verdict-true)" }}
+                />
+              </div>
+
+              <div className="flex justify-between mt-3 text-[11px] text-foreground-muted uppercase tracking-wider tabular-nums">
+                <span>
+                  <span className="font-bold" style={{ color: "var(--verdict-false)" }}>
+                    {stat.falseClaims}
+                  </span>{" "}
+                  שקר
                 </span>
-              </div>
-
-              <div className="h-4 rounded-full overflow-hidden flex bg-gray-100">
-                <div className="bg-red-400 h-full" style={{ width: `${falseWidth}%` }} />
-                <div className="bg-yellow-400 h-full" style={{ width: `${halfWidth}%` }} />
-                <div className="bg-green-400 h-full" style={{ width: `${trueWidth}%` }} />
-              </div>
-
-              <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>❌ {stat.falseClaims} שקר</span>
-                <span>⚠️ {stat.halfTrue} חצי אמת</span>
-                <span>✅ {stat.trueClaims} אמת</span>
+                <span>
+                  <span className="font-bold" style={{ color: "var(--verdict-half)" }}>
+                    {stat.halfTrue}
+                  </span>{" "}
+                  חצי אמת
+                </span>
+                <span>
+                  <span className="font-bold" style={{ color: "var(--verdict-true)" }}>
+                    {stat.trueClaims}
+                  </span>{" "}
+                  אמת
+                </span>
               </div>
             </div>
           );

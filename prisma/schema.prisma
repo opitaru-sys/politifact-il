@@ -24,6 +24,7 @@ model Claim {
   politician     Politician @relation(fields: [politicianId], references: [id])
   quote          String
   verdict        String   // "true" | "half-true" | "false"
+  summary        String?  // one-sentence TL;DR of the explanation
   explanation    String
   source         String   // where the politician said it (e.g. "Ynet")
   sourceUrl      String
@@ -33,6 +34,9 @@ model Claim {
   date           DateTime
   status         String   @default("published") // "draft" | "review" | "published"
   confidence     Float?   // AI confidence score 0-1
+  editorApproved Boolean  @default(false) // passed second-pass AI verification
+  verifiedAt     DateTime? // when the second-pass verifier ran
+  verifierNotes  String?  // issues raised by the verifier (if not approved)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]

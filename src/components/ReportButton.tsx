@@ -4,8 +4,8 @@ import { useState } from "react";
 
 const REASONS = [
   "הטענה לא נאמרה על ידי הפוליטיקאי",
-  "פסק הדין שגוי — הטענה נכונה",
-  "פסק הדין שגוי — הטענה שגויה",
+  "פסק הדין שגוי, הטענה למעשה נכונה",
+  "פסק הדין שגוי, הטענה למעשה שגויה",
   "ההסבר חסר הקשר חשוב",
   "המקור לא תומך בטענה",
   "אחר",
@@ -39,7 +39,7 @@ export function ReportButton({ claimId }: { claimId: string }) {
   if (status === "done") {
     return (
       <span className="text-xs text-green-600 font-medium" title="הדיווח נשמר ויעבור בדיקה ידנית">
-        תודה — הדיווח יעבור בדיקה ✓
+        תודה, הדיווח יעבור בדיקה ✓
       </span>
     );
   }

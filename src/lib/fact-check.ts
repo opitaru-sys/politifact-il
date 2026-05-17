@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { NAME_TO_ID } from "./rss-feeds";
 import { getEnvVar } from "./env";
+import { verifyClaim } from "./verify-claim";
 
 /**
  * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
@@ -88,6 +89,7 @@ interface ExtractedClaim {
 
 interface FactCheckResult {
   verdict: "true" | "half-true" | "false";
+  summary: string;
   explanation: string;
   factSource: string | null;
   factSourceUrl: string | null;
@@ -105,38 +107,38 @@ export async function extractClaims(
     messages: [
       {
         role: "user",
-        content: `אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ רק טענות שעומדות בכל הקריטריונים הבאים:
+        content: `אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ טענות עובדתיות שאמרו פוליטיקאים, ניתנות לאימות עצמאי.
 
-✅ המקור: הפוליטיקאי עצמו אמר את הדבר (ציטוט ישיר או פרפרזה של דבריו). לא דברים שעיתונאי כתב עליו.
-✅ סוג הטענה: עובדה ציבורית הניתנת לאימות עצמאי — מספרים, סטטיסטיקות, החלטות מדיניות, פעולות ממשלתיות, נתונים היסטוריים, הישגים נטענים, אשמות קונקרטיות.
-✅ נושא ציבורי: הטענה נוגעת למדיניות, לכלכלה, לביטחון, לחברה, למשפט, להתנחלויות, לחינוך, לבריאות, או לפעולת הממשלה — דברים שמשפיעים על אזרחים.
+✅ קריטריונים לחילוץ:
+1. **חייב להופיע ציטוט בגרשיים או "אמר", "טען", "הצהיר", "ציטט" בכתבה** — לא ניתוח של כתב על מה שהפוליטיקאי "התכוון". אם בכתבה לא מופיע ציטוט ישיר או פרפרזה מפורשת ("הוא אמר ש..."), אל תחלץ.
+2. **התוכן עובדתי ובר-אימות**: מספרים, סטטיסטיקות, החלטות מדיניות, פעולות ממשלתיות, נתונים היסטוריים, הישגים נטענים, אשמות קונקרטיות.
+3. **נושא ציבורי**: מדיניות, כלכלה, ביטחון, חברה, משפט, התנחלויות, חינוך, בריאות, או פעולת ממשלה.
 
-❌ דחה לחלוטין את כל אלה (אל תחלץ אותם, גם אם הפוליטיקאי אמר אותם):
-- הספדים, אמירות על נופלים בקרב, ביטויי צער, התנצלויות אישיות
-- ברכות, התרגשויות, הוקרות, מסרי כבוד, ציטוטי דברי תורה/שירה
-- אמירות אישיות-ביוגרפיות על אדם ספציפי (מי הוא היה, מה הוא אהב, על מה התחתן וכו')
-- הבטחות לעתיד שאי אפשר עדיין לאמת ("נקים ועדה", "נטפל בזה", "אני אדאג לכך")
-- דעות לא-עובדתיות ("זו טעות חמורה", "המצב בלתי נסבל", "צריך להתנגד")
-- רטוריקה פוליטית ללא תוכן עובדתי ("הם הורסים את המדינה", "אנחנו ננצח")
-- ציטוטים על שלום, יוקרה, רגשות, או אמירות סמליות
+✅ גם אם הטענה מנוסחת ברטוריקה פוליטית, אם יש בה ליבה עובדתית בת-אימות — חלץ אותה. למשל: "הם הורסים את המשק עם המסים הגבוהים בעולם" → חלץ את החלק העובדתי: "המסים בישראל הם הגבוהים בעולם".
+
+❌ אל תחלץ:
+- הספדים, ביטויי צער, ברכות, הוקרות, ציטוטי דברי תורה/שירה
+- אמירות אישיות-ביוגרפיות
+- הבטחות עתיד טהורות ("נקים ועדה", "נטפל בזה") — אבל "אתמול הקמתי ועדה" כן בסדר
+- דעות לא-עובדתיות בלבד ("זו טעות חמורה") ללא ליבת עובדה
+- רטוריקה ללא ליבת עובדה ("אנחנו ננצח")
+- שמועות, האשמות עיתונאיות, או דברים שמיוחסים לפוליטיקאי ללא ציטוט
 
 דוגמאות:
-✅ "האבטלה ירדה ל-2.1%" — עובדה הניתנת לבדיקה
-✅ "ב-2024 הוצאנו 40 מיליארד שקל על המלחמה" — נתון בר-בדיקה
-✅ "פירוז חמאס לא קרה כי אל-חדד סירב" — אשמה קונקרטית הניתנת לאימות
-❌ "מעוז ז\"ל היה מפקד נערץ" — הספד אישי, לא עובדה ציבורית
-❌ "אני נכנס לאירוע, חייבים להגיע לפשרה" — הצהרה רטורית כללית, אין בה עובדה
-❌ "נתניהו שיקר על האבטלה" — דברי כתב, לא הפוליטיקאי
-❌ "נקים ועדת חקירה ביום הראשון" — הבטחה לעתיד
+✅ ציטוט בכתבה: "האבטלה ירדה ל-2.1%, אמר נתניהו" → חלץ
+✅ ציטוט: "סמוטריץ' טען בכנסת: 'הגירעון יישמר ב-3.9%'" → חלץ
+❌ "מקורות בליכוד אומרים שנתניהו מתכוון לעלות מסים" → אל תחלץ, זו שמועה
+❌ פרשנות עיתונאית: "ראש הממשלה למעשה מודה בכישלון" → אל תחלץ, זו פרשנות
+❌ "מעוז ז\"ל היה מפקד נערץ" → הספד
 
-זהה את שם הפוליטיקאי (שם מלא בעברית), סווג את הנושא, ואם אין טענות העונות לכל הקריטריונים — החזר [].
+זהה את שם הפוליטיקאי (שם מלא בעברית), סווג את הנושא, ואם אין טענות העונות לקריטריונים — החזר [].
 
 כותרת: ${articleTitle}
 תוכן: ${articleContent}
 מקור: ${articleSource}
 
 החזר JSON בפורמט הבא בלבד, בלי טקסט נוסף:
-[{"politicianName": "שם הפוליטיקאי", "quote": "מה שהפוליטיקאי אמר", "topic": "נושא"}]`,
+[{"politicianName": "שם הפוליטיקאי", "quote": "הציטוט עצמו או פרפרזה צמודה", "topic": "נושא"}]`,
       },
     ],
   });
@@ -170,14 +172,18 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 - "half-true" = הטענה מכילה אמת חלקית, מטעה, או חסרה הקשר חשוב
 - "false" = הטענה שגויה או שקרית
 
+החזר 3 שדות טקסט:
+1. **summary**: משפט אחד תמציתי (עד 25 מילים) שמסכם למה הפסק דין הזה. זה ה-TL;DR שיוצג ראשון לגולש.
+2. **explanation**: הסבר מלא בעברית ברורה ותמציתית. ציין את העובדות העיקריות, מה תומך ומה סותר את הטענה, ואת ההקשר הנדרש.
+3. **factSource**: שם המקור הרשמי שעליו התבססת.
+
 חשוב:
 - התבסס על נתונים רשמיים (הלמ"ס, בנק ישראל, דו"חות מבקר המדינה, פרוטוקולי כנסת)
 - אם אין לך מידע מספיק, סמן confidence נמוך
-- הסבר בעברית ברורה ותמציתית
-- ציין את המקור הרשמי לבדיקה
+- אל תכתוב את ה-summary כמילה הראשונה של ה-explanation. הם נפרדים: ה-summary הוא רזה ומסכם, ה-explanation מפרט.
 
 החזר JSON בפורמט הבא בלבד:
-{"verdict": "true/half-true/false", "explanation": "הסבר בעברית", "factSource": "שם המקור הרשמי", "factSourceUrl": "כתובת המקור או null", "confidence": 0.0-1.0}`,
+{"verdict": "true/half-true/false", "summary": "משפט אחד מסכם", "explanation": "הסבר מלא בעברית", "factSource": "שם המקור הרשמי", "factSourceUrl": "כתובת המקור או null", "confidence": 0.0-1.0}`,
       },
     ],
   });
@@ -186,11 +192,20 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
-    return JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      verdict: parsed.verdict,
+      summary: parsed.summary || parsed.explanation?.split(/[.!?]/)[0] || "",
+      explanation: parsed.explanation,
+      factSource: parsed.factSource ?? null,
+      factSourceUrl: parsed.factSourceUrl ?? null,
+      confidence: parsed.confidence ?? 0.5,
+    };
   } catch {
     return {
       verdict: "half-true",
-      explanation: "לא ניתן לבדוק טענה זו באופן אוטומטי — נדרשת בדיקה ידנית",
+      summary: "טענה זו טעונה בדיקה ידנית.",
+      explanation: "לא ניתן לבדוק טענה זו באופן אוטומטי. נדרשת בדיקה ידנית.",
       factSource: null,
       factSourceUrl: null,
       confidence: 0,
@@ -241,6 +256,7 @@ export async function processArticle(articleId: string) {
         politicianId,
         quote: claim.quote,
         verdict: factCheck.verdict,
+        summary: factCheck.summary,
         explanation: factCheck.explanation,
         source: article.source,
         sourceUrl: article.url,
@@ -252,6 +268,31 @@ export async function processArticle(articleId: string) {
         confidence: factCheck.confidence,
       },
     });
+
+    // Second-pass verification. Fail-soft: a verifier error leaves the
+    // claim published but unverified, never blocks the pipeline.
+    try {
+      const verification = await verifyClaim({
+        quote: saved.quote,
+        verdict: saved.verdict as "true" | "half-true" | "false",
+        summary: saved.summary,
+        explanation: saved.explanation,
+        source: saved.source,
+        factSource: saved.factSource,
+        politicianName: politician.name,
+        topic: saved.topic,
+      });
+      await prisma.claim.update({
+        where: { id: saved.id },
+        data: {
+          editorApproved: verification.approved,
+          verifiedAt: new Date(),
+          verifierNotes: verification.issues.length ? verification.issues.join("; ") : null,
+        },
+      });
+    } catch (err) {
+      console.error(`Verification failed for claim ${saved.id}:`, err);
+    }
 
     results.push(saved);
   }

@@ -22,6 +22,23 @@ const politicians = [
   { id: "michaeli", wiki: "Merav_Michaeli" },
   { id: "abbas", wiki: "Mansour_Abbas" },
   { id: "odeh", wiki: "Ayman_Odeh" },
+  { id: "yoav-kisch", wiki: "Yoav_Kisch" },
+  { id: "ahmad-tibi", wiki: "Ahmad_Tibi" },
+  { id: "moshe-gafni", wiki: "Moshe_Gafni" },
+  { id: "miki-zohar", wiki: "Miki_Zohar" },
+  { id: "ofer-cassif", wiki: "Ofer_Cassif" },
+  { id: "bennett", wiki: "Naftali_Bennett" },
+  { id: "israel-katz", wiki: "Israel_Katz_(politician)" },
+  { id: "keti-shitrit", wiki: "Keti_Shitrit" },
+  { id: "yariv-levin", wiki: "Yariv_Levin" },
+  { id: "miri-regev", wiki: "Miri_Regev" },
+  { id: "amir-ohana", wiki: "Amir_Ohana" },
+  { id: "nir-barkat", wiki: "Nir_Barkat" },
+  { id: "avi-dichter", wiki: "Avi_Dichter" },
+  { id: "shlomo-karhi", wiki: "Shlomo_Karhi" },
+  { id: "yuli-edelstein", wiki: "Yuli_Edelstein" },
+  { id: "simcha-rothman", wiki: "Simcha_Rothman" },
+  { id: "orit-strook", wiki: "Orit_Strook" },
 ];
 
 function fetchBuffer(url, maxRedirects = 5) {

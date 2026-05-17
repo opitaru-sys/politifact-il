@@ -42,8 +42,18 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <h1 className="text-2xl font-black mb-1">דיווחי שגיאה ({reports.length})</h1>
-      <p className="text-sm text-gray-500 mb-6">דיווחים מהקהל על טענות לא מדויקות</p>
+      <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">אדמין · דיווחים</div>
+      <h1 className="text-3xl font-black mb-2 tracking-tight">דיווחי שגיאה ({reports.length})</h1>
+      <p className="text-sm text-foreground-muted mb-4">דיווחים מהקהל על טענות לא מדויקות</p>
+      <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase mb-6">
+        <a
+          href={`/admin/status?key=${key}`}
+          className="text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1"
+        >
+          ← סטטוס
+        </a>
+        <span className="text-foreground font-bold border-b-2 border-accent pb-1 mr-3">דיווחים</span>
+      </nav>
 
       <div className="space-y-3">
         {reports.map((r) => (

@@ -19,7 +19,7 @@ function timeAgoHebrew(dateStr: string): string {
   if (hours < 24) return `לפני ${hours} שעות`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `לפני ${days} ימים`;
-  return date.toLocaleDateString("he-IL");
+  return date.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
 }
 
 export function CommentsSection({
@@ -100,7 +100,7 @@ export function CommentsSection({
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="הוסיפו תגובה — שתפו הקשר, תקנו, או הוסיפו מקור"
+              placeholder="הוסיפו תגובה. שתפו הקשר, תקנו, או הוסיפו מקור"
               maxLength={1000}
               className="w-full text-sm px-3 py-1.5 border border-gray-200 rounded resize-none h-16 bg-white"
               dir="rtl"
@@ -121,7 +121,7 @@ export function CommentsSection({
           {/* List */}
           {!loaded && <div className="text-xs text-gray-400">טוען...</div>}
           {loaded && comments.length === 0 && (
-            <div className="text-xs text-gray-400 italic">אין תגובות עדיין — היו הראשונים</div>
+            <div className="text-xs text-gray-400 italic">אין תגובות עדיין. היו הראשונים</div>
           )}
           {comments.map((c) => (
             <div key={c.id} className="bg-white border border-gray-100 rounded-lg p-3">

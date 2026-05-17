@@ -54,13 +54,22 @@ if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.length < 10)
 // Now safe to import the pipeline modules (they read env at import time)
 const { fetchAllFeeds } = await import("../src/lib/ingest");
 const { processUnprocessedArticles } = await import("../src/lib/fact-check");
+const { ingestKnessetPlenum } = await import("../src/lib/knesset-ingest");
 
 console.log("\n--- Ingesting RSS feeds ---");
 const ingestResults = await fetchAllFeeds();
 const totalFetched = ingestResults.reduce((s, r) => s + (r.fetched || 0), 0);
-console.log(`Ingested ${totalFetched} new articles`);
+console.log(`Ingested ${totalFetched} new RSS articles`);
 for (const r of ingestResults) {
   console.log(`  ${r.feed}: ${r.fetched}${r.error ? ` (error: ${r.error.slice(0, 80)})` : ""}`);
+}
+
+console.log("\n--- Ingesting Knesset plenary transcripts ---");
+try {
+  const knesset = await ingestKnessetPlenum({ knessetNum: 25, sessionLimit: 3 });
+  console.log(`Knesset: ${knesset.sessions} sessions / ${knesset.docs} docs / ${knesset.speeches} new speeches`);
+} catch (err) {
+  console.error("Knesset ingest failed:", err);
 }
 
 console.log("\n--- Processing articles ---");

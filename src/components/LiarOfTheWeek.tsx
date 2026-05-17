@@ -1,94 +1,154 @@
 import type { PoliticianStatsRow } from "@/lib/queries";
+import { MIN_CLAIMS_FOR_HERO, STATS_WINDOW_DAYS } from "@/lib/data";
 import { PoliticianAvatar } from "./PoliticianAvatar";
 
-export function LiarOfTheWeek({ stats }: { stats: PoliticianStatsRow[] }) {
-  if (stats.length === 0) return null;
+function scoreColor(pct: number): string {
+  if (pct < 40) return "var(--verdict-false)";
+  if (pct < 60) return "var(--verdict-half)";
+  return "var(--verdict-true)";
+}
 
-  // Most truthful = last in the array (sorted asc by truthPercentage)
-  const mostHonest = stats[stats.length - 1];
-  const leastHonest = stats[0];
+export function LiarOfTheWeek({ stats }: { stats: PoliticianStatsRow[] }) {
+  // For the hero spots, only consider politicians with enough claims for a meaningful ranking.
+  const qualified = stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_HERO);
+  if (qualified.length === 0) return null;
+
+  const top = qualified[qualified.length - 1];
+  const bottom = qualified[0];
+  const qualifiedCount = qualified.length;
+  const showBottom = bottom.politician.id !== top.politician.id;
+  // "Small pool" caveat — three politicians is not a definitive ranking.
+  const smallPool = qualifiedCount < 5;
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      {/* Hero: most honest */}
-      <div className="relative bg-gradient-to-bl from-green-50 via-emerald-50 to-teal-50 rounded-2xl border border-green-200 p-6 text-center flex-1 overflow-hidden">
-        {/* Decorative ribbon corner */}
-        <div className="absolute -top-1 -left-1 w-20 h-20 opacity-20 pointer-events-none">
-          <svg viewBox="0 0 80 80" className="w-full h-full text-green-600">
-            <path d="M0 0 L80 0 L80 80 Z" fill="currentColor" />
-          </svg>
+      {/* Primary card. Frames the leader as "1st place out of N", not "the most credible". */}
+      <a
+        href={`/politician/${top.politician.id}`}
+        className="group relative bg-card border border-border-strong p-6 flex-1 overflow-hidden hover:bg-muted/40 transition-colors block"
+        style={{ borderRadius: 4 }}
+      >
+        {/* Eyebrow: position, not superlative */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[10px] font-bold tracking-[0.25em] uppercase text-accent">
+            במקום הראשון
+          </span>
+          <span className="text-[10px] tracking-widest text-foreground-muted uppercase tabular-nums">
+            1 / {qualifiedCount}
+          </span>
         </div>
-        {/* Floating sparkles */}
-        <div className="absolute top-4 right-6 text-2xl opacity-40 select-none" aria-hidden="true">✨</div>
-        <div className="absolute bottom-8 left-6 text-xl opacity-30 select-none" aria-hidden="true">⭐</div>
 
-        <div className="relative">
-          <div className="inline-flex items-center gap-1.5 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-3 shadow-sm">
-            🏆 ישר השבוע
-          </div>
-
-          <div className="mx-auto mb-3 relative inline-block">
-            {/* Soft halo around avatar */}
-            <div className="absolute inset-0 -m-2 rounded-full bg-gradient-to-br from-yellow-200 to-amber-100 opacity-60 blur-md" aria-hidden="true" />
-            <div className="relative">
-              <PoliticianAvatar
-                id={mostHonest.politician.id}
-                name={mostHonest.politician.name}
-                image={mostHonest.politician.image}
-                size="lg"
-              />
-            </div>
-          </div>
-
-          <div className="text-xl font-black mb-1">{mostHonest.politician.name}</div>
-          <div className="text-sm text-gray-600 mb-4">{mostHonest.politician.party}</div>
-
-          <div className="flex justify-center gap-2 text-sm mb-4">
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-green-100">
-              <div className="text-green-600 font-bold text-lg">{mostHonest.trueClaims}</div>
-              <div className="text-gray-500 text-xs">אמת</div>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-yellow-100">
-              <div className="text-yellow-600 font-bold text-lg">{mostHonest.halfTrueClaims}</div>
-              <div className="text-gray-500 text-xs">חצי</div>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-red-100">
-              <div className="text-red-600 font-bold text-lg">{mostHonest.falseClaims}</div>
-              <div className="text-gray-500 text-xs">שקר</div>
-            </div>
-          </div>
-
-          <div className="text-4xl font-black text-green-700 leading-none">{mostHonest.truthPercentage}%</div>
-          <div className="text-xs text-green-700 font-medium mt-1">אמינות</div>
-          <div className="text-[11px] text-gray-500 mt-2">מתוך {mostHonest.totalClaims} טענות שנבדקו</div>
-
-          <a
-            href={`/politician/${mostHonest.politician.id}`}
-            className="inline-flex items-center gap-1 mt-4 text-xs text-green-700 hover:text-green-900 font-medium hover:underline"
-          >
-            ראו את כל הטענות ←
-          </a>
+        {/* Sample disclaimer — promoted to top, not buried */}
+        <div className="text-[11px] text-foreground-muted leading-snug mb-5 pb-4 border-b border-border">
+          מבוסס על {qualifiedCount} פוליטיקאים שעמדו בסף של {MIN_CLAIMS_FOR_HERO}+ טענות שנבדקו ב-{STATS_WINDOW_DAYS} הימים האחרונים{smallPool ? "." : "."}
+          {smallPool && <span className="text-foreground-muted/80"> מדגם קטן.</span>}
         </div>
-      </div>
 
-      {/* Secondary: least honest */}
-      {leastHonest.politician.id !== mostHonest.politician.id && (
+        {/* Politician identity */}
+        <div className="flex items-center gap-4 mb-5">
+          <PoliticianAvatar
+            id={top.politician.id}
+            name={top.politician.name}
+            image={top.politician.image}
+            size="lg"
+          />
+          <div className="min-w-0">
+            <div className="text-2xl font-black leading-tight tracking-tight">
+              {top.politician.name}
+            </div>
+            <div className="text-sm text-foreground-muted mt-0.5">
+              {top.politician.party}
+            </div>
+          </div>
+        </div>
+
+        {/* Score + verdict breakdown on one row — reader sees the math at a glance */}
+        <div className="flex items-end justify-between gap-4 border-t border-border pt-5">
+          <div>
+            <div
+              className="text-5xl font-black leading-none tracking-tight tabular-nums"
+              style={{ color: scoreColor(top.truthPercentage) }}
+            >
+              {top.truthPercentage}
+              <span className="text-2xl">%</span>
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-2">
+              אמינות · מתוך {top.totalClaims} טענות
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 text-[11px] font-bold tabular-nums shrink-0">
+            <span
+              className="px-2 py-1 flex items-center justify-between gap-3 min-w-[5.5rem]"
+              style={{
+                backgroundColor: "var(--verdict-true-bg)",
+                color: "var(--verdict-true)",
+                borderRadius: 2,
+              }}
+            >
+              <span className="opacity-80">אמת</span>
+              <span>{top.trueClaims}</span>
+            </span>
+            <span
+              className="px-2 py-1 flex items-center justify-between gap-3 min-w-[5.5rem]"
+              style={{
+                backgroundColor: "var(--verdict-half-bg)",
+                color: "var(--verdict-half)",
+                borderRadius: 2,
+              }}
+            >
+              <span className="opacity-80">חצי</span>
+              <span>{top.halfTrueClaims}</span>
+            </span>
+            <span
+              className="px-2 py-1 flex items-center justify-between gap-3 min-w-[5.5rem]"
+              style={{
+                backgroundColor: "var(--verdict-false-bg)",
+                color: "var(--verdict-false)",
+                borderRadius: 2,
+              }}
+            >
+              <span className="opacity-80">שקר</span>
+              <span>{top.falseClaims}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 text-[11px] text-foreground-muted group-hover:text-accent transition-colors">
+          קרא את כל הטענות של {top.politician.name} ←
+        </div>
+      </a>
+
+      {/* Secondary card — "last place", neutral framing. Hide if no gap. */}
+      {showBottom && (
         <a
-          href={`/politician/${leastHonest.politician.id}`}
-          className="bg-red-50 rounded-xl border border-red-100 px-4 py-3 flex items-center gap-3 hover:bg-red-100 transition-colors"
+          href={`/politician/${bottom.politician.id}`}
+          className="bg-card border border-border px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors"
+          style={{ borderRadius: 4 }}
         >
           <PoliticianAvatar
-            id={leastHonest.politician.id}
-            name={leastHonest.politician.name}
-            image={leastHonest.politician.image}
+            id={bottom.politician.id}
+            name={bottom.politician.name}
+            image={bottom.politician.image}
             size="sm"
           />
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-red-600 font-bold">פחות ישר השבוע</div>
-            <div className="text-sm font-bold truncate">{leastHonest.politician.name}</div>
-            <div className="text-xs text-gray-500">{leastHonest.falseClaims} שקר מתוך {leastHonest.totalClaims} טענות</div>
+            <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-foreground-muted">
+              במקום האחרון <span className="text-foreground-muted/60 tabular-nums">· {qualifiedCount} / {qualifiedCount}</span>
+            </div>
+            <div className="text-sm font-bold truncate mt-0.5">
+              {bottom.politician.name}
+            </div>
+            <div className="text-[11px] text-foreground-muted tabular-nums">
+              {bottom.trueClaims} אמת · {bottom.halfTrueClaims} חצי · {bottom.falseClaims} שקר
+            </div>
           </div>
-          <div className="text-red-600 font-black text-lg shrink-0">{leastHonest.truthPercentage}%</div>
+          <div
+            className="font-black text-2xl shrink-0 tabular-nums"
+            style={{ color: scoreColor(bottom.truthPercentage) }}
+          >
+            {bottom.truthPercentage}
+            <span className="text-sm">%</span>
+          </div>
         </a>
       )}
     </div>

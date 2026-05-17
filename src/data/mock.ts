@@ -13,6 +13,7 @@ export interface Claim {
   politicianId: string;
   quote: string;
   verdict: Verdict;
+  summary?: string | null;
   explanation: string;
   source: string;
   sourceUrl: string;
@@ -20,6 +21,8 @@ export interface Claim {
   factSourceUrl?: string | null;
   date: string; // ISO date
   topic: string;
+  editorApproved?: boolean;
+  verifierNotes?: string | null;
 }
 
 export const politicians: Politician[] = [

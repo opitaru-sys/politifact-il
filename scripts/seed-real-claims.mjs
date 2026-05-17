@@ -418,6 +418,7 @@ async function main() {
         politicianId: c.politicianId,
         quote: c.quote,
         verdict: c.verdict,
+        summary: c.summary ?? null,
         explanation: c.explanation,
         source: c.source,
         sourceUrl: c.sourceUrl,
@@ -426,7 +427,9 @@ async function main() {
         topic: c.topic,
         date: new Date(c.date),
         status: "published",
-        confidence: 0.7,
+        confidence: 0.85,
+        // Seeded claims are manually curated, so they're trusted editor-approved.
+        editorApproved: true,
       },
     });
     inserted++;

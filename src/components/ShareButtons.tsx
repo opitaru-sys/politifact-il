@@ -20,13 +20,13 @@ export function ShareButtons({ text, url }: ShareButtonsProps) {
 
   function shareWhatsApp() {
     const shareUrl = getShareUrl();
-    const msg = `${text}\n\nבדוק — בדיקת עובדות:\n${shareUrl}`;
+    const msg = `${text}\n\nבדוק | בדיקת עובדות:\n${shareUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   }
 
   function shareTwitter() {
     const shareUrl = getShareUrl();
-    const msg = `${text}\n\nבדוק — בדיקת עובדות:`;
+    const msg = `${text}\n\nבדוק | בדיקת עובדות:`;
     window.open(
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}&url=${encodeURIComponent(shareUrl)}`,
       "_blank",

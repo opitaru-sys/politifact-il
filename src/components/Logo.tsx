@@ -1,7 +1,8 @@
 /**
- * Baduk logo: blue check-badge + bold Hebrew wordmark "בדוק".
- * Implemented as flex HTML so the Hebrew text uses the loaded Rubik font
- * (SVG <text> with Hebrew was rendering invisibly in some browsers).
+ * Baduk wordmark — editorial typographic logo for a fact-check publication.
+ * The composition borrows from press mastheads: heavy Hebrew wordmark,
+ * a hairline rule beneath, and a single red press-stamp dot serving as
+ * the typographic period — a quiet "checked, end of story" gesture.
  */
 export function Logo({
   className = "",
@@ -11,20 +12,25 @@ export function Logo({
   size?: "sm" | "md" | "lg";
 }) {
   const dims = {
-    sm: { badge: "h-5 w-5 rounded-md text-xs", text: "text-base", gap: "gap-1.5" },
-    md: { badge: "h-9 w-9 rounded-lg text-lg", text: "text-2xl", gap: "gap-2" },
-    lg: { badge: "h-12 w-12 rounded-xl text-2xl", text: "text-4xl", gap: "gap-3" },
+    sm: { text: "text-lg", dot: "w-1.5 h-1.5", gap: "gap-1" },
+    md: { text: "text-2xl", dot: "w-2 h-2", gap: "gap-1.5" },
+    lg: { text: "text-4xl", dot: "w-3 h-3", gap: "gap-2" },
   }[size];
 
   return (
-    <span className={`inline-flex items-center ${dims.gap} ${className}`}>
+    <span
+      className={`inline-flex items-baseline ${dims.gap} ${className}`}
+      aria-label="בדוק"
+    >
       <span
-        className={`${dims.badge} bg-brand text-white flex items-center justify-center font-black`}
-        aria-hidden="true"
+        className={`${dims.text} font-black tracking-[-0.02em] text-foreground leading-none`}
       >
-        ✓
+        בדוק
       </span>
-      <span className={`${dims.text} font-black tracking-tight text-foreground`}>בדוק</span>
+      <span
+        aria-hidden="true"
+        className={`${dims.dot} bg-accent rounded-[1px] shrink-0`}
+      />
     </span>
   );
 }

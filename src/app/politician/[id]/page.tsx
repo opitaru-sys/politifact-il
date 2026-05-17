@@ -1,13 +1,20 @@
+import type { Metadata } from "next";
 import { getPoliticianById, getAllPoliticianIds } from "@/lib/data";
+import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export async function generateStaticParams() {
-  const ids = await getAllPoliticianIds();
-  return ids.map((id) => ({ id }));
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const data = await getPoliticianById(id);
+  if (!data) return {};
+  return {
+    title: `${data.name} | בדוק`,
+    description: `בדיקת עובדות לטענות של ${data.name} (${data.party})`,
+  };
 }
 
 export default async function PoliticianPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,44 +30,109 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
     ? Math.round(((trueClaims + halfTrue * 0.5) / claims.length) * 100)
     : 0;
 
+  const scoreColor =
+    truthPct < 40
+      ? "var(--verdict-false)"
+      : truthPct < 60
+      ? "var(--verdict-half)"
+      : "var(--verdict-true)";
+  const sampleTooSmall = claims.length < MIN_CLAIMS_FOR_HERO;
+
   return (
     <div>
-      <div className="bg-white rounded-xl border border-border p-6 mb-6">
-        <div className="flex items-center gap-4 mb-4">
+      <div
+        className="bg-card border border-border-strong p-7 mb-8"
+        style={{ borderRadius: 4 }}
+      >
+        <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-4">תיק פוליטיקאי</div>
+        <div className="flex items-center gap-5 mb-6 pb-6 border-b border-border">
           <PoliticianAvatar id={id} name={data.name} image={data.image} size="lg" />
           <div>
-            <h1 className="text-2xl font-black">{data.name}</h1>
-            <div className="text-sm text-gray-500">
-              {data.party}
-              {data.role && ` • ${data.role}`}
+            <h1 className="text-3xl font-black tracking-tight">{data.name}</h1>
+            <div className="text-sm text-foreground-muted mt-1">
+              <span className="font-bold text-foreground">{data.party}</span>
+              {data.role && (
+                <>
+                  <span className="mx-2 opacity-40">·</span>
+                  {data.role}
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className={`text-xl font-bold ${truthPct < 40 ? "text-red-600" : truthPct < 60 ? "text-yellow-600" : "text-green-600"}`}>
-              {truthPct}%
+        {sampleTooSmall && (
+          <div
+            className="mb-4 px-4 py-3 text-[11px] leading-snug border"
+            style={{
+              backgroundColor: "var(--verdict-half-bg)",
+              color: "var(--verdict-half)",
+              borderColor: "var(--verdict-half)",
+              borderRadius: 2,
+            }}
+          >
+            <strong className="tracking-wider uppercase ml-1">מדגם קטן.</strong>
+            רק {claims.length} טענות נבדקו עד כה. אחוז האמינות לא נחשב אינדיקציה אמינה עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות.
+          </div>
+        )}
+
+        <div className="grid grid-cols-4 gap-0 border border-border" style={{ borderRadius: 2 }}>
+          <div className="px-3 py-4 text-center border-l border-border">
+            <div
+              className={`text-3xl font-black tabular-nums leading-none ${sampleTooSmall ? "opacity-50" : ""}`}
+              style={{ color: scoreColor }}
+              title={sampleTooSmall ? "מדגם קטן מדי לדירוג מהימן" : undefined}
+            >
+              {truthPct}
+              <span className="text-lg">%</span>
             </div>
-            <div className="text-xs text-gray-500">אמינות</div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+              אמינות
+            </div>
           </div>
-          <div className="bg-red-50 rounded-lg p-3">
-            <div className="text-xl font-bold text-red-600">{falseClaims}</div>
-            <div className="text-xs text-gray-500">שקר</div>
+          <div className="px-3 py-4 text-center border-l border-border">
+            <div
+              className="text-3xl font-black tabular-nums leading-none"
+              style={{ color: "var(--verdict-false)" }}
+            >
+              {falseClaims}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+              שקר
+            </div>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-3">
-            <div className="text-xl font-bold text-yellow-600">{halfTrue}</div>
-            <div className="text-xs text-gray-500">חצי אמת</div>
+          <div className="px-3 py-4 text-center border-l border-border">
+            <div
+              className="text-3xl font-black tabular-nums leading-none"
+              style={{ color: "var(--verdict-half)" }}
+            >
+              {halfTrue}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+              חצי אמת
+            </div>
           </div>
-          <div className="bg-green-50 rounded-lg p-3">
-            <div className="text-xl font-bold text-green-600">{trueClaims}</div>
-            <div className="text-xs text-gray-500">אמת</div>
+          <div className="px-3 py-4 text-center border-l border-border">
+            <div
+              className="text-3xl font-black tabular-nums leading-none"
+              style={{ color: "var(--verdict-true)" }}
+            >
+              {trueClaims}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+              אמת
+            </div>
           </div>
         </div>
       </div>
 
-      <h2 className="font-bold text-lg mb-3">כל הטענות שנבדקו ({claims.length})</h2>
-      <div className="space-y-3">
+      <div className="flex items-baseline justify-between mb-5 pb-3 border-b-[1.5px] border-border-strong">
+        <h2 className="font-black text-xl tracking-tight">כל הטענות שנבדקו</h2>
+        <span className="text-[11px] uppercase tracking-wider text-foreground-muted tabular-nums">
+          {claims.length} טענות
+        </span>
+      </div>
+      <div className="space-y-4">
         {claims.map((claim) => (
           <ClaimCard key={claim.id} claim={claim} />
         ))}

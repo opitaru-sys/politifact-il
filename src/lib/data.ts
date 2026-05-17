@@ -1,8 +1,13 @@
 import * as queries from "./queries";
 import * as mock from "@/data/mock";
 
+/** All stats (leaderboard, parties, hero) are computed over a rolling window. */
 export const STATS_WINDOW_DAYS = 30;
-export const MIN_CLAIMS_FOR_RANKING = 2;
+/** Minimum claims in the window to appear in the full leaderboard. */
+export const MIN_CLAIMS_FOR_RANKING = 1;
+/** Minimum claims to qualify for the "most credible" / "least credible" hero spots.
+ *  Three is the smallest number where a verdict mix is meaningful. */
+export const MIN_CLAIMS_FOR_HERO = 3;
 
 export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise<(mock.Claim & { _politician?: { id: string; name: string; party: string; image?: string | null }; _commentCount?: number })[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
@@ -13,11 +18,14 @@ export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise
       politicianId: c.politicianId,
       quote: c.quote,
       verdict: c.verdict as mock.Verdict,
+      summary: c.summary,
       explanation: c.explanation,
       source: c.source,
       sourceUrl: c.sourceUrl,
       factSource: c.factSource,
       factSourceUrl: c.factSourceUrl,
+      editorApproved: c.editorApproved,
+      verifierNotes: c.verifierNotes,
       date: c.date.toISOString().split("T")[0],
       topic: c.topic,
       _politician: {
@@ -41,7 +49,7 @@ export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise
 export async function getPoliticianStats(): Promise<queries.PoliticianStatsRow[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    const stats = await queries.getPoliticianStats();
+    const stats = await queries.getPoliticianStats(STATS_WINDOW_DAYS);
     return stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_RANKING);
   }
   return mock.getPoliticianStats()
@@ -59,7 +67,7 @@ export async function getPoliticianStats(): Promise<queries.PoliticianStatsRow[]
 export async function getPartyStats() {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    return queries.getPartyStats();
+    return queries.getPartyStats(STATS_WINDOW_DAYS);
   }
   return mock.getPartyStats();
 }
@@ -76,11 +84,14 @@ export async function getPoliticianById(id: string) {
         politicianId: c.politicianId,
         quote: c.quote,
         verdict: c.verdict as mock.Verdict,
+        summary: c.summary,
         explanation: c.explanation,
         source: c.source,
         sourceUrl: c.sourceUrl,
         factSource: c.factSource,
         factSourceUrl: c.factSourceUrl,
+        editorApproved: c.editorApproved,
+      verifierNotes: c.verifierNotes,
         date: c.date.toISOString().split("T")[0],
         topic: c.topic,
         _politician: {
@@ -113,6 +124,19 @@ export async function getAllPoliticianIds(): Promise<string[]> {
     return all.filter((p) => p.claims.length > 0).map((p) => p.id);
   }
   return mock.politicians.map((p) => p.id);
+}
+
+/** Politicians who exist but have no claims in the window. Used on leaderboard. */
+export async function getUnrankedPoliticians() {
+  const hasReal = await queries.hasAnyPublishedClaims();
+  if (!hasReal) return [];
+  const all = await queries.getUnrankedPoliticians(STATS_WINDOW_DAYS);
+  return all.map((p) => ({
+    id: p.id,
+    name: p.name,
+    party: p.party,
+    image: p.image,
+  }));
 }
 
 /** Lightweight list for search/autocomplete — pulls from real DB if available. */

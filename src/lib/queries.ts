@@ -18,12 +18,16 @@ export async function getRecentClaims(days: number = 30) {
   });
 }
 
-export async function getAllPoliticians() {
+export async function getAllPoliticians(windowDays?: number) {
+  const where: { status: string; date?: { gte: Date } } = { status: "published" };
+  if (windowDays !== undefined) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - windowDays);
+    where.date = { gte: cutoff };
+  }
   return prisma.politician.findMany({
     include: {
-      claims: {
-        where: { status: "published" },
-      },
+      claims: { where },
     },
   });
 }
@@ -56,8 +60,8 @@ export interface PoliticianStatsRow {
   truthPercentage: number;
 }
 
-export async function getPoliticianStats(): Promise<PoliticianStatsRow[]> {
-  const politicians = await getAllPoliticians();
+export async function getPoliticianStats(windowDays?: number): Promise<PoliticianStatsRow[]> {
+  const politicians = await getAllPoliticians(windowDays);
 
   return politicians
     .map((p) => {
@@ -90,8 +94,8 @@ export async function getPoliticianStats(): Promise<PoliticianStatsRow[]> {
     .sort((a, b) => a.truthPercentage - b.truthPercentage);
 }
 
-export async function getPartyStats() {
-  const politicians = await getAllPoliticians();
+export async function getPartyStats(windowDays?: number) {
+  const politicians = await getAllPoliticians(windowDays);
 
   const partyMap: Record<
     string,
@@ -124,6 +128,21 @@ export async function getPartyStats() {
 export async function hasAnyPublishedClaims(): Promise<boolean> {
   const count = await prisma.claim.count({ where: { status: "published" } });
   return count > 0;
+}
+
+/** Politicians who exist in the DB but have NO claims in the window. */
+export async function getUnrankedPoliticians(windowDays?: number) {
+  const cutoff = new Date();
+  if (windowDays !== undefined) cutoff.setDate(cutoff.getDate() - windowDays);
+
+  const claimWhere: { status: string; date?: { gte: Date } } = { status: "published" };
+  if (windowDays !== undefined) claimWhere.date = { gte: cutoff };
+
+  return prisma.politician.findMany({
+    where: { claims: { none: claimWhere } },
+    orderBy: { name: "asc" },
+    take: 100,
+  });
 }
 
 /**
