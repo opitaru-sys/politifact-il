@@ -17,6 +17,7 @@ interface SourceStats {
 interface PoliticianClaimCount {
   politicianId: string;
   cnt: bigint;
+  cnt30: bigint;
 }
 
 function formatRelative(d: Date | null): string {
@@ -96,14 +97,21 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
       GROUP BY source
       ORDER BY total DESC
     `,
-    prisma.$queryRaw<PoliticianClaimCount[]>`
-      SELECT politicianId, COUNT(*) as cnt
-      FROM Claim
-      WHERE status = 'published'
-      GROUP BY politicianId
-      ORDER BY cnt DESC
-      LIMIT 10
-    `,
+    (() => {
+      const cutoff30 = new Date();
+      cutoff30.setDate(cutoff30.getDate() - 30);
+      return prisma.$queryRaw<{ politicianId: string; cnt: bigint; cnt30: bigint }[]>`
+        SELECT
+          politicianId,
+          COUNT(*) as cnt,
+          SUM(CASE WHEN date >= ${cutoff30} THEN 1 ELSE 0 END) as cnt30
+        FROM Claim
+        WHERE status = 'published'
+        GROUP BY politicianId
+        ORDER BY cnt DESC
+        LIMIT 10
+      `;
+    })(),
     prisma.claim.findMany({
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -212,24 +220,31 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         <div className="flex items-baseline justify-between mb-3 pb-2 border-b-[1.5px] border-border-strong">
           <h2 className="font-black text-lg tracking-tight">פוליטיקאים מובילים</h2>
           <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
-            10 ראשונים בכמות טענות
+            סה״כ · 30 ימים אחרונים
           </span>
         </div>
         <div
           className="bg-card border border-border overflow-hidden"
           style={{ borderRadius: 4 }}
         >
+          <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 px-4 py-2 border-b border-border text-[10px] uppercase tracking-wider text-foreground-muted font-bold">
+            <span>#</span>
+            <span>פוליטיקאי</span>
+            <span className="text-left tabular-nums">סה״כ</span>
+            <span className="text-left tabular-nums">30 ימים</span>
+          </div>
           {topPoliticiansRaw.map((p, i) => (
             <a
               key={p.politicianId}
               href={`/politician/${p.politicianId}`}
-              className="grid grid-cols-[auto_1fr_auto] gap-x-4 items-center px-4 py-2 border-b border-border last:border-b-0 text-sm hover:bg-muted/40"
+              className="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 items-center px-4 py-2 border-b border-border last:border-b-0 text-sm hover:bg-muted/40"
             >
               <span className="text-[11px] font-black text-foreground-muted tabular-nums w-6">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span className="font-bold">{p.politicianId}</span>
-              <span className="tabular-nums font-bold">{Number(p.cnt)}</span>
+              <span className="tabular-nums font-bold text-left">{Number(p.cnt)}</span>
+              <span className="tabular-nums text-left text-foreground-muted">{Number(p.cnt30)}</span>
             </a>
           ))}
         </div>

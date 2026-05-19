@@ -73,7 +73,10 @@ try {
 }
 
 console.log("\n--- Processing articles ---");
-const claims = await processUnprocessedArticles(100);
+// Process up to 300 per run. RSS + Knesset can add 100-200 articles in a single
+// daily fetch; 100 was too tight and caused backlog. 300 covers typical days
+// with headroom. If queue still grows over time, run scripts/drain-queue.mts.
+const claims = await processUnprocessedArticles(300);
 console.log(`\nCreated ${claims.length} new claims`);
 
 console.log(`\n[${new Date().toISOString()}] Daily run complete ✓`);

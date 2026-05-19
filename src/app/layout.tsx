@@ -15,7 +15,14 @@ const TITLE = "בדוק | בדיקת עובדות לפוליטיקאים";
 const DESCRIPTION =
   "בדיקת עובדות בלתי-תלויה לפוליטיקאים ישראליים. מי הכי ישר, מי מטעה, ומה האמת מאחורי כל טענה. ללא שיוך פוליטי.";
 
+// Resolves at build time to the production URL (set NEXT_PUBLIC_SITE_URL in
+// the Vercel env) or falls back to a hard-coded default for local dev.
+// metadataBase is required for social-preview images (OG, Twitter) to resolve
+// absolute URLs when rendered by WhatsApp / X / Telegram / Slack.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://baduk.org.il";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
   applicationName: "בדוק",
@@ -27,6 +34,7 @@ export const metadata: Metadata = {
     locale: "he_IL",
     type: "website",
     siteName: "בדוק",
+    url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
