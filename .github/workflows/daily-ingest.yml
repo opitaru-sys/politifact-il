@@ -1,0 +1,52 @@
+name: Daily fact-check ingest
+
+# Runs the RSS + Knesset ingest, AI extraction, fact-check, and second-pass
+# verifier — same pipeline as the local `npm run daily` command, but running
+# against the production Postgres DB on Neon.
+#
+# Schedule: 06:00 IDT every day. UTC offset for Israel:
+#   - Summer (DST, ~Mar–Oct): IDT = UTC+3 → cron at 03:00 UTC
+#   - Winter (IST, ~Oct–Mar): IST = UTC+2 → cron at 04:00 UTC
+# We run twice (03:00 UTC and 04:00 UTC) and let the script itself be
+# idempotent — fetching the same RSS items twice is a no-op (article URL
+# is unique), so the only cost of the duplicate trigger is one extra HTTP
+# round-trip to the feeds. Simpler than tracking DST.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    # Manual trigger from the GitHub Actions UI for ad-hoc runs.
+
+# Don't let two scheduled runs overlap on the same database.
+concurrency:
+  group: daily-ingest
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Prisma client (Postgres)
+        run: npm run db:gen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run daily pipeline
+        run: npm run daily
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

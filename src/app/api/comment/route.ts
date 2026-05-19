@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const recentPosts = new Map<string, number[]>();
-
-function isRateLimited(ip: string, maxPerMinute: number = 5): boolean {
-  const now = Date.now();
-  const timestamps = recentPosts.get(ip) ?? [];
-  const recent = timestamps.filter((t) => now - t < 60_000);
-  if (recent.length >= maxPerMinute) return true;
-  recent.push(now);
-  recentPosts.set(ip, recent);
-  return false;
-}
 
 // GET /api/comment?claimId=... → list of comments for a claim (most recent first)
 export async function GET(request: Request) {
@@ -33,9 +22,12 @@ export async function GET(request: Request) {
 // POST /api/comment → { claimId, author, body }
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const allowed = await checkRateLimit("comment", request);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many comments. Please wait a minute before posting again." },
+        { status: 429 },
+      );
     }
 
     const { claimId, author, body } = await request.json();

@@ -58,15 +58,26 @@ async function getClaimsToVerify(forceAll: boolean = false): Promise<Array<{
   topic: string;
   politicianName: string;
 }>> {
-  const where = forceAll ? "1=1" : "(c.verifiedAt IS NULL)";
-  return prisma.$queryRawUnsafe(`
-    SELECT c.id, c.quote, c.verdict, c.summary, c.explanation, c.source, c.factSource, c.topic,
-           p.name as politicianName
-    FROM Claim c
-    JOIN Politician p ON p.id = c.politicianId
-    WHERE c.status = 'published' AND ${where}
-    ORDER BY c.createdAt ASC
-  `);
+  // Use Prisma's typed API instead of raw SQL — portable across SQLite/Postgres.
+  const where = forceAll
+    ? { status: "published" }
+    : { status: "published", verifiedAt: null };
+  const rows = await prisma.claim.findMany({
+    where,
+    orderBy: { createdAt: "asc" },
+    include: { politician: { select: { name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    quote: r.quote,
+    verdict: r.verdict,
+    summary: r.summary,
+    explanation: r.explanation,
+    source: r.source,
+    factSource: r.factSource,
+    topic: r.topic,
+    politicianName: r.politician.name,
+  }));
 }
 
 const forceAll = process.argv.includes("--all");
@@ -96,14 +107,14 @@ for (let i = 0; i < claims.length; i++) {
     });
 
     const issuesString = result.issues.length > 0 ? result.issues.join("; ") : null;
-    await prisma.$executeRawUnsafe(
-      `UPDATE Claim
-       SET editorApproved = ?, verifiedAt = datetime('now'), verifierNotes = ?
-       WHERE id = ?`,
-      result.approved ? 1 : 0,
-      issuesString,
-      c.id,
-    );
+    await prisma.claim.update({
+      where: { id: c.id },
+      data: {
+        editorApproved: result.approved,
+        verifiedAt: new Date(),
+        verifierNotes: issuesString,
+      },
+    });
 
     if (result.approved) {
       approved++;

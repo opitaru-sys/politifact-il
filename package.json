@@ -7,11 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "daily": "tsx scripts/daily.mts"
+    "daily": "tsx scripts/daily.mts",
+    "db:gen": "prisma generate",
+    "db:gen:local": "prisma generate --schema=prisma/schema.local.prisma",
+    "db:push": "prisma db push",
+    "db:push:local": "prisma db push --schema=prisma/schema.local.prisma",
+    "db:studio": "prisma studio",
+    "db:migrate": "tsx scripts/migrate-to-postgres.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@prisma/client": "^5.22.0",
+    "@sentry/nextjs": "^10.53.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
     "better-sqlite3": "^12.10.0",
     "next": "16.2.6",
     "prisma": "^5.22.0",
@@ -22,6 +31,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

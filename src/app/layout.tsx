@@ -83,11 +83,17 @@ export default async function RootLayout({
             </a>
             <HeaderNav />
           </div>
-          <div className="bg-foreground text-background px-5 py-1.5 text-center text-[10px] tracking-[0.2em] uppercase">
+          <div className="bg-foreground text-background px-5 py-1.5 text-center text-[10px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 flex-wrap">
+            <span
+              className="font-bold px-2 py-0.5 bg-accent text-background"
+              style={{ borderRadius: 2 }}
+            >
+              בטא
+            </span>
             <span className="opacity-90">בדיקת עובדות לפוליטיקאים ישראליים</span>
-            <span className="mx-3 opacity-40">·</span>
+            <span className="opacity-40">·</span>
             <span className="opacity-90">ללא שיוך פוליטי</span>
-            <span className="mx-3 opacity-40 hidden sm:inline">·</span>
+            <span className="opacity-40 hidden sm:inline">·</span>
             <span className="opacity-90 hidden sm:inline" title={lastUpdate?.toLocaleString("he-IL")}>
               עודכן {lastUpdateText}
             </span>
@@ -103,7 +109,10 @@ export default async function RootLayout({
           }}
         >
           <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
-          <span className="opacity-90">אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו עליה בכפתור שבכל טענה.</span>
+          <span className="opacity-90">
+            אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו עליה בכפתור שבכל טענה, או פנו אלינו ב-
+            <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+          </span>
         </div>
 
         <main className="max-w-5xl mx-auto px-5 py-10">

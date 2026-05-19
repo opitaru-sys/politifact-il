@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-
-const recentReports = new Map<string, number[]>();
-
-function isRateLimited(ip: string, maxPerMinute: number = 3): boolean {
-  const now = Date.now();
-  const timestamps = recentReports.get(ip) ?? [];
-  const recent = timestamps.filter((t) => now - t < 60_000);
-  if (recent.length >= maxPerMinute) return true;
-  recent.push(now);
-  recentReports.set(ip, recent);
-  return false;
-}
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const allowed = await checkRateLimit("report", request);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many reports. Please wait a minute." },
+        { status: 429 },
+      );
     }
 
     const { claimId, reason, details } = await request.json();

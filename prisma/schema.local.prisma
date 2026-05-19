@@ -3,11 +3,11 @@ generator client {
 }
 
 datasource db {
-  // Production target: Neon Postgres. Local dev uses the same Neon dev branch
-  // or a local docker `postgres:16` instance (see DEPLOY.md). The schema is
-  // designed to be portable; see scripts/migrate-to-postgres.mts for the
-  // one-time SQLite→Postgres data migration.
-  provider = "postgresql"
+  // Local dev only. Mirrors schema.prisma but uses SQLite for zero-setup
+  // local work. Regenerate the client against this schema with
+  // `npm run db:gen:local`. KEEP IN SYNC with schema.prisma — same models,
+  // fields, indices. Production deploy uses schema.prisma (Postgres).
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 

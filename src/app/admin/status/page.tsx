@@ -86,14 +86,17 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
       orderBy: { fetchedAt: "desc" },
       select: { fetchedAt: true },
     }),
-    prisma.$queryRaw<{ source: string; total: bigint; processed: bigint; unprocessed: bigint; lastFetched: string | number | bigint | null }[]>`
+    // Use bare boolean column (`WHEN processed` not `WHEN processed = 1`)
+    // for portability — SQLite stores Boolean as INTEGER 0/1 and Postgres
+    // uses native bool, but bare column evaluation works on both.
+    prisma.$queryRaw<{ source: string; total: bigint; processed: bigint; unprocessed: bigint; lastFetched: string | number | bigint | Date | null }[]>`
       SELECT
         source,
         COUNT(*) as total,
-        SUM(CASE WHEN processed = 1 THEN 1 ELSE 0 END) as processed,
-        SUM(CASE WHEN processed = 0 THEN 1 ELSE 0 END) as unprocessed,
-        MAX(fetchedAt) as lastFetched
-      FROM Article
+        SUM(CASE WHEN processed THEN 1 ELSE 0 END) as processed,
+        SUM(CASE WHEN NOT processed THEN 1 ELSE 0 END) as unprocessed,
+        MAX("fetchedAt") as "lastFetched"
+      FROM "Article"
       GROUP BY source
       ORDER BY total DESC
     `,
@@ -102,12 +105,12 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
       cutoff30.setDate(cutoff30.getDate() - 30);
       return prisma.$queryRaw<{ politicianId: string; cnt: bigint; cnt30: bigint }[]>`
         SELECT
-          politicianId,
+          "politicianId",
           COUNT(*) as cnt,
           SUM(CASE WHEN date >= ${cutoff30} THEN 1 ELSE 0 END) as cnt30
-        FROM Claim
+        FROM "Claim"
         WHERE status = 'published'
-        GROUP BY politicianId
+        GROUP BY "politicianId"
         ORDER BY cnt DESC
         LIMIT 10
       `;
