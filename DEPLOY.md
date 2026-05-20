@@ -1,139 +1,184 @@
 # Deploy בדוק to production
 
-Step-by-step. Estimated total time: 60-90 min of focused work, plus DNS propagation wait.
+Six steps left. Estimated 30 min of focused clicking, plus DNS propagation wait.
 
-You'll be working through these external services:
-- **Neon** (Postgres database) — free tier covers this site
-- **Vercel** (hosting) — free hobby tier covers it
-- **GitHub Actions** (daily ingest cron) — included with the GitHub repo, no extra account
-- **Upstash** (Redis for rate limiting) — free tier, ~30 sec signup
-- **Sentry** (error monitoring) — free tier, ~30 sec signup
-- **Anthropic** (API key for AI) — you already have one
+Open this file and check off each box as you go. Don't skip steps — env vars are interdependent.
 
-## 1. Set up Neon Postgres
+---
 
-1. Go to https://neon.tech, create a free project (region: closest to your users — `eu-central-1` for Israel).
-2. From the project dashboard, copy the **"Pooled"** connection string. It looks like:
-   ```
-   postgresql://user:pass@ep-cool-name-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
-   ```
-3. Save it somewhere safe — you'll paste it into Vercel + GitHub Actions secrets soon.
-4. **Optional but recommended:** create a separate Neon "branch" called `dev` and use that connection string for local development (set in `.env.local`). Keeps prod data clean.
+## What's already done
 
-## 2. Migrate data from local SQLite → Neon Postgres
+- [x] **Neon Postgres project + dev branch created.** Connection string is in `.env.local` and `.env`.
+- [x] **Data migrated.** 117 politicians, 1359 articles, 107 claims, 1 comment, 1 report copied from local SQLite to the Neon dev branch.
+- [x] **GitHub Actions secrets added.** `DATABASE_URL` and `ANTHROPIC_API_KEY` are set on the `opitaru-sys/politifact-il` repo. The daily cron points at the same Neon dev branch.
 
-This copies your 107 published claims, 100+ articles, all politicians, and any reports/comments from `prisma/dev.db` into Neon. One-time operation.
+Note on branches: for a beta launch I'm using a **single Neon branch (`dev`)** for everything — local dev, the cron, and (soon) the production Vercel deployment. Cleaner than splitting branches at this scale. When traffic justifies it, you can split into `production` + `dev` later (Neon makes that easy — see "Optional: split branches" at the bottom).
 
-```bash
-# 1. Push the schema to Neon (creates the empty tables)
-DATABASE_URL="postgresql://..." npm run db:gen
-DATABASE_URL="postgresql://..." npm run db:push
+---
 
-# 2. Run the data migration
-DATABASE_URL_POSTGRES="postgresql://..." npm run db:migrate
-```
+## Step 1 — Generate a strong ADMIN_SECRET *(1 min)*
 
-Expected output: `Politicians: 117, Articles: ~1000, Claims: 107, Comments: 1, Reports: 0`.
-
-If the migration fails partway, it's idempotent — re-run and it'll skip already-migrated rows. Verify counts manually:
-```bash
-DATABASE_URL="postgresql://..." node -e "const{PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.claim.count().then(n=>{console.log('claims:',n);p.\$disconnect();});"
-```
-
-## 3. Generate the admin secret
+The current value is `test-secret-123` which is obviously not safe for production. Replace it.
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Copy the 64-char hex string. You'll set it as `ADMIN_SECRET` in Vercel below.
+Copy the 64-character hex string. You'll paste it into Vercel in Step 4. Don't put it in your local `.env.local` yet — keep using the test secret for local dev so it's clear which environment you're hitting.
 
-## 4. Set up Upstash Redis (rate limiting)
+- [ ] Copied a new `ADMIN_SECRET` value to a safe place (1Password / etc.)
 
-1. https://upstash.com → sign up → "Create Database" → choose region near Neon.
-2. Copy the `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+---
 
-## 5. Set up Sentry (error monitoring)
+## Step 2 — Set up Upstash Redis *(3 min)*
 
-1. https://sentry.io → sign up → "Create Project" → platform: Next.js → name: `badak`.
-2. Copy the DSN. It looks like `https://abc...@...ingest.sentry.io/123`.
+For rate limiting on comments and reports. Without it, the in-memory limiter doesn't work on serverless (each function instance has its own memory = no real protection).
 
-## 6. Deploy to Vercel
+1. Go to https://upstash.com → "Sign up" (free, GitHub login works).
+2. Click "Create database":
+   - Name: `badak-ratelimit`
+   - Region: `Frankfurt` (closest to Neon EU)
+   - Type: Regional
+3. After it provisions, scroll to "REST API" section.
+4. Copy two values:
+   - `UPSTASH_REDIS_REST_URL` (looks like `https://something.upstash.io`)
+   - `UPSTASH_REDIS_REST_TOKEN` (long base64 string)
+5. Save them — they go into Vercel in Step 4.
 
-1. https://vercel.com → "Add New… → Project" → import `opitaru-sys/politifact-il` from GitHub.
-2. Framework Preset should auto-detect as **Next.js**. Don't change.
-3. **Don't deploy yet.** First add the env vars (Project Settings → Environment Variables). For each, set "Production" + "Preview" + "Development":
+- [ ] Upstash Redis created
+- [ ] `UPSTASH_REDIS_REST_URL` saved
+- [ ] `UPSTASH_REDIS_REST_TOKEN` saved
 
-   | Variable | Value |
-   |---|---|
-   | `DATABASE_URL` | Neon pooled connection string |
-   | `ANTHROPIC_API_KEY` | your Anthropic key |
-   | `ADMIN_SECRET` | the random hex from step 3 |
-   | `NEXT_PUBLIC_SITE_URL` | `https://baduk.org.il` (or whatever domain) |
-   | `UPSTASH_REDIS_REST_URL` | from step 4 |
-   | `UPSTASH_REDIS_REST_TOKEN` | from step 4 |
-   | `SENTRY_DSN` | from step 5 |
-   | `NEXT_PUBLIC_SENTRY_DSN` | same as `SENTRY_DSN` |
+---
 
-4. Hit Deploy. First build takes 2-3 minutes. If it fails, check the build log — most issues are missing env vars.
+## Step 3 — Set up Sentry *(3 min)*
 
-## 7. Configure the daily ingest cron via GitHub Actions
+For error monitoring. Without it, production crashes will be invisible.
 
-The cron is already wired in `.github/workflows/daily-ingest.yml`. Add the secrets to GitHub:
-
-1. Open your repo → Settings → Secrets and variables → Actions → "New repository secret".
-2. Add two secrets:
-   - `DATABASE_URL` — Neon connection string (same as Vercel)
-   - `ANTHROPIC_API_KEY` — your Anthropic key
-
-3. (Optional) Test it: Actions tab → "Daily fact-check ingest" → "Run workflow". Should take 10-20 min and complete green.
-
-4. **Disable the local Windows scheduled task** to avoid duplicate runs:
-   ```powershell
-   Unregister-ScheduledTask -TaskName 'BadukDailyIngest' -Confirm:$false
+1. Go to https://sentry.io → "Sign up" (free, GitHub login works).
+2. After signup, choose **"Next.js"** as your platform.
+3. Create a project named `badak`.
+4. Sentry shows you a DSN string. It looks like:
    ```
+   https://abc123def456@o12345.ingest.us.sentry.io/678
+   ```
+5. Copy it. You'll set this as **both** `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` in Vercel.
 
-## 8. Point the domain at Vercel
+You can skip the "wizard" Sentry suggests — we've already wired up the SDK in code. Just need the DSN.
 
-1. In Vercel: Project → Settings → Domains → "Add" → enter `baduk.org.il`.
-2. Vercel shows the DNS records you need.
-3. At your domain registrar, add the records Vercel asked for (usually an `A` record pointing to `76.76.21.21` plus a `CNAME` for `www`).
-4. SSL is automatic — Vercel issues a cert via Let's Encrypt within minutes of DNS propagation.
+- [ ] Sentry project created
+- [ ] DSN saved
 
-## 9. Smoke test
+---
 
-After Vercel shows "Ready" with the custom domain:
+## Step 4 — Deploy to Vercel *(10 min)*
 
-- [ ] Homepage loads at `https://baduk.org.il`
-- [ ] Leaderboard, parties, compare pages load
-- [ ] Click a claim card → goes to `/claim/[id]`
-- [ ] OG preview works: paste your homepage URL into WhatsApp / X — should show the בדוק masthead image
-- [ ] `/admin/status?key=<your-admin-secret>` shows the dashboard
-- [ ] `/robots.txt` returns the policy
-- [ ] `/sitemap.xml` returns the sitemap
-- [ ] Comment + report buttons work
-- [ ] Manually trigger the GitHub Action and confirm new claims appear
+This is the big one. The site goes live at the end of this step.
 
-## 10. Verify production AI cost is sane
+1. Go to https://vercel.com → "Sign up" with GitHub.
+2. Once in, click **"Add New… → Project"**.
+3. Find `opitaru-sys/politifact-il` in the list, click **"Import"**.
+4. **Framework Preset** auto-detects as Next.js. Don't change.
+5. **Before clicking Deploy**, expand the "Environment Variables" section. Add each of these (leave the scope on Vercel's default — "Production and Preview" is correct; "Development" is only used by the `vercel dev` CLI which we don't use):
 
-The first GitHub Action run will cost ~$0.10-0.30 in API. Subsequent daily runs ~$0.05-0.20 (fewer new articles, but Knesset speeches happen during plenary weeks).
+   | Variable | Value | Where it came from |
+   |---|---|---|
+   | `DATABASE_URL` | Your full Neon connection string (the one in `.env.local`) | Step 1 of "What's already done" |
+   | `ANTHROPIC_API_KEY` | Your Anthropic API key (same as `.env.local`) | Existing |
+   | `ADMIN_SECRET` | The new hex from Step 1 above | Step 1 of this checklist |
+   | `NEXT_PUBLIC_SITE_URL` | `https://bduk.co.il` (or whatever domain you'll use) | You decide |
+   | `UPSTASH_REDIS_REST_URL` | From Step 2 | Upstash |
+   | `UPSTASH_REDIS_REST_TOKEN` | From Step 2 | Upstash |
+   | `SENTRY_DSN` | From Step 3 | Sentry |
+   | `NEXT_PUBLIC_SENTRY_DSN` | Same as `SENTRY_DSN` | Sentry |
 
-Set a budget alert in the Anthropic console (Settings → Billing → Usage limits) — I recommend $30/month soft cap.
+6. Click **"Deploy"**.
+7. First build takes 2–3 minutes. Vercel shows logs live. If it fails, the log will tell you which env var is missing or wrong.
+8. When it shows "Ready", click the preview link. You'll see the site running on a `*.vercel.app` URL.
 
-## After launch
+- [ ] Imported repo into Vercel
+- [ ] Added all 8 env vars
+- [ ] Deploy succeeded
+- [ ] Opened the `*.vercel.app` URL and saw the homepage
 
-These items I deliberately left for later:
+---
 
-- **Legal review** of defamation exposure (calling MK statements "שקר"). I added a takedown policy in /about and a beta banner, but talking to a media-law attorney is worth doing before you publicly announce the site.
-- **Corrections log page** — when you reject a verified claim via the report mechanism, a public-facing record of corrections builds trust.
-- **Editorial advisory board** — one trusted name (academic, journalist, retired MK) reviewing the methodology page would meaningfully shift "single guy + AI" perception.
-- **English version** — Hebrew-only limits international press / academic citation.
-- **ISR caching strategy** — every page is currently `force-dynamic`. Switch the public pages to `revalidate = 600` once traffic justifies it.
+## Step 5 — Point your domain at Vercel *(5 min config + DNS propagation)*
+
+Only do this if you actually own the domain. If not, skip — you can launch on the `*.vercel.app` subdomain.
+
+1. In Vercel: your project → **Settings → Domains** → "Add Domain".
+2. Enter `bduk.co.il` (or whatever you own).
+3. Vercel shows you DNS records to add. Usually:
+   - `A` record on `@` → `76.76.21.21`
+   - `CNAME` record on `www` → `cname.vercel-dns.com`
+4. Add those records at your domain registrar (GoDaddy, Namecheap, Israeli registrar, wherever you bought it).
+5. Vercel will detect propagation and auto-issue a Let's Encrypt SSL cert. Usually within 10 min, sometimes longer.
+
+- [ ] Domain added in Vercel
+- [ ] DNS records added at registrar
+- [ ] Domain shows ✅ green checkmark in Vercel
+- [ ] `https://bduk.co.il` loads with valid SSL
+
+---
+
+## Step 6 — Smoke test *(5 min)*
+
+After Vercel is green and the domain works:
+
+- [ ] Homepage loads
+- [ ] `/leaderboard` shows ranked politicians with stats
+- [ ] `/parties` shows party comparison
+- [ ] `/compare` works (try picking two politicians)
+- [ ] Click any claim card → goes to `/claim/[id]`
+- [ ] `/admin/status?key=<your-new-admin-secret>` shows the dashboard
+- [ ] `/robots.txt` returns the rules
+- [ ] `/sitemap.xml` returns the sitemap (107+ URLs)
+- [ ] OG preview works: paste the homepage URL into WhatsApp / X — should show the בדוק masthead
+- [ ] Post a test comment → succeeds. Post 6 rapidly → 6th gets rate-limited with 429
+- [ ] Trigger Sentry: hit a URL like `/api/comment?claimId=does-not-exist` — should generate a Sentry event in your dashboard
+
+- [ ] All smoke tests passed
+
+---
+
+## Done!
+
+Once Step 6 is checked off, **you're live**.
+
+The daily ingest cron is already running (it fired at 06:00 UTC today — was failing for missing secrets, those have been added, you can re-run manually from the Actions tab and it should succeed now). New claims will appear automatically over the coming days as politicians make public statements.
+
+---
+
+## After launch — not blocking, but worth doing soon
+
+These I deliberately left out of the launch checklist because they aren't required to *be* live, but they're worth doing in the first week or two:
+
+- **Disable the local Windows scheduled task.** Now that GitHub Actions runs the cron, you don't want both. `Unregister-ScheduledTask -TaskName 'BadukDailyIngest' -Confirm:$false` in PowerShell.
+- **Rotate the dev Neon credential.** You pasted it into a Claude chat. Easy to rotate: Neon dashboard → Branches → dev → Reset password. Then update `.env.local` and `.env`, and the GitHub secret (`gh secret set DATABASE_URL --repo opitaru-sys/politifact-il`).
+- **Set an Anthropic budget alert.** Console → Settings → Billing → Usage limits. Suggest $30/month soft cap.
+- **Set Sentry alert rules.** "Email me if any error in production".
+- **Spot-check 10–20 claims by hand.** None of the AI-extracted claims have human review yet. Pick a few from `/leaderboard`, read them, flip any that look wrong using the "report" button.
+- **Talk to someone about defamation exposure.** The beta banner and takedown policy lower the risk but don't eliminate it. Worth a 30-min call with a media lawyer before any kind of PR push.
+
+---
+
+## Optional: split branches later
+
+Right now everything points at the Neon `dev` branch. When traffic justifies it (or sooner if you want safer dev), split:
+
+1. In Neon dashboard, the existing branch is misnamed `dev` for what's actually serving production. Rename it to `production` (Neon supports renames).
+2. Create a new branch called `dev` from `production` ("Branch data and schema" so it has a snapshot).
+3. Update local `.env.local` and `.env` `DATABASE_URL` to point at the new `dev` branch.
+4. Leave Vercel and GitHub Actions secrets pointing at `production` (no changes needed if you renamed the original).
+5. From now on, your local code reads/writes the dev branch and never touches production.
+
+---
 
 ## Rollback
 
 If something is wrong post-deploy:
 - **Code rollback:** Vercel → Deployments → click the previous deploy → "Promote to Production".
-- **Data rollback:** Neon supports point-in-time restore for 7 days on the free tier (Branches → "Restore to point in time").
-- **Disable ingest:** GitHub → Settings → Actions → disable the workflow.
+- **Data rollback:** Neon supports point-in-time restore for 7 days on free tier (Branches → "Restore to point in time").
+- **Disable cron:** GitHub → Actions tab → "Daily fact-check ingest" → "Disable workflow".
 - **Take site offline:** Vercel → Domains → temporarily remove the domain mapping.

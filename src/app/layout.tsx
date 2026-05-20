@@ -19,7 +19,7 @@ const DESCRIPTION =
 // the Vercel env) or falls back to a hard-coded default for local dev.
 // metadataBase is required for social-preview images (OG, Twitter) to resolve
 // absolute URLs when rendered by WhatsApp / X / Telegram / Slack.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://baduk.org.il";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

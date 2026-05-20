@@ -23,7 +23,7 @@ async function loadHebrewFont(weight: 400 | 700 | 900) {
  * any Hebrew-containing string and reverse word order back so the visual
  * result reads correctly.
  *
- * Pure-Latin substrings (like "baduk.org.il") are kept intact.
+ * Pure-Latin substrings (like "bduk.co.il") are kept intact.
  */
 function rtl(s: string): string {
   return s
@@ -127,7 +127,7 @@ export default async function OpenGraphImage() {
           }}
         >
           <div style={{ display: "flex" }}>{rtl("ללא שיוך פוליטי · מעודכן יומית")}</div>
-          <div style={{ display: "flex", fontWeight: 700 }}>baduk.org.il</div>
+          <div style={{ display: "flex", fontWeight: 700 }}>bduk.co.il</div>
         </div>
       </div>
     ),

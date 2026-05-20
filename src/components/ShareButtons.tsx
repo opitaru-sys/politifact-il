@@ -15,7 +15,7 @@ export function ShareButtons({ text, url }: ShareButtonsProps) {
   function getShareUrl(): string {
     if (url) return url;
     if (typeof window !== "undefined") return window.location.href;
-    return "https://baduk.org.il";
+    return "https://bduk.co.il";
   }
 
   function shareWhatsApp() {
