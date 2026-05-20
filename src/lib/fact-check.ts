@@ -81,6 +81,23 @@ function getAnthropic() {
   return new Anthropic({ apiKey });
 }
 
+/**
+ * Prepended to every Anthropic call so the model knows what year/month it is
+ * and explicitly handles its own training-data cutoff. Without this, the
+ * model silently substitutes older similar events (e.g. it'll fact-check a
+ * 2026 Gaza flotilla quote against the 2010 Mavi Marmara incident).
+ */
+function dateContextPreamble(): string {
+  const today = new Date();
+  const iso = today.toISOString().split("T")[0];
+  const hebrew = today.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+  return `**הקשר זמני קריטי לפני הבדיקה:**
+היום: ${iso} (${hebrew}).
+מודל ה-AI שלך מאומן על מידע שעלול לא לכלול אירועים אחרונים. אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות מתוך הידע שלך, אל תנחש ואל תייחס אותה לאירוע דומה מהעבר. במקום זה הצהר שאינך יכול לאמת אותה ובחר verdict "half-true" עם confidence נמוך, או החזר בקשה לבדיקה ידנית. עדיף "לא יודע" מאשר תשובה בטוחה לגבי אירוע לא נכון.
+
+`;
+}
+
 interface ExtractedClaim {
   politicianName: string;
   quote: string;
@@ -107,7 +124,7 @@ export async function extractClaims(
     messages: [
       {
         role: "user",
-        content: `אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ טענות עובדתיות שאמרו פוליטיקאים, ניתנות לאימות עצמאי.
+        content: `${dateContextPreamble()}אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ טענות עובדתיות שאמרו פוליטיקאים, ניתנות לאימות עצמאי.
 
 ✅ קריטריונים לחילוץ:
 1. **חייב להופיע ציטוט בגרשיים או "אמר", "טען", "הצהיר", "ציטט" בכתבה** — לא ניתוח של כתב על מה שהפוליטיקאי "התכוון". אם בכתבה לא מופיע ציטוט ישיר או פרפרזה מפורשת ("הוא אמר ש..."), אל תחלץ.
@@ -161,7 +178,7 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
     messages: [
       {
         role: "user",
-        content: `אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
+        content: `${dateContextPreamble()}אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
 
 פוליטיקאי: ${claim.politicianName}
 טענה: "${claim.quote}"
@@ -181,6 +198,11 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 - התבסס על נתונים רשמיים (הלמ"ס, בנק ישראל, דו"חות מבקר המדינה, פרוטוקולי כנסת)
 - אם אין לך מידע מספיק, סמן confidence נמוך
 - אל תכתוב את ה-summary כמילה הראשונה של ה-explanation. הם נפרדים: ה-summary הוא רזה ומסכם, ה-explanation מפרט.
+
+**אזהרה: אירועים אחרונים.** אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות (משט, חיסול, רעידת אדמה, פיגוע, מבצע צבאי, ועדה, ביקור מדיני וכו'), בדוק היטב:
+- אל תייחס את הטענה לאירוע דומה מהעבר ("המשט ב-2010", "מבצע צוק איתן", "ועדת חקירה ב-2024"). מאוד סביר שמדובר באירוע חדש שאתה לא יודע עליו.
+- במקרה כזה: explanation צריך לציין במפורש שאינך מכיר את האירוע הספציפי ושהבדיקה דורשת מקור עכשווי. verdict = "half-true", confidence = 0.2 או פחות.
+- אל תמציא פרטים על אירועים שאתה לא בטוח בהם.
 
 החזר JSON בפורמט הבא בלבד:
 {"verdict": "true/half-true/false", "summary": "משפט אחד מסכם", "explanation": "הסבר מלא בעברית", "factSource": "שם המקור הרשמי", "factSourceUrl": "כתובת המקור או null", "confidence": 0.0-1.0}`,
