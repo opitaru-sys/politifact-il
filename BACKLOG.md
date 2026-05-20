@@ -10,7 +10,7 @@ Living document. Tier order = priority. Check items off as they ship.
 
 ## High-impact next
 
-- [ ] **Anthropic web_search in fact-check pipeline** — adding the built-in tool means the model can look up current events before deciding. Fixes the temporal-confusion class of bugs (most impactful next step). ~$0.05/search × ~30 claims/day = ~$1.50/day extra. Refactor of `fact-check.ts` to use tool-use API. ~2-3 hours.
+- [x] **Anthropic web_search in fact-check pipeline** — DONE. `factCheckClaim()` now declares the `web_search_20260209` tool with `max_uses: 3` and Israeli `user_location`. Prompt instructs the model to search for current events / recent data before deciding. Response parser updated to pick the LAST text block (after interleaved `server_tool_use` / `web_search_tool_result` blocks). Cost: ~$0.025 + up to 3×$0.01 per claim → max ~$0.055/claim, ~$1.65/day at 30 claims/day. Next run will exercise it.
 - [ ] **Neon serverless adapter** (`@prisma/adapter-neon` + `@neondatabase/serverless`) — uses HTTP instead of TCP, handles cold-starts gracefully. Eliminates the 500-on-first-request-after-suspend issue. ~1 hour.
 - [ ] **Spot-check 10-20 verified claims by hand.** No human review yet — even after the second-pass AI verifier, some claims may have wrong verdicts. A human pass on ~10% of claims before any PR push is the right pre-launch hygiene.
 

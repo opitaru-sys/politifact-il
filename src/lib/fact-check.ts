@@ -174,7 +174,25 @@ export async function extractClaims(
 export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckResult> {
   const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2000,
+    max_tokens: 3000,
+    // Anthropic's hosted web_search tool. The model decides when to call it,
+    // Anthropic runs the search server-side, results stream back in
+    // `web_search_tool_result` content blocks before the final text block.
+    // Cost: ~$0.01 per search added to the base ~$0.025/claim. Cap at 3
+    // searches per claim → worst case ~$0.055/claim total (~$1.65/day at
+    // 30 claims). Israeli user_location nudges results toward Hebrew sources.
+    tools: [
+      {
+        type: "web_search_20260209",
+        name: "web_search",
+        max_uses: 3,
+        user_location: {
+          type: "approximate",
+          country: "IL",
+          timezone: "Asia/Jerusalem",
+        },
+      },
+    ],
     messages: [
       {
         role: "user",
@@ -184,34 +202,43 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 טענה: "${claim.quote}"
 נושא: ${claim.topic}
 
-בדוק את הטענה ותן פסק דין:
+**יש לך גישה לכלי web_search. השתמש בו לפני שאתה מחליט אם הטענה מתייחסת לאירוע אקטואלי, לנתון עדכני (מדדים, סטטיסטיקה, החלטות ממשלה אחרונות), או לכל דבר שעלול להיות מחוץ לידע שלך.** עד 3 חיפושים מותרים. עדיף חיפושים ממוקדים בעברית ("משט עזה ${new Date().getFullYear()}", "מדד המחירים ${new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })}") על פני חיפוש כללי באנגלית. מקורות מומלצים: Ynet, הארץ, מעריב, ישראל היום, גלובס, כלכליסט, גוורנמנט.אילי, למ"ס, בנק ישראל, מבקר המדינה.
+
+לאחר החיפוש, החזר את הפסק דין:
 - "true" = הטענה נכונה או נכונה ברובה
 - "half-true" = הטענה מכילה אמת חלקית, מטעה, או חסרה הקשר חשוב
 - "false" = הטענה שגויה או שקרית
 
 החזר 3 שדות טקסט:
 1. **summary**: משפט אחד תמציתי (עד 25 מילים) שמסכם למה הפסק דין הזה. זה ה-TL;DR שיוצג ראשון לגולש.
-2. **explanation**: הסבר מלא בעברית ברורה ותמציתית. ציין את העובדות העיקריות, מה תומך ומה סותר את הטענה, ואת ההקשר הנדרש.
-3. **factSource**: שם המקור הרשמי שעליו התבססת.
+2. **explanation**: הסבר מלא בעברית ברורה ותמציתית. ציין את העובדות העיקריות, מה תומך ומה סותר את הטענה, ואת ההקשר הנדרש. אם השתמשת ב-web_search, ציין מה מצאת.
+3. **factSource**: שם המקור (אתר/גוף) שעליו התבססת. אם מצאת מקור ב-web_search, ציין את שמו.
+4. **factSourceUrl**: אם מצאת URL ספציפי ב-web_search שמאמת את הטענה, החזר אותו. אחרת null.
 
 חשוב:
-- התבסס על נתונים רשמיים (הלמ"ס, בנק ישראל, דו"חות מבקר המדינה, פרוטוקולי כנסת)
-- אם אין לך מידע מספיק, סמן confidence נמוך
+- התבסס על נתונים רשמיים (הלמ"ס, בנק ישראל, דו"חות מבקר המדינה, פרוטוקולי כנסת) כאשר זמין.
+- אם web_search לא החזיר תוצאות שימושיות וגם הידע הפנימי שלך לא מספיק, סמן confidence נמוך (0.2 או פחות) ופסק "half-true".
 - אל תכתוב את ה-summary כמילה הראשונה של ה-explanation. הם נפרדים: ה-summary הוא רזה ומסכם, ה-explanation מפרט.
 
-**אזהרה: אירועים אחרונים.** אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות (משט, חיסול, רעידת אדמה, פיגוע, מבצע צבאי, ועדה, ביקור מדיני וכו'), בדוק היטב:
-- אל תייחס את הטענה לאירוע דומה מהעבר ("המשט ב-2010", "מבצע צוק איתן", "ועדת חקירה ב-2024"). מאוד סביר שמדובר באירוע חדש שאתה לא יודע עליו.
-- במקרה כזה: explanation צריך לציין במפורש שאינך מכיר את האירוע הספציפי ושהבדיקה דורשת מקור עכשווי. verdict = "half-true", confidence = 0.2 או פחות.
+**אזהרה: אירועים אחרונים.** אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות (משט, חיסול, רעידת אדמה, פיגוע, מבצע צבאי, ועדה, ביקור מדיני וכו'), **חפש קודם ב-web_search**. אם החיפוש לא מאשר את האירוע:
+- אל תייחס את הטענה לאירוע דומה מהעבר ("המשט ב-2010", "מבצע צוק איתן", "ועדת חקירה ב-2024"). מאוד סביר שמדובר באירוע חדש.
+- explanation: ציין במפורש שלא נמצא מידע מאמת ושנדרשת בדיקה ידנית. verdict = "half-true", confidence = 0.2 או פחות.
 - אל תמציא פרטים על אירועים שאתה לא בטוח בהם.
 
-החזר JSON בפורמט הבא בלבד:
+החזר JSON בפורמט הבא בלבד, כבלוק טקסט אחרון אחרי כל קריאות ה-web_search:
 {"verdict": "true/half-true/false", "summary": "משפט אחד מסכם", "explanation": "הסבר מלא בעברית", "factSource": "שם המקור הרשמי", "factSourceUrl": "כתובת המקור או null", "confidence": 0.0-1.0}`,
       },
     ],
   });
 
   try {
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    // Response may contain interleaved server_tool_use, web_search_tool_result,
+    // and text blocks. We want the LAST text block — that's the model's final
+    // answer after it's done searching.
+    const textBlocks = response.content.filter(
+      (b): b is Extract<typeof b, { type: "text" }> => b.type === "text",
+    );
+    const text = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
     const parsed = JSON.parse(jsonMatch[0]);
