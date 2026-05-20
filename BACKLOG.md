@@ -2,11 +2,23 @@
 
 Living document. Tier order = priority. Check items off as they ship.
 
-## Tier 1 · Data expansion
+## Now / blocking
 
-- [ ] **Knesset plenary transcripts ingest** — Build parser for the OData API (`knesset.gov.il/Odata/ParliamentInfo.svc/`) or scrape session pages on `main.knesset.gov.il`. Every MK speech is a verbatim public quote. Highest-volume single source. ~1 day initial build, 30 min/week ongoing.
-- [ ] **Loosen extraction criteria** — Current prompt rejects rhetoric and anything bundled with opinion. Loosen to accept any verifiable factual claim even when mixed with rhetoric. Trade-off: more borderline cases. Compensate by saving and displaying `confidence`. ~2-3 hours.
-- [ ] **Expand curated seed set** — Manually add 50-100 verified claims to `scripts/seed-real-claims.mjs`. Instant data, high quality. ~2-3 hours.
+- [ ] **User: update Vercel `DATABASE_URL`** to the current Neon hostname `ep-shy-wave-alfwufzp-pooler.c-3.eu-central-1.aws.neon.tech` (was `ep-silent-glade-alpoei6t-pooler`). Until done, prod 500s. Settings → Env Vars → Edit → Save → Redeploy.
+- [ ] **Galcomm verification email pending** — domain `bduk.co.il` paid but not registered until ISOC-IL verification clicked. Support ticket open; awaiting Galcomm reply.
+- [ ] **Add DNS A record** at Galcomm once domain is verified: `@ → 216.198.79.1`. Plus CNAME `www → cname.vercel-dns.com`.
+
+## High-impact next
+
+- [ ] **Anthropic web_search in fact-check pipeline** — adding the built-in tool means the model can look up current events before deciding. Fixes the temporal-confusion class of bugs (most impactful next step). ~$0.05/search × ~30 claims/day = ~$1.50/day extra. Refactor of `fact-check.ts` to use tool-use API. ~2-3 hours.
+- [ ] **Neon serverless adapter** (`@prisma/adapter-neon` + `@neondatabase/serverless`) — uses HTTP instead of TCP, handles cold-starts gracefully. Eliminates the 500-on-first-request-after-suspend issue. ~1 hour.
+- [ ] **Spot-check 10-20 verified claims by hand.** No human review yet — even after the second-pass AI verifier, some claims may have wrong verdicts. A human pass on ~10% of claims before any PR push is the right pre-launch hygiene.
+
+## Tier 1 · Data expansion (current cron handles this organically)
+
+- [x] **Knesset plenary transcripts ingest** — DONE. `src/lib/knesset-ingest.ts` uses OData + word-extractor.
+- [x] **Loosen extraction criteria** — DONE. Plus added today's-date preamble + cutoff-awareness instruction.
+- [x] **Expand curated seed set** — Replaced by AI extraction from real sources; seeds were fictional and deleted.
 
 ## Tier 2 · Data sources (later)
 
