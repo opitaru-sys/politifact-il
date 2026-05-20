@@ -150,20 +150,28 @@ export async function getUnrankedPoliticians(windowDays?: number) {
  * Returns the newest of: claim createdAt, article fetchedAt.
  */
 export async function getLastUpdate(): Promise<Date | null> {
-  const [latestClaim, latestArticle] = await Promise.all([
-    prisma.claim.findFirst({
-      where: { status: "published" },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    }),
-    prisma.article.findFirst({
-      orderBy: { fetchedAt: "desc" },
-      select: { fetchedAt: true },
-    }),
-  ]);
-  const dates: Date[] = [];
-  if (latestClaim?.createdAt) dates.push(latestClaim.createdAt);
-  if (latestArticle?.fetchedAt) dates.push(latestArticle.fetchedAt);
-  if (dates.length === 0) return null;
-  return new Date(Math.max(...dates.map((d) => d.getTime())));
+  // Fail gracefully if the DB is unreachable — the layout calls this on
+  // every render including static prerenders at build time, and we don't
+  // want a Neon cold-start to break the entire build.
+  try {
+    const [latestClaim, latestArticle] = await Promise.all([
+      prisma.claim.findFirst({
+        where: { status: "published" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      prisma.article.findFirst({
+        orderBy: { fetchedAt: "desc" },
+        select: { fetchedAt: true },
+      }),
+    ]);
+    const dates: Date[] = [];
+    if (latestClaim?.createdAt) dates.push(latestClaim.createdAt);
+    if (latestArticle?.fetchedAt) dates.push(latestArticle.fetchedAt);
+    if (dates.length === 0) return null;
+    return new Date(Math.max(...dates.map((d) => d.getTime())));
+  } catch (err) {
+    console.error("getLastUpdate: DB unreachable, returning null", err);
+    return null;
+  }
 }
