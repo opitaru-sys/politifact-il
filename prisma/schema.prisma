@@ -1,5 +1,9 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Vercel's serverless runtime needs the RHEL OpenSSL 3 binary in addition
+  // to the build host's native binary. Without this, runtime functions crash
+  // with "PrismaClientInitializationError: Unable to require libquery_engine".
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
