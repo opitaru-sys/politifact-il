@@ -3,6 +3,13 @@ import { prisma } from "@/lib/db";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
+// Don't prerender at build time — the Neon free-tier compute auto-suspends
+// after 5 min idle, and the build host's connection times out before
+// cold-start completes. Serve sitemap on-demand instead; cache for 1 hour
+// so crawlers don't hammer the DB.
+export const dynamic = "force-dynamic";
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
