@@ -27,7 +27,11 @@ export function Logo({
       aria-label="בָּדוּק"
     >
       <span
-        className={`${dims.text} font-black tracking-[-0.02em] text-foreground leading-none`}
+        // Niqqud marks tuck under letters and need a little more breathing
+        // room between glyphs than plain consonants. Was tracking-[-0.02em]
+        // before pointing was added; that's too tight for דוּ where the
+        // shuruk dot in the vav can collide with the dalet's right serif.
+        className={`${dims.text} font-black tracking-[0.04em] text-foreground leading-none`}
       >
         בָּדוּק
       </span>

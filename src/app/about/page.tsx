@@ -9,7 +9,7 @@ export default function AboutPage() {
   return (
     <article className="prose prose-sm max-w-2xl mx-auto" dir="rtl">
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">אודות</div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">בדוק<span className="text-accent">.</span></h1>
+      <h1 className="text-4xl font-black mb-3" style={{ letterSpacing: "0.04em" }}>בָּדוּק<span className="text-accent">.</span></h1>
       <p className="text-foreground-muted mb-8 leading-relaxed">
         בדיקת עובדות לפוליטיקאים ישראליים. בלתי תלוי, ללא שיוך פוליטי.
       </p>
@@ -109,7 +109,7 @@ export default function AboutPage() {
         <p>
           <strong>אם אתם פוליטיקאים, נציגי לשכה או דוברים</strong> ומצאתם טענה המיוחסת לכם
           שלדעתכם לא מדויקת, לא נאמרה כפי שצוטטה, או מציגה את עמדתכם באופן מטעה — ניצור איתכם
-          קשר תוך 48 שעות מקבלת הפנייה.
+          קשר בהקדם האפשרי. האתר מתופעל על ידי אדם אחד בלבד, ולכן ייתכן עיכוב במענה.
         </p>
         <p>
           <strong>נוהל הפנייה:</strong>

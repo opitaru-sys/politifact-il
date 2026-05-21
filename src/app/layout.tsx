@@ -136,7 +136,15 @@ export default async function RootLayout({
                 rel="noopener noreferrer"
                 className="hover:text-foreground transition-colors"
               >
-                Omri Pitaru ↗
+                Omri Pitaru · LinkedIn ↗
+              </a>
+              <a
+                href="https://x.com/opitaru"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                X · @opitaru ↗
               </a>
             </div>
           </div>
