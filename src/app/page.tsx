@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getRecentClaims, getPoliticianStats, getAllPoliticiansLite } from "@/lib/data";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { ClaimCard } from "@/components/ClaimCard";
@@ -107,7 +108,7 @@ export default async function Home({
             לא נמצאו טענות התואמות את הסינון ב-{activeDays} הימים האחרונים.
             {hasFilter && (
               <div className="mt-3">
-                <a href="/" className="text-accent hover:text-accent-dark font-bold underline">← נקה סינון</a>
+                <Link href="/" className="text-accent hover:text-accent-dark font-bold underline">← נקה סינון</Link>
               </div>
             )}
           </div>

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function NotFound() {
   return (
     <div className="py-20 max-w-2xl">
@@ -9,13 +11,13 @@ export default function NotFound() {
       <p className="text-foreground-muted mb-10 max-w-md leading-relaxed">
         העמוד שביקשתם לא קיים. אולי הקישור שגוי, או שהפוליטיקאי שחיפשתם אינו במאגר עדיין.
       </p>
-      <a
+      <Link
         href="/"
         className="inline-block bg-foreground text-background px-6 py-3 text-sm tracking-wider uppercase font-bold hover:bg-accent transition-colors"
         style={{ borderRadius: 2 }}
       >
         חזרה לעמוד הראשי
-      </a>
+      </Link>
     </div>
   );
 }

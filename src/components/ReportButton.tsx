@@ -75,7 +75,7 @@ export function ReportButton({ claimId, variant = "inline" }: ReportButtonProps)
           backgroundColor: "var(--verdict-true-bg)",
           borderRadius: 2,
         }}
-        title="הדיווח נשמר ויעבור בדיקה ידנית"
+        title="הדיווח נשמר ויעבור בדיקה"
       >
         ✓ תודה, הדיווח התקבל
       </span>

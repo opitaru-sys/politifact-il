@@ -14,12 +14,6 @@ interface SourceStats {
   lastFetched: Date | null;
 }
 
-interface PoliticianClaimCount {
-  politicianId: string;
-  cnt: bigint;
-  cnt30: bigint;
-}
-
 function formatRelative(d: Date | null): string {
   if (!d) return "אין";
   const sec = Math.floor((Date.now() - d.getTime()) / 1000);

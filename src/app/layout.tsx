@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import { Rubik } from "next/font/google";
 import "./globals.css";
 import { Logo } from "@/components/Logo";
@@ -74,13 +75,13 @@ export default async function RootLayout({
       <body className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b-[1.5px] border-border-strong">
           <div className="max-w-5xl mx-auto px-5 py-3.5 flex items-center justify-between">
-            <a
+            <Link
               href="/"
               className="flex items-center hover:opacity-70 transition-opacity"
               aria-label="בדוק, לעמוד הראשי"
             >
               <Logo size="md" />
-            </a>
+            </Link>
             <HeaderNav />
           </div>
           {/* Beta strip — full text on desktop, abbreviated on mobile so the
@@ -144,7 +145,7 @@ export default async function RootLayout({
               </p>
             </div>
             <div className="flex flex-col items-start md:items-end gap-2 text-[11px] tracking-wider uppercase">
-              <a href="/about" className="hover:text-foreground transition-colors">אודות</a>
+              <Link href="/about" className="hover:text-foreground transition-colors">אודות</Link>
               <a
                 href="https://www.linkedin.com/in/omripitaru/"
                 target="_blank"

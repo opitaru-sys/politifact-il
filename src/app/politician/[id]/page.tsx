@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPoliticianById, getAllPoliticianIds } from "@/lib/data";
+import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";

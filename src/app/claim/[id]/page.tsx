@@ -335,7 +335,7 @@ export default async function ClaimPage({ params }: PageProps) {
               מצאתם שגיאה?
             </h3>
             <p className="text-xs leading-relaxed mb-3 text-foreground-muted">
-              ציטוט לא מדויק, פסק שגוי, מקור חסר? דיווחים נבדקים ידנית, ובמידת הצורך הטענה מתוקנת או מוסרת.
+              ציטוט לא מדויק, פסק שגוי, מקור חסר? דיווחים נשמרים בתור בדיקה, ובמידת הצורך הטענה מתוקנת או מוסרת.
             </p>
             <ReportButton claimId={c.id} variant="prominent" />
           </div>

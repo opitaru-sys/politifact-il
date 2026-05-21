@@ -1,5 +1,4 @@
 import { prisma } from "./db";
-import type { Verdict } from "@/data/mock";
 
 /**
  * Filter applied to every public-facing claim query.
