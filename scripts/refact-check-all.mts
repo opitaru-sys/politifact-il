@@ -8,10 +8,10 @@
  * - We tighten fact-check prompt (rerun → new verdict/summary/explanation)
  * - We tighten verifier prompt (rerun → new editorApproved + verifierNotes)
  *
- * Cost per claim: ~$0.025 (factCheck base) + up to 3 × $0.01 (web_search)
- * + $0.01 (verifier) = ~$0.06 max.
+ * Cost per claim (Gemini 2.5 Flash): ~$0.015 (factCheck w/ grounding)
+ * + ~$0.003 (verifier, no grounding) = ~$0.02 typical.
  *
- * 107 claims × $0.06 = ~$6.50 worst case.
+ * 200 claims × $0.02 = ~$4 typical. Previously ~$25 on Anthropic.
  *
  * Skips claims where the politician was deleted (defensive).
  */
@@ -59,7 +59,7 @@ const claims = await prisma.claim.findMany({
 });
 
 console.log(`Re-fact-checking ${claims.length} claims with current prompts...`);
-console.log(`Estimated cost: ~$${(claims.length * 0.06).toFixed(2)} (worst case)`);
+console.log(`Estimated cost: ~$${(claims.length * 0.02).toFixed(2)} (Gemini 2.5 Flash)`);
 console.log("");
 
 let updated = 0;
