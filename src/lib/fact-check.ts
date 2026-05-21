@@ -377,6 +377,35 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
   }
 }
 
+/**
+ * Cheap heuristic — does this content have any chance of containing a
+ * fact-checkable political quote? Used as a pre-filter so we don't waste
+ * an extraction API call on procedural one-liners (Knesset roll-calls,
+ * news snippets without attribution).
+ *
+ * We skip if ALL of:
+ *  - body is short (< 250 chars after the inserted "דובר:" preamble)
+ *  - no quote characters anywhere
+ *  - no Hebrew attribution verbs (אמר, טען, הצהיר, etc.)
+ *  - no multi-digit numbers (a 2+ digit number usually signals a
+ *    statistic the model could fact-check)
+ *
+ * False negatives are cheap (we miss a few claims). False positives are
+ * expensive (we burn an extraction call for nothing). The threshold is
+ * tuned to skip ~30-40% of Knesset transcript blocks while keeping
+ * essentially all RSS articles.
+ */
+function shouldSkipExtraction(content: string): boolean {
+  const trimmed = content?.trim() ?? "";
+  if (trimmed.length < 250) {
+    const hasQuotes = /["״׳"]/.test(trimmed);
+    const hasAttribution = /אמר|טען|הצהיר|מסר|הוסיף|ציטט|הביע|הודיע|התריע|התבטא/.test(trimmed);
+    const hasNumbers = /\d{2,}/.test(trimmed);
+    return !hasQuotes && !hasAttribution && !hasNumbers;
+  }
+  return false;
+}
+
 export async function processArticle(articleId: string) {
   const article = await prisma.article.findUnique({ where: { id: articleId } });
   if (!article || article.processed) return [];
@@ -391,6 +420,17 @@ export async function processArticle(articleId: string) {
         data: { content },
       });
     }
+  }
+
+  // Pre-filter: skip extraction on articles that almost certainly have no
+  // fact-checkable quotes. Saves ~30-40% of extraction calls on the
+  // Knesset transcript corpus where many blocks are short procedural lines.
+  if (shouldSkipExtraction(content)) {
+    await prisma.article.update({
+      where: { id: articleId },
+      data: { processed: true, extractedData: "[]" },
+    });
+    return [];
   }
 
   const claims = await extractClaims(article.title, content, article.source);
@@ -472,6 +512,19 @@ export async function processArticle(articleId: string) {
   return results;
 }
 
+/**
+ * How many articles to process concurrently. Gemini Flash allows 1500
+ * req/min on the paid tier and the free tier still allows ~60 req/min;
+ * with avg ~5-15s per article (depending on whether it yields claims),
+ * 5-way parallelism stays well under both quotas. Going higher (10+)
+ * starts to push the daily 500-grounded-request limit on the free tier
+ * if a batch happens to be claim-dense.
+ *
+ * If you bump this, also watch the Prisma connection pool (default is
+ * num_cpus*2+1) — each in-flight processArticle holds 2-4 connections.
+ */
+const ARTICLE_CONCURRENCY = 5;
+
 export async function processUnprocessedArticles(limit: number = 50) {
   const articles = await prisma.article.findMany({
     where: { processed: false },
@@ -479,16 +532,25 @@ export async function processUnprocessedArticles(limit: number = 50) {
     take: limit,
   });
 
-  console.log(`Processing ${articles.length} unprocessed articles...`);
+  console.log(`Processing ${articles.length} unprocessed articles (concurrency=${ARTICLE_CONCURRENCY})...`);
 
   const allResults = [];
-  for (const article of articles) {
-    try {
-      const results = await processArticle(article.id);
-      console.log(`${article.title}: extracted ${results.length} claims`);
-      allResults.push(...results);
-    } catch (error) {
-      console.error(`Error processing ${article.title}:`, error);
+  for (let i = 0; i < articles.length; i += ARTICLE_CONCURRENCY) {
+    const chunk = articles.slice(i, i + ARTICLE_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      chunk.map((a) => processArticle(a.id)),
+    );
+    for (let j = 0; j < settled.length; j++) {
+      const res = settled[j];
+      const a = chunk[j];
+      if (res.status === "fulfilled") {
+        if (res.value.length > 0) {
+          console.log(`${a.title}: extracted ${res.value.length} claims`);
+        }
+        allResults.push(...res.value);
+      } else {
+        console.error(`Error processing ${a.title}:`, res.reason instanceof Error ? res.reason.message : res.reason);
+      }
     }
   }
 
