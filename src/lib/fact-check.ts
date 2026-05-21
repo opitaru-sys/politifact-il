@@ -406,9 +406,51 @@ function shouldSkipExtraction(content: string): boolean {
   return false;
 }
 
+/**
+ * For Knesset transcript articles, the speaker is locked-in by the
+ * title format `${speaker} (מליאת הכנסת)`. If that speaker isn't in
+ * NAME_TO_ID, extraction would only produce claims attributed to them
+ * (since the block contains only their speech), and every one would
+ * get dropped at the politician-lookup step. Skip extraction entirely
+ * in that case — saves a Gemini call per article.
+ *
+ * For RSS articles we can't apply this trick because one article can
+ * quote multiple politicians.
+ */
+function knessetSpeakerInMap(article: { title: string; source: string }): boolean | null {
+  if (article.source !== "כנסת · מליאה") return null; // not a knesset article
+  // Title is like "בנימין נתניהו (מליאת הכנסת)" — strip the suffix and look up.
+  const speaker = article.title.replace(/\s*\(מליאת הכנסת\)\s*$/, "").trim();
+  // Try exact and then partial matches against NAME_TO_ID keys.
+  if (NAME_TO_ID[speaker]) return true;
+  // Some Knesset speaker labels include their role prefix (e.g.
+  // "השר אלי כהן"). Strip common prefixes and retry.
+  const stripped = speaker
+    .replace(/^(השר|השרה|שר|שרת|חבר הכנסת|חברת הכנסת|ח"כ|יו"ר|סגן|סגנית|המקשר.*?לכנסת|ראש הממשלה|רוה"מ)\s+/, "")
+    .trim();
+  if (NAME_TO_ID[stripped]) return true;
+  // Last-name-only match — many entries in NAME_TO_ID include the bare
+  // surname as a key (e.g. "ביבי" → netanyahu).
+  const lastName = stripped.split(/\s+/).pop() ?? "";
+  if (lastName && NAME_TO_ID[lastName]) return true;
+  return false;
+}
+
 export async function processArticle(articleId: string) {
   const article = await prisma.article.findUnique({ where: { id: articleId } });
   if (!article || article.processed) return [];
+
+  // Quick speaker check for Knesset articles — bail before extraction
+  // if we already know no claim from this speaker can map to a known
+  // politician.
+  const speakerCheck = knessetSpeakerInMap(article);
+  if (speakerCheck === false) {
+    await prisma.article.update({
+      where: { id: articleId },
+      data: { processed: true, extractedData: "[]" },
+    });
+    return [];
+  }
 
   let content = article.content || "";
   if (content.length < 200) {
@@ -435,71 +477,71 @@ export async function processArticle(articleId: string) {
 
   const claims = await extractClaims(article.title, content, article.source);
 
-  const results = [];
-
+  // Up-front filtering: drop claims with unknown politicians or politicians
+  // not in the DB before we start any Gemini calls. Done serially because
+  // it's just DB lookups (~1ms each).
+  const eligible: { claim: ExtractedClaim; politicianId: string; politicianName: string }[] = [];
   for (const claim of claims) {
     const politicianId = NAME_TO_ID[claim.politicianName];
-    if (!politicianId) {
-      console.log(`Unknown politician: ${claim.politicianName}`);
-      continue;
-    }
-
-    const politician = await prisma.politician.findUnique({ where: { id: politicianId } });
-    if (!politician) continue;
-
-    // Dedup: skip if this politician already has a near-identical quote
-    if (await isDuplicate(politicianId, claim.quote)) {
-      console.log(`Skipping duplicate for ${claim.politicianName}: ${claim.quote.substring(0, 50)}`);
-      continue;
-    }
-
-    const factCheck = await factCheckClaim(claim);
-
-    const saved = await prisma.claim.create({
-      data: {
-        politicianId,
-        quote: claim.quote,
-        verdict: factCheck.verdict,
-        summary: factCheck.summary,
-        explanation: factCheck.explanation,
-        source: article.source,
-        sourceUrl: article.url,
-        factSource: factCheck.factSource,
-        factSourceUrl: factCheck.factSourceUrl,
-        topic: claim.topic,
-        date: article.publishedAt || new Date(),
-        status: "published",
-        confidence: factCheck.confidence,
-      },
+    if (!politicianId) continue;
+    const politician = await prisma.politician.findUnique({
+      where: { id: politicianId },
+      select: { id: true, name: true },
     });
+    if (!politician) continue;
+    if (await isDuplicate(politicianId, claim.quote)) continue;
+    eligible.push({ claim, politicianId, politicianName: politician.name });
+  }
 
-    // Second-pass verification. Fail-soft: a verifier error leaves the
-    // claim published but unverified, never blocks the pipeline.
-    try {
-      const verification = await verifyClaim({
-        quote: saved.quote,
-        verdict: saved.verdict as "true" | "half-true" | "false",
-        summary: saved.summary,
-        explanation: saved.explanation,
-        source: saved.source,
-        factSource: saved.factSource,
-        politicianName: politician.name,
-        topic: saved.topic,
-      });
-      await prisma.claim.update({
-        where: { id: saved.id },
+  // Fact-check + verify each eligible claim concurrently. Each claim's
+  // pipeline is independent (different quote, different DB row) so we
+  // can fan out. Limits the total Gemini concurrency by gating on the
+  // outer article-level chunk (see ARTICLE_CONCURRENCY).
+  const results = await Promise.all(
+    eligible.map(async ({ claim, politicianId, politicianName }) => {
+      const factCheck = await factCheckClaim(claim);
+      const saved = await prisma.claim.create({
         data: {
-          editorApproved: verification.approved,
-          verifiedAt: new Date(),
-          verifierNotes: verification.issues.length ? verification.issues.join("; ") : null,
+          politicianId,
+          quote: claim.quote,
+          verdict: factCheck.verdict,
+          summary: factCheck.summary,
+          explanation: factCheck.explanation,
+          source: article.source,
+          sourceUrl: article.url,
+          factSource: factCheck.factSource,
+          factSourceUrl: factCheck.factSourceUrl,
+          topic: claim.topic,
+          date: article.publishedAt || new Date(),
+          status: "published",
+          confidence: factCheck.confidence,
         },
       });
-    } catch (err) {
-      console.error(`Verification failed for claim ${saved.id}:`, err);
-    }
-
-    results.push(saved);
-  }
+      try {
+        const verification = await verifyClaim({
+          quote: saved.quote,
+          verdict: saved.verdict as "true" | "half-true" | "false",
+          summary: saved.summary,
+          explanation: saved.explanation,
+          source: saved.source,
+          factSource: saved.factSource,
+          politicianName,
+          topic: saved.topic,
+        });
+        await prisma.claim.update({
+          where: { id: saved.id },
+          data: {
+            editorApproved: verification.approved,
+            verifiedAt: new Date(),
+            verifierNotes: verification.issues.length ? verification.issues.join("; ") : null,
+          },
+        });
+      } catch (err) {
+        console.error(`Verification failed for claim ${saved.id}:`, err);
+      }
+      return saved;
+    }),
+  );
 
   await prisma.article.update({
     where: { id: articleId },
