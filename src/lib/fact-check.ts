@@ -32,7 +32,19 @@ function similarity(a: string, b: string): number {
 
 /**
  * True if politician already has a near-identical published claim.
- * Compares normalized quotes by word-set Jaccard ≥ 0.6.
+ *
+ * Two-stage check:
+ *  1. Exact normalized match — short-circuits when the same quote appears
+ *     verbatim in two different articles (Knesset transcripts replay the
+ *     same talking points across sessions; news outlets quote each other).
+ *  2. Word-set Jaccard ≥ 0.55 — catches paraphrases that differ in
+ *     punctuation, niqqud, conjugation, or trailing context but share
+ *     most content words.
+ *
+ * Lowered the Jaccard threshold from 0.6 to 0.55 after the May 21
+ * cleanup pass found 16 sim=1.0 duplicates that should never have
+ * existed. The exact-match short-circuit is the main fix; the threshold
+ * tweak is belt-and-suspenders.
  */
 async function isDuplicate(politicianId: string, quote: string): Promise<boolean> {
   const existing = await prisma.claim.findMany({
@@ -42,7 +54,11 @@ async function isDuplicate(politicianId: string, quote: string): Promise<boolean
   });
   const target = normalizeHebrew(quote);
   for (const e of existing) {
-    if (similarity(target, normalizeHebrew(e.quote)) >= 0.6) return true;
+    const otherNorm = normalizeHebrew(e.quote);
+    // Stage 1: exact normalized match.
+    if (target === otherNorm) return true;
+    // Stage 2: fuzzy similarity.
+    if (similarity(target, otherNorm) >= 0.55) return true;
   }
   return false;
 }
