@@ -76,60 +76,100 @@ export function CommentsSection({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
+    <div>
       <button
         onClick={() => setOpen(!open)}
-        className="text-xs text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1"
+        className="text-[11px] tracking-[0.2em] uppercase text-foreground-muted hover:text-foreground font-bold transition-colors"
       >
-        💬 {open ? "סגור תגובות" : `תגובות${displayCount > 0 ? ` (${displayCount})` : ""}`}
+        {open ? "סגור דיון ↑" : `דיון${displayCount > 0 ? ` · ${displayCount}` : ""} ↓`}
       </button>
 
       {open && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-4">
           {/* Compose */}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <input
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="שם (אופציונלי)"
-              maxLength={60}
-              className="w-full text-sm px-3 py-1.5 border border-gray-200 rounded mb-2 bg-white"
-              dir="rtl"
-            />
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="הוסיפו תגובה. שתפו הקשר, תקנו, או הוסיפו מקור"
-              maxLength={1000}
-              className="w-full text-sm px-3 py-1.5 border border-gray-200 rounded resize-none h-16 bg-white"
-              dir="rtl"
-            />
+          <div
+            className="bg-card border border-border p-4"
+            style={{ borderRadius: 4 }}
+          >
+            <label className="block mb-2">
+              <span className="block text-[10px] tracking-[0.2em] uppercase text-foreground-muted font-bold mb-1">
+                שם (אופציונלי)
+              </span>
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="אנונימי"
+                maxLength={60}
+                className="w-full text-sm px-2.5 py-1.5 border border-border bg-background focus:outline-none focus:border-foreground-muted"
+                style={{ borderRadius: 2 }}
+                dir="rtl"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[10px] tracking-[0.2em] uppercase text-foreground-muted font-bold mb-1">
+                תגובה
+              </span>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="הוסיפו הקשר, תקנו, או הצביעו על מקור"
+                maxLength={1000}
+                className="w-full text-sm px-2.5 py-1.5 border border-border resize-none h-20 bg-background focus:outline-none focus:border-foreground-muted"
+                style={{ borderRadius: 2 }}
+                dir="rtl"
+              />
+            </label>
             <div className="flex items-center justify-between mt-2">
-              <span className="text-xs text-gray-400">{body.length}/1000</span>
+              <span className="text-[10px] text-foreground-muted tabular-nums">
+                {body.length}/1000
+              </span>
               <button
                 onClick={submit}
                 disabled={submitting || body.trim().length < 2}
-                className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="text-xs bg-foreground text-background px-4 py-1.5 font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:bg-foreground-muted transition-colors"
+                style={{ borderRadius: 2 }}
               >
                 {submitting ? "שולח..." : "פרסם"}
               </button>
             </div>
-            {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+            {error && (
+              <p
+                className="text-xs mt-2 px-2 py-1"
+                style={{
+                  color: "var(--verdict-false)",
+                  backgroundColor: "var(--verdict-false-bg)",
+                  borderRadius: 2,
+                }}
+              >
+                {error}
+              </p>
+            )}
           </div>
 
           {/* List */}
-          {!loaded && <div className="text-xs text-gray-400">טוען...</div>}
+          {!loaded && (
+            <div className="text-xs text-foreground-muted italic">טוען תגובות...</div>
+          )}
           {loaded && comments.length === 0 && (
-            <div className="text-xs text-gray-400 italic">אין תגובות עדיין. היו הראשונים</div>
+            <div className="text-xs text-foreground-muted italic">
+              אין תגובות עדיין. היו הראשונים להוסיף הקשר.
+            </div>
           )}
           {comments.map((c) => (
-            <div key={c.id} className="bg-white border border-gray-100 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-gray-700">{c.author}</span>
-                <span className="text-xs text-gray-400">{timeAgoHebrew(c.createdAt)}</span>
+            <div
+              key={c.id}
+              className="border-r-2 border-border pr-3 py-2"
+            >
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <span className="text-xs font-bold">{c.author || "אנונימי"}</span>
+                <span className="text-[10px] text-foreground-muted tabular-nums">
+                  {timeAgoHebrew(c.createdAt)}
+                </span>
               </div>
-              <div className="text-sm text-gray-800 whitespace-pre-wrap">{c.body}</div>
+              <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                {c.body}
+              </div>
             </div>
           ))}
         </div>

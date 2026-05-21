@@ -3,6 +3,7 @@ import { getPoliticianById, getAllPoliticiansLite } from "@/lib/data";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { CompareSelector } from "@/components/CompareSelector";
+import { topicDisplayLabel } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
@@ -126,38 +127,66 @@ function PoliticianColumn({ stats }: { stats: PoliticianStats }) {
       </div>
 
       <div className="text-center mb-4">
-        <div
-          className="text-5xl font-black leading-none tabular-nums"
-          style={{ color: scoreColor(stats.truthPct) }}
-        >
-          {stats.truthPct}
-          <span className="text-2xl">%</span>
-        </div>
-        <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-          אמינות · {stats.total} טענות
-        </div>
+        {stats.total === 0 ? (
+          <>
+            <div className="text-base font-bold text-foreground-muted leading-tight mt-3 mb-1.5">
+              אין מספיק נתונים
+            </div>
+            <div className="text-[11px] text-foreground-muted leading-relaxed max-w-[14rem] mx-auto">
+              טרם נבדקו טענות של {stats.name} בתקופה זו. נסו פוליטיקאי אחר או בקרו בעמוד הפוליטיקאי.
+            </div>
+          </>
+        ) : stats.total < 3 ? (
+          <>
+            <div
+              className="text-5xl font-black leading-none tabular-nums opacity-60"
+              style={{ color: scoreColor(stats.truthPct) }}
+            >
+              {stats.truthPct}
+              <span className="text-2xl">%</span>
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted/80 mt-1.5 italic">
+              מדגם קטן · {stats.total} טענות
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="text-5xl font-black leading-none tabular-nums"
+              style={{ color: scoreColor(stats.truthPct) }}
+            >
+              {stats.truthPct}
+              <span className="text-2xl">%</span>
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+              אמינות · {stats.total} טענות
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 border border-border" style={{ borderRadius: 2 }}>
-        <div className="py-2 text-center border-l border-border">
-          <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-true)" }}>
-            {stats.trueClaims}
+      {stats.total > 0 && (
+        <div className="grid grid-cols-3 border border-border" style={{ borderRadius: 2 }}>
+          <div className="py-2 text-center border-l border-border">
+            <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-true)" }}>
+              {stats.trueClaims}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted">אמת</div>
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-foreground-muted">אמת</div>
-        </div>
-        <div className="py-2 text-center border-l border-border">
-          <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-half)" }}>
-            {stats.halfTrueClaims}
+          <div className="py-2 text-center border-l border-border">
+            <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-half)" }}>
+              {stats.halfTrueClaims}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted">חצי</div>
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-foreground-muted">חצי</div>
-        </div>
-        <div className="py-2 text-center">
-          <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-false)" }}>
-            {stats.falseClaims}
+          <div className="py-2 text-center">
+            <div className="font-black text-base tabular-nums" style={{ color: "var(--verdict-false)" }}>
+              {stats.falseClaims}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted">שקר</div>
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-foreground-muted">שקר</div>
         </div>
-      </div>
+      )}
 
       {stats.recentClaims.length > 0 && (
         <div className="mt-5">
@@ -170,7 +199,7 @@ function PoliticianColumn({ stats }: { stats: PoliticianStats }) {
                 <a href={`/claim/${c.id}`} className="block hover:bg-muted/40 -mx-1 px-1 py-1">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <VerdictBadge verdict={c.verdict as "true" | "half-true" | "false"} />
-                    <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{c.topic}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-foreground-muted truncate max-w-[8rem]" title={c.topic}>{topicDisplayLabel(c.topic)}</span>
                   </div>
                   <blockquote className="leading-snug line-clamp-3">
                     &ldquo;{c.quote}&rdquo;

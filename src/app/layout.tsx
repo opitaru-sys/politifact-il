@@ -83,6 +83,8 @@ export default async function RootLayout({
             </a>
             <HeaderNav />
           </div>
+          {/* Beta strip — full text on desktop, abbreviated on mobile so the
+              first viewport isn't dominated by chrome. */}
           <div className="bg-foreground text-background px-5 py-1.5 text-center text-[10px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 flex-wrap">
             <span
               className="font-bold px-2 py-0.5 bg-accent text-background"
@@ -90,9 +92,10 @@ export default async function RootLayout({
             >
               בטא
             </span>
-            <span className="opacity-90">בדיקת עובדות לפוליטיקאים ישראליים</span>
-            <span className="opacity-40">·</span>
-            <span className="opacity-90">ללא שיוך פוליטי</span>
+            <span className="opacity-90 hidden sm:inline">בדיקת עובדות לפוליטיקאים ישראליים</span>
+            <span className="opacity-90 sm:hidden">בדיקת עובדות</span>
+            <span className="opacity-40 hidden sm:inline">·</span>
+            <span className="opacity-90 hidden sm:inline">ללא שיוך פוליטי</span>
             <span className="opacity-40 hidden sm:inline">·</span>
             <span className="opacity-90 hidden sm:inline" title={lastUpdate?.toLocaleString("he-IL")}>
               עודכן {lastUpdateText}
@@ -100,19 +103,31 @@ export default async function RootLayout({
           </div>
         </header>
 
+        {/* AI methodology warning. Compact one-line on mobile (icon + short
+            sentence + link to full methodology), full sentence on desktop. */}
         <div
-          className="px-5 py-2.5 text-center text-[11px] leading-relaxed"
+          className="px-5 py-2 text-center text-[11px] leading-relaxed border-b border-border"
           style={{
             backgroundColor: "var(--verdict-half-bg)",
             color: "var(--verdict-half)",
-            borderBottom: "1px solid var(--border)",
           }}
         >
-          <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
-          <span className="opacity-90">
-            אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו עליה בכפתור שבכל טענה, או פנו אלינו ב-
-            <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
-          </span>
+          {/* Mobile: short, one line */}
+          <div className="sm:hidden flex items-center justify-center gap-2 text-[11px]">
+            <span className="font-bold">בדיקה אוטומטית (AI)</span>
+            <span className="opacity-50">·</span>
+            <a href="/about" className="underline hover:no-underline font-medium">
+              איך זה עובד?
+            </a>
+          </div>
+          {/* Desktop: full warning */}
+          <div className="hidden sm:block">
+            <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
+            <span className="opacity-90">
+              אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
+              <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+            </span>
+          </div>
         </div>
 
         <main className="max-w-5xl mx-auto px-5 py-10">

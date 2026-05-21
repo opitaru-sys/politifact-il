@@ -8,6 +8,7 @@ import { ReportButton } from "./ReportButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButtons } from "./ShareButtons";
 import { shareTextForClaim } from "@/lib/share-text";
+import { topicDisplayLabel } from "@/lib/topics";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -140,7 +141,7 @@ export function ClaimCard({ claim }: { claim: ClaimWithPolitician }) {
             className="text-foreground-muted hover:text-accent font-medium"
             title={`סנן לפי נושא: ${claim.topic}`}
           >
-            · {claim.topic}
+            · {topicDisplayLabel(claim.topic)}
           </a>
         </div>
         <div className="flex items-center gap-2 shrink-0">

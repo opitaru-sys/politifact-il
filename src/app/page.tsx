@@ -4,6 +4,7 @@ import { ClaimCard } from "@/components/ClaimCard";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
+import { topicDisplayLabel } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
@@ -68,12 +69,12 @@ export default async function Home({
             {activeTopic && (
               <a
                 href={buildHref({ topic: null, politician: activePolitician, days: activeDays })}
-                className="inline-flex items-center gap-2 text-xs bg-accent text-background px-2.5 py-1 hover:bg-accent-dark transition-colors font-bold"
+                className="inline-flex items-center gap-2 text-xs bg-accent text-background px-2.5 py-1 hover:bg-accent-dark transition-colors font-bold max-w-[16rem]"
                 style={{ borderRadius: 2 }}
-                title="הסר סינון נושא"
+                title={`הסר סינון נושא: ${activeTopic}`}
               >
-                <span>{activeTopic}</span>
-                <span aria-hidden="true" className="text-base leading-none">×</span>
+                <span className="truncate">{topicDisplayLabel(activeTopic)}</span>
+                <span aria-hidden="true" className="text-base leading-none shrink-0">×</span>
               </a>
             )}
             {activePolitician && politicianFilterLabel && (

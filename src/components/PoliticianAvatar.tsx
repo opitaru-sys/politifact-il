@@ -13,11 +13,19 @@ export function PoliticianAvatar({
   name,
   image,
   size = "md",
+  priority = false,
 }: {
   id: string;
   name: string;
   image?: string | null;
   size?: "sm" | "md" | "lg";
+  /**
+   * When true, the image loads eagerly and decodes synchronously. Use this
+   * for above-the-fold avatars on hero / detail pages where a brief gray
+   * placeholder is jarring. Default false (lazy) for feed lists where the
+   * fallback initials are an acceptable starting state.
+   */
+  priority?: boolean;
 }) {
   const { px, className } = SIZES[size];
   const [errored, setErrored] = useState(false);
@@ -27,7 +35,7 @@ export function PoliticianAvatar({
   if (errored) {
     return (
       <div
-        className={`${className} rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold shrink-0`}
+        className={`${className} rounded-full bg-muted text-foreground-muted flex items-center justify-center font-bold shrink-0 border border-border`}
         aria-label={name}
       >
         {initials}
@@ -42,10 +50,11 @@ export function PoliticianAvatar({
       alt={name}
       width={px}
       height={px}
-      loading="lazy"
-      decoding="async"
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
+      decoding={priority ? "sync" : "async"}
       onError={() => setErrored(true)}
-      className={`${className} rounded-full object-cover bg-gray-200 shrink-0`}
+      className={`${className} rounded-full object-cover bg-muted shrink-0 border border-border`}
     />
   );
 }
