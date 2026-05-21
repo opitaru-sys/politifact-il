@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
 // Force-load env from .env.local because Windows system env can override with empty strings.
-// (We hit this earlier — `ANTHROPIC_API_KEY=""` was set system-wide and silenced everything.)
+// (We hit this earlier — `GEMINI_API_KEY=""` was set system-wide and silenced everything.)
 function forceLoadEnv(key: string): void {
   if (process.env[key] && process.env[key]!.length > 5) return;
   for (const file of [".env.local", ".env"]) {
@@ -37,17 +37,17 @@ function forceLoadEnv(key: string): void {
     } catch { /* file missing */ }
   }
 }
-forceLoadEnv("ANTHROPIC_API_KEY");
+forceLoadEnv("GEMINI_API_KEY");
 forceLoadEnv("DATABASE_URL");
 
 const stamp = new Date().toISOString();
 console.log(`[${stamp}] Daily run starting`);
 console.log(`  CWD:           ${process.cwd()}`);
 console.log(`  DATABASE_URL:  ${process.env.DATABASE_URL}`);
-console.log(`  API key len:   ${process.env.ANTHROPIC_API_KEY?.length || 0}`);
+console.log(`  API key len:   ${process.env.GEMINI_API_KEY?.length || 0}`);
 
-if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.length < 10) {
-  console.error("✗ ANTHROPIC_API_KEY not loaded. Check .env.local and KNOWN-ISSUES.md.");
+if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.length < 10) {
+  console.error("✗ GEMINI_API_KEY not loaded. Check .env.local and KNOWN-ISSUES.md.");
   process.exit(1);
 }
 

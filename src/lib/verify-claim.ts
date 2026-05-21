@@ -5,20 +5,23 @@
  * this module re-examines it with an adversarial prompt: a senior reviewer
  * who looks for reasons NOT to approve. Returns a structured verdict.
  *
- * Cost: ~1 message per claim, ~1500 input + 300 output tokens (≈ $0.01).
+ * Uses Gemini 2.5 Flash (cheap, fast, no grounding needed — the verifier
+ * checks for internal consistency, not new facts). Cost ~$0.001/claim.
  *
  * The verifier intentionally uses different framing from the original
  * fact-check — adversarial, skeptical, looking for issues rather than
  * confirming. This is the "second pair of eyes" the original lacks.
  */
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI, Type } from "@google/genai";
 import { getEnvVar } from "./env";
 
-function getAnthropic() {
-  const apiKey = getEnvVar("ANTHROPIC_API_KEY");
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not found");
-  return new Anthropic({ apiKey });
+function getGemini() {
+  const apiKey = getEnvVar("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY not found");
+  return new GoogleGenAI({ apiKey });
 }
+
+const MODEL = "gemini-2.5-flash";
 
 export interface VerificationResult {
   approved: boolean;
@@ -42,13 +45,7 @@ export interface ClaimToVerify {
 export async function verifyClaim(claim: ClaimToVerify): Promise<VerificationResult> {
   const today = new Date();
   const todayIso = today.toISOString().split("T")[0];
-  const response = await getAnthropic().messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 600,
-    messages: [
-      {
-        role: "user",
-        content: `**הקשר זמני קריטי:** היום ${todayIso}. שים לב שמודל הבדיקה הקודם עלול להיות לא מודע לאירועים שקרו לאחר תאריך החיתוך של נתוני האימון שלו, ולכן עלול לטעות ולקשר טענה על אירוע חדש לאירוע דומה ישן.
+  const prompt = `**הקשר זמני קריטי:** היום ${todayIso}. מודל הבדיקה הקודם השתמש ב-Google Search כדי לחפש מידע עדכני — לכן ציטוטים מנתונים של החודשים האחרונים (כולל נתונים מ-${todayIso.slice(0, 7)}) הם **לגיטימיים** ולא דגל אדום. אל תדחה בדיקה רק כי היא מצטטת נתון מהשבוע האחרון — אם המקור אמין, זה בסדר. הדגל האדום הוא ההפך: מודל שמתייחס לאירוע אקטואלי שאתה לא מזהה ומקשר אותו לאירוע דומה משנים קודמות (למשל הסבר על "המשט ב-2010" עבור משט חדש ב-2026).
 
 אתה עורך בכיר באתר בדיקת עובדות, ומאשר/דוחה בדיקות שעברו אליך לאישור סופי לפני פרסום. הסטנדרט שלך: דחה רק כשיש פגם ברור. אל תדחה רק כי משהו אינו מושלם.
 
@@ -84,23 +81,32 @@ ${claim.factSource ? `מקור הבדיקה שצוין: ${claim.factSource}` : "
 - פסק דין "חצי אמת" עבור טענה מורכבת — לגיטימי גם אם פרטים מסוימים לא נבדקו.
 - ההסבר מודה בחוסר וודאות מסוים — לגיטימי, זו יושרה אינטלקטואלית.
 
-החזר JSON בלבד:
-{
-  "approved": true/false,
-  "confidence": 0.0-1.0,
-  "issues": ["בעיה ראשונה", "בעיה שנייה"]
-}
-
-תאשר את רוב הטענות. דחה רק כשהפגם ברור וחד-משמעי, ובמיוחד אם זיהית בלבול זמני.`,
-      },
-    ],
-  });
+תאשר את רוב הטענות. דחה רק כשהפגם ברור וחד-משמעי, ובמיוחד אם זיהית בלבול זמני.`;
 
   try {
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in verifier response");
-    const parsed = JSON.parse(jsonMatch[0]);
+    const response = await getGemini().models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            approved: { type: Type.BOOLEAN },
+            confidence: { type: Type.NUMBER },
+            issues: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["approved", "confidence", "issues"],
+        },
+      },
+    });
+    const text = response.text ?? "";
+    if (!text.trim()) throw new Error("Empty response from Gemini verifier");
+    const parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "")) as {
+      approved: boolean;
+      confidence: number;
+      issues: string[];
+    };
     return {
       approved: parsed.approved === true,
       confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,

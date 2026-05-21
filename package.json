@@ -16,12 +16,13 @@
     "db:migrate": "tsx scripts/migrate-to-postgres.mts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.96.0",
+    "@google/genai": "^2.5.0",
     "@prisma/client": "^5.22.0",
     "@sentry/nextjs": "^10.53.1",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "better-sqlite3": "^12.10.0",
+    "jsonrepair": "^3.14.0",
     "next": "16.2.6",
     "prisma": "^5.22.0",
     "react": "19.2.4",

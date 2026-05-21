@@ -33,11 +33,11 @@ function forceLoadEnv(key: string): void {
     } catch { /* ignore */ }
   }
 }
-forceLoadEnv("ANTHROPIC_API_KEY");
+forceLoadEnv("GEMINI_API_KEY");
 forceLoadEnv("DATABASE_URL");
 
-if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.length < 10) {
-  console.error("ANTHROPIC_API_KEY not loaded");
+if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.length < 10) {
+  console.error("GEMINI_API_KEY not loaded");
   process.exit(1);
 }
 

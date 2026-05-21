@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI, Type } from "@google/genai";
+import { jsonrepair } from "jsonrepair";
 import { prisma } from "./db";
 import { NAME_TO_ID } from "./rss-feeds";
 import { getEnvVar } from "./env";
@@ -75,14 +76,44 @@ async function fetchArticleContent(url: string): Promise<string | null> {
   }
 }
 
-function getAnthropic() {
-  const apiKey = getEnvVar("ANTHROPIC_API_KEY");
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not found in env or .env.local");
-  return new Anthropic({ apiKey });
+function getGemini() {
+  const apiKey = getEnvVar("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY not found in env or .env.local");
+  return new GoogleGenAI({ apiKey });
+}
+
+const MODEL = "gemini-2.5-flash";
+
+/**
+ * Parses a JSON response from Gemini, robust to the common ways LLMs
+ * break JSON output:
+ *   1. Wrapping in ```json ... ``` fences.
+ *   2. Leading/trailing prose around the JSON object.
+ *   3. Unescaped quote characters inside string values (Hebrew text
+ *      with quoted phrases is a frequent offender).
+ *
+ * `jsonrepair` handles (3) by attempting to repair malformed JSON.
+ * If even repair fails, we throw — caller is expected to have a fallback.
+ */
+function parseJsonLoose<T>(text: string): T {
+  let cleaned = text.trim();
+  // Strip ```json ... ``` fences if present.
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  // Fall back to the first {...} or [...] span if there's still leading prose.
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const m = cleaned.match(/[\[{][\s\S]*[\]}]/);
+    if (m) cleaned = m[0];
+  }
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Try repairing — handles unescaped quotes, trailing commas, etc.
+    return JSON.parse(jsonrepair(cleaned)) as T;
+  }
 }
 
 /**
- * Prepended to every Anthropic call so the model knows what year/month it is
+ * Prepended to every Gemini call so the model knows what year/month it is
  * and explicitly handles its own training-data cutoff. Without this, the
  * model silently substitutes older similar events (e.g. it'll fact-check a
  * 2026 Gaza flotilla quote against the 2010 Mavi Marmara incident).
@@ -118,13 +149,7 @@ export async function extractClaims(
   articleContent: string,
   articleSource: string,
 ): Promise<ExtractedClaim[]> {
-  const response = await getAnthropic().messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `${dateContextPreamble()}אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ **רק** טענות שניתנות לאימות עובדתי מול מקור חיצוני. אסור לחלץ דעות, רטוריקה, סלוגנים, או האשמות כלליות.
+  const prompt = `${dateContextPreamble()}אתה בודק עובדות לאתר פוליטי. תפקידך לחלץ **רק** טענות שניתנות לאימות עובדתי מול מקור חיצוני. אסור לחלץ דעות, רטוריקה, סלוגנים, או האשמות כלליות.
 
 **הקריטריון העיקרי לחילוץ:** בדוק את עצמך - האם הציטוט מכיל לפחות אחד מאלה?
 - **מספר/סטטיסטיקה/אחוז ספציפי**: "האבטלה 3.2%", "30 חטופים", "הוצאנו 50 מיליארד"
@@ -168,63 +193,48 @@ export async function extractClaims(
 תוכן: ${articleContent}
 מקור: ${articleSource}
 
-החזר JSON בפורמט הבא בלבד, בלי טקסט נוסף:
-[{"politicianName": "שם הפוליטיקאי", "quote": "הציטוט עצמו או פרפרזה צמודה", "topic": "נושא"}]`,
-      },
-    ],
-  });
+החזר מערך JSON של טענות. אם אין טענות העונות לקריטריונים — החזר מערך ריק [].`;
 
   try {
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-    return JSON.parse(jsonMatch[0]);
-  } catch {
-    console.error("Failed to parse claims extraction response");
+    const response = await getGemini().models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        // No grounding needed: we already have the article content; the
+        // model just classifies what's there. Saves grounded-request quota
+        // for the fact-check step where it actually matters.
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              politicianName: { type: Type.STRING },
+              quote: { type: Type.STRING },
+              topic: { type: Type.STRING },
+            },
+            required: ["politicianName", "quote", "topic"],
+          },
+        },
+      },
+    });
+    const text = response.text ?? "";
+    return parseJsonLoose<ExtractedClaim[]>(text);
+  } catch (err) {
+    console.error("Failed to parse claims extraction response:", err);
     return [];
   }
 }
 
 export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckResult> {
-  const response = await getAnthropic().messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4000,
-    // Anthropic's hosted web_search tool. The model decides when to call it,
-    // Anthropic runs the search server-side, results stream back in
-    // `web_search_tool_result` content blocks before the final text block.
-    //
-    // `allowed_callers: ["direct"]` is critical — without it, the tool can
-    // also be called *through* Anthropic's hosted code_execution / bash
-    // tools. The model will write `await web_search(...)` Python, Anthropic
-    // auto-enables a Python sandbox, and the response balloons into 30+
-    // content blocks of code_execution_tool_result + bash_code_execution.
-    // Forcing "direct" keeps it to the simpler tool_use → tool_result →
-    // text shape that we parse downstream.
-    //
-    // Cost note: web_search costs ~$0.01 PER SEARCH REQUEST but the much
-    // bigger hidden cost is the search-result tokens that get fed back
-    // into the model's context — 30-80K input tokens per turn at $3/M.
-    // With max_uses=3 that's ~$0.20/claim; with max_uses=1 it's ~$0.08.
-    // Most claims only need one focused search anyway. Bumped to 1 after
-    // the actual bill (~$8/day) came in 5x higher than the initial
-    // estimate. If a category of claim consistently needs more searches,
-    // raise this; do not raise it speculatively.
-    //
-    // NOTE: `user_location.country` does not accept "IL" — Anthropic's
-    // whitelist excludes Israel. We rely on Hebrew queries in the prompt
-    // to surface Israeli sources naturally.
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 1,
-        allowed_callers: ["direct"],
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `${dateContextPreamble()}אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
+  // Gemini 2.5 Flash + Google Search grounding. The model autonomously
+  // decides whether to invoke Google Search before answering. Grounding
+  // is free up to 500 requests/day on the Gemini API. Replaces the
+  // Anthropic Sonnet + web_search combo, which cost ~$0.20/claim once
+  // search-result tokens were factored in.
+  //
+  // Pricing target: ~$0.02/claim including grounded search.
+  const prompt = `${dateContextPreamble()}אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
 
 פוליטיקאי: ${claim.politicianName}
 טענה: "${claim.quote}"
@@ -242,7 +252,7 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 
 **אם יש בציטוט תוכן עובדתי לבדוק** (מספר, אירוע ספציפי, פעולה, השוואה):
 
-**יש לך גישה לכלי web_search. השתמש בו לפני שאתה מחליט אם הטענה מתייחסת לאירוע אקטואלי, לנתון עדכני (מדדים, סטטיסטיקה, החלטות ממשלה אחרונות), או לכל דבר שעלול להיות מחוץ לידע שלך.** עד 3 חיפושים מותרים. עדיף חיפושים ממוקדים בעברית ("משט עזה ${new Date().getFullYear()}", "מדד המחירים ${new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })}") על פני חיפוש כללי באנגלית. מקורות מומלצים: Ynet, הארץ, מעריב, ישראל היום, גלובס, כלכליסט, גוורנמנט.אילי, למ"ס, בנק ישראל, מבקר המדינה.
+**יש לך גישה ל-Google Search. השתמש בו לפני שאתה מחליט אם הטענה מתייחסת לאירוע אקטואלי, לנתון עדכני (מדדים, סטטיסטיקה, החלטות ממשלה אחרונות), או לכל דבר שעלול להיות מחוץ לידע שלך.** עדיף חיפושים ממוקדים בעברית ("משט עזה ${new Date().getFullYear()}", "מדד המחירים ${new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })}"). מקורות אמינים: Ynet, הארץ, מעריב, ישראל היום, גלובס, כלכליסט, gov.il, למ"ס, בנק ישראל, מבקר המדינה, כנסת.
 
 לאחר החיפוש, החזר את הפסק דין. **חשוב מאוד - כיול הפסקים:**
 
@@ -268,65 +278,78 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 
 **עקרון מנחה:** שאל את עצמך - "אם הציבור יקרא רק את הציטוט הזה ויקבל אותו כעובדה, האם תמונת המציאות שלו תהיה נכונה?" אם כן → אמת. אם תהיה מעוותת באופן מהותי → חצי אמת. אם תהיה הפוכה → שקר.
 
-החזר 3 שדות טקסט:
-1. **summary**: משפט אחד תמציתי (עד 25 מילים) שמסכם למה הפסק דין הזה. זה ה-TL;DR שיוצג ראשון לגולש.
-2. **explanation**: הסבר מלא בעברית ברורה ותמציתית. ציין את העובדות העיקריות, מה תומך ומה סותר את הטענה, ואת ההקשר הנדרש. אם השתמשת ב-web_search, ציין מה מצאת.
-3. **factSource**: שם המקור (אתר/גוף) שעליו התבססת. אם מצאת מקור ב-web_search, ציין את שמו.
-4. **factSourceUrl**: אם מצאת URL ספציפי ב-web_search שמאמת את הטענה, החזר אותו. אחרת null.
+החזר את כל השדות:
+1. **verdict**: "true" / "half-true" / "false"
+2. **summary**: משפט אחד תמציתי (עד 25 מילים) שמסכם למה הפסק דין הזה. זה ה-TL;DR שיוצג ראשון לגולש.
+3. **explanation**: הסבר מלא בעברית ברורה ותמציתית. ציין את העובדות העיקריות, מה תומך ומה סותר את הטענה, ואת ההקשר הנדרש. אם השתמשת בחיפוש, ציין מה מצאת.
+4. **factSource**: שם המקור (אתר/גוף) שעליו התבססת. אם מצאת מקור בחיפוש, ציין את שמו.
+5. **factSourceUrl**: אם מצאת URL ספציפי שמאמת את הטענה, החזר אותו. אחרת השאר ריק.
+6. **confidence**: 0.0-1.0 — כמה אתה בטוח בפסק.
 
 חשוב:
 - התבסס על נתונים רשמיים (הלמ"ס, בנק ישראל, דו"חות מבקר המדינה, פרוטוקולי כנסת) כאשר זמין.
-- אם web_search לא החזיר תוצאות שימושיות וגם הידע הפנימי שלך לא מספיק, סמן confidence נמוך (0.2 או פחות) ופסק "half-true".
+- אם החיפוש לא החזיר תוצאות שימושיות וגם הידע הפנימי שלך לא מספיק, סמן confidence נמוך (0.2 או פחות) ופסק "half-true".
 - אל תכתוב את ה-summary כמילה הראשונה של ה-explanation. הם נפרדים: ה-summary הוא רזה ומסכם, ה-explanation מפרט.
 
-**אזהרה: אירועים אחרונים.** אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות (משט, חיסול, רעידת אדמה, פיגוע, מבצע צבאי, ועדה, ביקור מדיני וכו'), **חפש קודם ב-web_search**. אם החיפוש לא מאשר את האירוע:
+**אזהרה: אירועים אחרונים.** אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות (משט, חיסול, רעידת אדמה, פיגוע, מבצע צבאי, ועדה, ביקור מדיני וכו'), **חפש קודם**. אם החיפוש לא מאשר את האירוע:
 - אל תייחס את הטענה לאירוע דומה מהעבר ("המשט ב-2010", "מבצע צוק איתן", "ועדת חקירה ב-2024"). מאוד סביר שמדובר באירוע חדש.
 - explanation: ציין במפורש שלא נמצא מידע מאמת ושנדרשת בדיקה ידנית. verdict = "half-true", confidence = 0.2 או פחות.
 - אל תמציא פרטים על אירועים שאתה לא בטוח בהם.
 
-החזר JSON בפורמט הבא בלבד, כבלוק טקסט אחרון אחרי כל קריאות ה-web_search:
-{"verdict": "true/half-true/false", "summary": "משפט אחד מסכם", "explanation": "הסבר מלא בעברית", "factSource": "שם המקור הרשמי", "factSourceUrl": "כתובת המקור או null", "confidence": 0.0-1.0}`,
-      },
-    ],
-  });
+**החזר אך ורק JSON בפורמט הבא, בלי טקסט נוסף לפניו או אחריו:**
+{"verdict": "true|half-true|false", "summary": "...", "explanation": "...", "factSource": "...", "factSourceUrl": "...", "confidence": 0.0}`;
 
   try {
-    // Response contains interleaved server_tool_use, web_search_tool_result,
-    // and (sometimes multiple) text blocks. The JSON we want can be in any
-    // text block — usually the first one, but the model sometimes splits
-    // its prose across blocks. Search every text block, take the first one
-    // that parses, and prefer the longest JSON span when there are nested
-    // candidates.
-    const textBlocks = response.content.filter(
-      (b): b is Extract<typeof b, { type: "text" }> => b.type === "text",
-    );
-    let parsed: Record<string, unknown> | null = null;
-    for (const block of textBlocks) {
-      const match = block.text.match(/\{[\s\S]*\}/);
-      if (!match) continue;
-      try {
-        parsed = JSON.parse(match[0]);
-        if (parsed && typeof parsed === "object" && "verdict" in parsed) break;
-      } catch { /* try next block */ }
+    const response = await getGemini().models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        // Gemini gotcha: `googleSearch` tool and `responseMimeType:
+        // "application/json"` are mutually exclusive — the API returns
+        // INVALID_ARGUMENT if both are set. We choose grounding here and
+        // ask for JSON in the prompt + parse it loosely. The model
+        // reliably emits JSON when instructed; parseJsonLoose handles
+        // the occasional ```json``` fence.
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text = response.text ?? "";
+    if (!text.trim()) throw new Error("Empty response from Gemini");
+
+    // Always prefer the FIRST URI from grounding metadata over whatever
+    // the model wrote into factSourceUrl. The model tends to write a
+    // human-readable comma-separated list of all sources, which we
+    // can't link to. Grounding chunks give us a single clean URI.
+    // (Google's TOS requires using their `vertexaisearch...` redirect
+    // URLs anyway — they handle click tracking + citation rendering.)
+    let groundingUrl: string | null = null;
+    const meta = response.candidates?.[0]?.groundingMetadata;
+    if (meta?.groundingChunks?.length) {
+      const firstWeb = meta.groundingChunks.find((c) => c.web?.uri);
+      if (firstWeb?.web?.uri) groundingUrl = firstWeb.web.uri;
     }
-    if (!parsed) throw new Error("No JSON in response");
-    const p = parsed as {
+
+    const p = parseJsonLoose<{
       verdict: "true" | "half-true" | "false";
       summary?: string;
       explanation: string;
       factSource?: string | null;
       factSourceUrl?: string | null;
       confidence?: number;
-    };
+    }>(text);
+
     return {
       verdict: p.verdict,
       summary: p.summary || p.explanation?.split(/[.!?]/)[0] || "",
       explanation: p.explanation,
       factSource: p.factSource ?? null,
-      factSourceUrl: p.factSourceUrl ?? null,
+      // Prefer grounding URL over model-written URL — see comment above.
+      factSourceUrl: groundingUrl || p.factSourceUrl || null,
       confidence: p.confidence ?? 0.5,
     };
-  } catch {
+  } catch (err) {
+    console.error("Fact-check failed for", claim.quote.slice(0, 50), err instanceof Error ? err.message : err);
     return {
       verdict: "half-true",
       summary: "טענה זו טעונה בדיקה ידנית.",
