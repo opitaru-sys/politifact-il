@@ -174,23 +174,32 @@ export async function extractClaims(
 export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckResult> {
   const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 3000,
+    max_tokens: 4000,
     // Anthropic's hosted web_search tool. The model decides when to call it,
     // Anthropic runs the search server-side, results stream back in
     // `web_search_tool_result` content blocks before the final text block.
+    //
+    // `allowed_callers: ["direct"]` is critical — without it, the tool can
+    // also be called *through* Anthropic's hosted code_execution / bash
+    // tools. The model will write `await web_search(...)` Python, Anthropic
+    // auto-enables a Python sandbox, and the response balloons into 30+
+    // content blocks of code_execution_tool_result + bash_code_execution.
+    // Forcing "direct" keeps it to the simpler tool_use → tool_result →
+    // text shape that we parse downstream.
+    //
     // Cost: ~$0.01 per search added to the base ~$0.025/claim. Cap at 3
     // searches per claim → worst case ~$0.055/claim total (~$1.65/day at
-    // 30 claims). Israeli user_location nudges results toward Hebrew sources.
+    // 30 claims).
+    //
+    // NOTE: `user_location.country` does not accept "IL" — Anthropic's
+    // whitelist excludes Israel. We rely on Hebrew queries in the prompt
+    // to surface Israeli sources naturally.
     tools: [
       {
         type: "web_search_20260209",
         name: "web_search",
         max_uses: 3,
-        user_location: {
-          type: "approximate",
-          country: "IL",
-          timezone: "Asia/Jerusalem",
-        },
+        allowed_callers: ["direct"],
       },
     ],
     messages: [
@@ -232,23 +241,40 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
   });
 
   try {
-    // Response may contain interleaved server_tool_use, web_search_tool_result,
-    // and text blocks. We want the LAST text block — that's the model's final
-    // answer after it's done searching.
+    // Response contains interleaved server_tool_use, web_search_tool_result,
+    // and (sometimes multiple) text blocks. The JSON we want can be in any
+    // text block — usually the first one, but the model sometimes splits
+    // its prose across blocks. Search every text block, take the first one
+    // that parses, and prefer the longest JSON span when there are nested
+    // candidates.
     const textBlocks = response.content.filter(
       (b): b is Extract<typeof b, { type: "text" }> => b.type === "text",
     );
-    const text = textBlocks.length ? textBlocks[textBlocks.length - 1].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response");
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed: Record<string, unknown> | null = null;
+    for (const block of textBlocks) {
+      const match = block.text.match(/\{[\s\S]*\}/);
+      if (!match) continue;
+      try {
+        parsed = JSON.parse(match[0]);
+        if (parsed && typeof parsed === "object" && "verdict" in parsed) break;
+      } catch { /* try next block */ }
+    }
+    if (!parsed) throw new Error("No JSON in response");
+    const p = parsed as {
+      verdict: "true" | "half-true" | "false";
+      summary?: string;
+      explanation: string;
+      factSource?: string | null;
+      factSourceUrl?: string | null;
+      confidence?: number;
+    };
     return {
-      verdict: parsed.verdict,
-      summary: parsed.summary || parsed.explanation?.split(/[.!?]/)[0] || "",
-      explanation: parsed.explanation,
-      factSource: parsed.factSource ?? null,
-      factSourceUrl: parsed.factSourceUrl ?? null,
-      confidence: parsed.confidence ?? 0.5,
+      verdict: p.verdict,
+      summary: p.summary || p.explanation?.split(/[.!?]/)[0] || "",
+      explanation: p.explanation,
+      factSource: p.factSource ?? null,
+      factSourceUrl: p.factSourceUrl ?? null,
+      confidence: p.confidence ?? 0.5,
     };
   } catch {
     return {
