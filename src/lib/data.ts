@@ -3,8 +3,13 @@ import * as mock from "@/data/mock";
 
 /** All stats (leaderboard, parties, hero) are computed over a rolling window. */
 export const STATS_WINDOW_DAYS = 30;
-/** Minimum claims in the window to appear in the full leaderboard. */
-export const MIN_CLAIMS_FOR_RANKING = 1;
+/** Minimum claims in the window to appear in the full leaderboard.
+ *  Bumped 1 → 3: with one claim, a politician shows 0% or 100% which is
+ *  noise, not signal. Three is the smallest count where a verdict mix
+ *  is meaningful (same threshold as the hero card). Politicians with
+ *  fewer claims still have an individual page but don't appear in
+ *  rankings. */
+export const MIN_CLAIMS_FOR_RANKING = 3;
 /** Minimum claims to qualify for the "most credible" / "least credible" hero spots.
  *  Three is the smallest number where a verdict mix is meaningful. */
 export const MIN_CLAIMS_FOR_HERO = 3;

@@ -21,19 +21,21 @@ export function Logo({
   // either "bah-DOOK" (checked/verified — what we want) or "bee-DOOK"
   // (inspection). Since we couldn't secure baduk.co.il, the URL "bduk.co.il"
   // doesn't disambiguate either. Adding the pointing makes the intent clear.
+  // The kerning problem isn't uniform — only the ד→וּ gap is too tight
+  // (the ד's right serif clips into the vav). Uniform letter-spacing makes
+  // every gap wider, including ו→ק which then looks too loose. Instead we
+  // wrap the dalet in its own span and add a targeted margin AFTER it.
+  // marginInlineEnd is direction-aware: in RTL it adds space to the left
+  // of the box, which visually sits between ד and וּ.
   return (
     <span
       className={`inline-flex items-baseline ${dims.gap} ${className}`}
       aria-label="בָּדוּק"
     >
       <span
-        // Niqqud marks tuck under letters and need a little more breathing
-        // room between glyphs than plain consonants. Was tracking-[-0.02em]
-        // before pointing was added; that's too tight for דוּ where the
-        // shuruk dot in the vav can collide with the dalet's right serif.
-        className={`${dims.text} font-black tracking-[0.04em] text-foreground leading-none`}
+        className={`${dims.text} font-black text-foreground leading-none`}
       >
-        בָּדוּק
+        בָּ<span style={{ marginInlineEnd: "0.08em" }}>ד</span>וּק
       </span>
       <span
         aria-hidden="true"
