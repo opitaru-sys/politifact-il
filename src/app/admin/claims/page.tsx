@@ -11,6 +11,8 @@ interface PageProps {
     approved?: string;
     politician?: string;
     page?: string;
+    /** When set, show only this single claim (used by /admin/reports → edit link). */
+    id?: string;
   }>;
 }
 
@@ -32,16 +34,23 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
 
   // Filters
   const where: {
+    id?: string;
     status?: string;
     verdict?: string;
     editorApproved?: boolean;
     politicianId?: string;
   } = {};
-  if (params.status && params.status !== "all") where.status = params.status;
-  if (params.verdict && params.verdict !== "all") where.verdict = params.verdict;
-  if (params.approved === "yes") where.editorApproved = true;
-  else if (params.approved === "no") where.editorApproved = false;
-  if (params.politician && params.politician !== "all") where.politicianId = params.politician;
+  // Single-claim mode: when id is set, ignore every other filter. Used
+  // by the "edit claim" link from the reports page.
+  if (params.id) {
+    where.id = params.id;
+  } else {
+    if (params.status && params.status !== "all") where.status = params.status;
+    if (params.verdict && params.verdict !== "all") where.verdict = params.verdict;
+    if (params.approved === "yes") where.editorApproved = true;
+    else if (params.approved === "no") where.editorApproved = false;
+    if (params.politician && params.politician !== "all") where.politicianId = params.politician;
+  }
 
   const page = Math.max(1, parseInt(params.page ?? "1", 10));
   const skip = (page - 1) * PAGE_SIZE;
@@ -165,6 +174,7 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
               politician: c.politician,
             }}
             adminKey={key}
+            defaultOpen={params.id === c.id}
           />
         ))}
       </div>
@@ -237,7 +247,7 @@ interface ClaimRowData {
   politician: { id: string; name: string };
 }
 
-function ClaimRow({ claim, adminKey }: { claim: ClaimRowData; adminKey: string }) {
+function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowData; adminKey: string; defaultOpen?: boolean }) {
   const verdictColor =
     claim.verdict === "true"
       ? "var(--verdict-true)"
@@ -246,7 +256,7 @@ function ClaimRow({ claim, adminKey }: { claim: ClaimRowData; adminKey: string }
       : "var(--verdict-half)";
 
   return (
-    <details className="bg-card border border-border" style={{ borderRadius: 4 }}>
+    <details className="bg-card border border-border" style={{ borderRadius: 4 }} open={defaultOpen}>
       <summary className="cursor-pointer px-4 py-3 select-none">
         <div className="flex items-baseline justify-between gap-3 mb-1">
           <span className="font-bold text-sm">{claim.politician.name}</span>

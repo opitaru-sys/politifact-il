@@ -90,7 +90,7 @@ export default function AboutPage() {
 
       <Section title="מי בנה את האתר">
         <p>
-          האתר נבנה על ידי <a href="https://x.com/opitaru" target="_blank" rel="noopener noreferrer" className="underline">Omri Pitaru</a>
+          האתר נבנה על ידי <a href="https://www.linkedin.com/in/omripitaru/" target="_blank" rel="noopener noreferrer" className="underline">Omri Pitaru</a>
           {" "}כפרויקט אישי. הקוד פתוח ושקוף. אם יש לכם הצעות, באגים או שיפורים, מוזמנים לפנות.
         </p>
       </Section>
@@ -112,21 +112,28 @@ export default function AboutPage() {
           קשר תוך 48 שעות מקבלת הפנייה.
         </p>
         <p>
-          <strong>נוהל הפנייה:</strong> שלחו אימייל לכתובת
-          {" "}
-          <a
-            href="mailto:opitaru@gmail.com?subject=%D7%91%D7%93%D7%95%D7%A7%20-%20%D7%91%D7%A7%D7%A9%D7%AA%20%D7%AA%D7%99%D7%A7%D7%95%D7%9F"
-            className="underline font-medium"
-          >
-            opitaru@gmail.com
-          </a>
-          {" "}עם:
+          <strong>נוהל הפנייה:</strong>
         </p>
         <ul className="list-disc pr-5 space-y-1.5">
-          <li>קישור לטענה הספציפית (כתובת ה-URL של הטענה)</li>
-          <li>תיאור הבעיה: ציטוט לא מדויק, פסק דין שגוי, הקשר חסר, או פגיעה בשם הטוב</li>
-          <li>מקור רשמי או ראיה התומכים בעמדתכם (לא חובה אבל מזרז את הבדיקה)</li>
+          <li>
+            <strong>הדרך הפשוטה:</strong> לחצו על כפתור <em>&ldquo;דיווח על שגיאה&rdquo;</em> בעמוד של הטענה הספציפית.
+            הפנייה תגיע אליי ישירות עם הציטוט והפסק שמופיעים באתר.
+          </li>
+          <li>
+            <strong>פנייה כללית, ייעוץ או משפטית:</strong> שלחו הודעה ב-
+            <a
+              href="https://www.linkedin.com/in/omripitaru/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-medium"
+            >LinkedIn</a>.
+            אני לא מפרסם כתובת אימייל כדי להימנע מספאם.
+          </li>
         </ul>
+        <p>
+          בכל פנייה, הקפידו לכלול: קישור לטענה הספציפית, תיאור הבעיה (ציטוט לא מדויק, פסק דין שגוי,
+          הקשר חסר, או פגיעה בשם הטוב), וכן מקור רשמי או ראיה התומכים בעמדתכם — לא חובה, אבל מזרז את הבדיקה.
+        </p>
         <p>
           <strong>מה יקרה:</strong> במידת הצורך הטענה תוסר מיידית עד לבדיקה נוספת. אם הבדיקה
           תמצא שהדיווח מוצדק, הטענה תתוקן או תוסר לצמיתות. כל הסרה תתועד פומבית בעמוד &quot;תיקונים&quot; בהמשך.

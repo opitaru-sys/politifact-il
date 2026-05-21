@@ -17,15 +17,19 @@ export function Logo({
     lg: { text: "text-4xl", dot: "w-3 h-3", gap: "gap-2" },
   }[size];
 
+  // Niqqud disambiguation: without it, Hebrew readers can read "בדוק" as
+  // either "bah-DOOK" (checked/verified — what we want) or "bee-DOOK"
+  // (inspection). Since we couldn't secure baduk.co.il, the URL "bduk.co.il"
+  // doesn't disambiguate either. Adding the pointing makes the intent clear.
   return (
     <span
       className={`inline-flex items-baseline ${dims.gap} ${className}`}
-      aria-label="בדוק"
+      aria-label="בָּדוּק"
     >
       <span
         className={`${dims.text} font-black tracking-[-0.02em] text-foreground leading-none`}
       >
-        בדוק
+        בָּדוּק
       </span>
       <span
         aria-hidden="true"

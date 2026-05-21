@@ -89,3 +89,20 @@ export async function deleteClaim(formData: FormData): Promise<void> {
   revalidatePath("/admin/claims");
   revalidatePath("/");
 }
+
+/**
+ * Dismiss a user-submitted report. Deletes the Report row entirely —
+ * the underlying claim is untouched. Used in /admin/reports as the
+ * "I've looked at this, no action needed" action so the report doesn't
+ * keep appearing in the queue.
+ */
+export async function dismissReport(formData: FormData): Promise<void> {
+  assertAdmin(formData);
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) throw new Error("Missing report id");
+
+  await prisma.report.delete({ where: { id } });
+  revalidatePath("/admin/reports");
+  revalidatePath("/admin/status");
+}

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   applicationName: "בדוק",
   keywords: ["בדיקת עובדות", "פוליטיקה ישראלית", "פוליטיקאים", "אמת ושקר", "fact check"],
-  authors: [{ name: "Omri Pitaru", url: "https://x.com/opitaru" }],
+  authors: [{ name: "Omri Pitaru", url: "https://www.linkedin.com/in/omripitaru/" }],
   openGraph: {
     title: "בדוק | מי הפוליטיקאי הכי אמין?",
     description: DESCRIPTION,
@@ -131,20 +131,12 @@ export default async function RootLayout({
             <div className="flex flex-col items-start md:items-end gap-2 text-[11px] tracking-wider uppercase">
               <a href="/about" className="hover:text-foreground transition-colors">אודות</a>
               <a
-                href="https://x.com/opitaru"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
-                X · @opitaru
-              </a>
-              <a
                 href="https://www.linkedin.com/in/omripitaru/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-foreground transition-colors"
               >
-                LinkedIn · Omri Pitaru
+                Omri Pitaru ↗
               </a>
             </div>
           </div>

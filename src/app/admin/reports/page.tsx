@@ -1,10 +1,19 @@
 import { prisma } from "@/lib/db";
-import { redirect } from "next/navigation";
+import { dismissReport } from "../_actions";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
   searchParams: Promise<{ key?: string }>;
+}
+
+function formatTime(d: Date): string {
+  return d.toLocaleString("he-IL", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default async function AdminReportsPage({ searchParams }: PageProps) {
@@ -13,8 +22,8 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-black mb-2">🔒 דף אדמין</h1>
-        <p className="text-sm text-gray-500 mb-4">
-          הוסף את <code className="bg-gray-100 px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
+        <p className="text-sm text-foreground-muted mb-4">
+          הוסף את <code className="bg-muted px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
         </p>
       </div>
     );
@@ -28,72 +37,129 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
     },
   });
 
-  if (reports.length === 0) {
-    return (
-      <div>
-        <h1 className="text-2xl font-black mb-1">דיווחי שגיאה</h1>
-        <p className="text-sm text-gray-500 mb-6">דיווחים מהקהל על טענות לא מדויקות</p>
-        <div className="bg-white rounded-xl border border-border p-8 text-center text-gray-500">
-          אין דיווחים עדיין
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">אדמין · דיווחים</div>
       <h1 className="text-3xl font-black mb-2 tracking-tight">דיווחי שגיאה ({reports.length})</h1>
-      <p className="text-sm text-foreground-muted mb-4">דיווחים מהקהל על טענות לא מדויקות</p>
-      <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase mb-6">
-        <a
-          href={`/admin/status?key=${key}`}
-          className="text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1"
-        >
-          ← סטטוס
-        </a>
-        <span className="text-foreground font-bold border-b-2 border-accent pb-1 mr-3">דיווחים</span>
-      </nav>
+      <p className="text-sm text-foreground-muted mb-6">
+        דיווחים מהקהל על טענות לא מדויקות. השתמש ב<em>סגור</em> אם בדקת ואין מה לתקן, או ב<em>ערוך טענה</em> כדי לעדכן את הטענה עצמה.
+      </p>
 
-      <div className="space-y-3">
-        {reports.map((r) => (
-          <div key={r.id} className="bg-white rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded">
-                {r.reason}
-              </span>
-              <span className="text-xs text-gray-400">
-                {new Date(r.createdAt).toLocaleString("he-IL")}
-              </span>
-            </div>
-            <div className="mb-2">
-              <a
-                href={`/politician/${r.claim.politicianId}`}
-                className="text-sm font-bold hover:underline"
-              >
-                {r.claim.politician.name}
-              </a>
-              <span className="text-xs text-gray-500"> · {r.claim.politician.party}</span>
-            </div>
-            <blockquote className="text-sm text-gray-800 mb-2 border-r-4 border-gray-200 pr-3">
-              &ldquo;{r.claim.quote}&rdquo;
-            </blockquote>
-            <div className="text-xs text-gray-500 mb-1">
-              פסק דין נוכחי: <strong>{r.claim.verdict}</strong>
-            </div>
-            {r.details && (
-              <div className="mt-2 bg-gray-50 rounded-lg p-3 text-sm">
-                <div className="text-xs font-bold text-gray-500 mb-1">פירוט המדווח:</div>
-                {r.details}
+      <AdminNav active="reports" adminKey={key} />
+
+      {reports.length === 0 ? (
+        <div className="bg-card border border-border p-8 mt-6 text-center text-foreground-muted" style={{ borderRadius: 4 }}>
+          אין דיווחים פתוחים. כשמשתמש ילחץ &ldquo;דיווח על שגיאה&rdquo; על טענה, היא תופיע כאן.
+        </div>
+      ) : (
+        <div className="space-y-3 mt-6">
+          {reports.map((r) => (
+            <div key={r.id} className="bg-card border border-border p-4" style={{ borderRadius: 4 }}>
+              {/* Header: reason + politician + when */}
+              <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-white bg-accent px-2 py-0.5" style={{ borderRadius: 2 }}>
+                    {r.reason}
+                  </span>
+                  <a
+                    href={`/politician/${r.claim.politicianId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-bold hover:text-accent"
+                  >
+                    {r.claim.politician.name}
+                  </a>
+                  <span className="text-[11px] text-foreground-muted">· {r.claim.politician.party}</span>
+                </div>
+                <span className="text-[11px] text-foreground-muted tabular-nums">
+                  {formatTime(r.createdAt)}
+                </span>
               </div>
-            )}
-            <div className="mt-2 text-xs">
-              <span className="text-gray-400">דיווח #{r.id} · </span>
-              <span className="text-gray-400">claim {r.claimId}</span>
+
+              {/* The claim being reported */}
+              <blockquote className="text-sm text-foreground my-2 border-r-2 border-border pr-3">
+                &ldquo;{r.claim.quote}&rdquo;
+              </blockquote>
+              <div className="text-[11px] text-foreground-muted mb-2">
+                פסק נוכחי: <strong className="text-foreground">{r.claim.verdict}</strong>
+                {" · "}
+                {r.claim.editorApproved ? "אושר" : "לא אושר"}
+              </div>
+
+              {/* Reporter's details (if any) */}
+              {r.details && (
+                <div className="bg-background border border-border p-3 my-3 text-sm" style={{ borderRadius: 2 }}>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-foreground-muted mb-1">
+                    פירוט המדווח
+                  </div>
+                  {r.details}
+                </div>
+              )}
+
+              {/* Actions: dismiss (delete report) | edit the underlying claim | open the public page */}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border flex-wrap">
+                <form action={dismissReport}>
+                  <input type="hidden" name="key" value={key} />
+                  <input type="hidden" name="id" value={r.id} />
+                  <button
+                    type="submit"
+                    className="text-[11px] font-bold uppercase tracking-wider bg-accent text-white py-1.5 px-3 hover:opacity-90"
+                    style={{ borderRadius: 2 }}
+                    title="הדיווח טופל / אין מה לתקן — הסר מהרשימה"
+                  >
+                    סגור דיווח
+                  </button>
+                </form>
+                <a
+                  href={`/admin/claims?key=${key}&id=${r.claimId}`}
+                  className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-accent hover:text-accent py-1.5 px-3"
+                  style={{ borderRadius: 2 }}
+                  title="ערוך את הטענה עצמה (פסק, סטטוס, הסבר)"
+                >
+                  ערוך טענה ←
+                </a>
+                <a
+                  href={`/claim/${r.claimId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-foreground-muted hover:text-foreground"
+                  title="פתח את הטענה כפי שהציבור רואה"
+                >
+                  צפייה ציבורית ↗
+                </a>
+                <span className="text-[10px] text-foreground-muted opacity-50 mr-auto">
+                  דיווח #{r.id.slice(-6)}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function AdminNav({ active, adminKey }: { active: "status" | "claims" | "reports"; adminKey: string }) {
+  const items: { id: typeof active; label: string; href: string }[] = [
+    { id: "status", label: "סטטוס", href: `/admin/status?key=${adminKey}` },
+    { id: "claims", label: "עריכת טענות", href: `/admin/claims?key=${adminKey}` },
+    { id: "reports", label: "דיווחים", href: `/admin/reports?key=${adminKey}` },
+  ];
+  return (
+    <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase">
+      {items.map((it) => (
+        <a
+          key={it.id}
+          href={it.href}
+          className={
+            it.id === active
+              ? "text-foreground font-bold border-b-2 border-accent pb-1 ml-3"
+              : "text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1 ml-3"
+          }
+        >
+          {it.label} {it.id !== active && "→"}
+        </a>
+      ))}
+    </nav>
   );
 }
