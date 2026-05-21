@@ -152,7 +152,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         תצוגה חיה של עומק התור, זמן הריצה האחרונה, ופירוט לפי מקור. הדף הזה לא מוטמן ומציג מצב נוכחי מהמסד.
       </p>
 
-      <AdminNav />
+      <AdminNav adminKey={key} />
 
       {/* Top metric row */}
       <div
@@ -360,12 +360,18 @@ function Metric({
   );
 }
 
-function AdminNav() {
+function AdminNav({ adminKey }: { adminKey: string }) {
   return (
     <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase">
       <span className="text-foreground font-bold border-b-2 border-accent pb-1 ml-3">סטטוס</span>
       <a
-        href={`/admin/reports`}
+        href={`/admin/claims?key=${adminKey}`}
+        className="text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1 ml-3"
+      >
+        עריכת טענות →
+      </a>
+      <a
+        href={`/admin/reports?key=${adminKey}`}
         className="text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1"
       >
         דיווחים →

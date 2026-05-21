@@ -24,14 +24,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Dynamic: every politician with at least one published claim, every claim.
   // We cap at reasonable limits — Google rejects sitemaps over 50k URLs.
+  // Filter mirrors PUBLIC_CLAIM_FILTER in queries.ts — sitemap only exposes
+  // claims that the verifier has approved, so search engines don't index
+  // pages that 404 from the claim page's stricter filter.
   const [politicians, claims] = await Promise.all([
     prisma.politician.findMany({
-      where: { claims: { some: { status: "published" } } },
+      where: { claims: { some: { status: "published", editorApproved: true } } },
       select: { id: true, updatedAt: true },
       take: 5000,
     }),
     prisma.claim.findMany({
-      where: { status: "published" },
+      where: { status: "published", editorApproved: true },
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: 40000,

@@ -73,10 +73,12 @@ try {
 }
 
 console.log("\n--- Processing articles ---");
-// Process up to 300 per run. RSS + Knesset can add 100-200 articles in a single
-// daily fetch; 100 was too tight and caused backlog. 300 covers typical days
-// with headroom. If queue still grows over time, run scripts/drain-queue.mts.
-const claims = await processUnprocessedArticles(300);
+// Cap at 50 articles per run as a cost ceiling. At ~$0.20-0.25 per article
+// that yields a fact-check, this caps a single run at ~$3-5 worst case.
+// Previously 300 (which would have been ~$15-25/run after the web_search
+// cost reality came in). If the queue grows past this, run
+// scripts/drain-queue.mts manually with eyes on the bill.
+const claims = await processUnprocessedArticles(50);
 console.log(`\nCreated ${claims.length} new claims`);
 
 console.log(`\n[${new Date().toISOString()}] Daily run complete ✓`);

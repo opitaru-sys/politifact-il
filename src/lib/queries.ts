@@ -1,14 +1,34 @@
 import { prisma } from "./db";
 import type { Verdict } from "@/data/mock";
 
+/**
+ * Filter applied to every public-facing claim query.
+ *
+ * `status: "published"` ensures we never show drafts or rejected claims.
+ * `editorApproved: true` ensures the second-pass AI verifier has approved
+ *   the claim. Without this, the public site shows raw extraction output
+ *   including misclassified rhetoric ("this is true because he said it")
+ *   — see https://github.com/opitaru-sys/politifact-il commit history.
+ *
+ * Claims with `editorApproved === null` (never verified) and `false`
+ * (rejected by verifier) are both excluded.
+ *
+ * Admin queries (in admin/status/page.tsx) bypass this filter so we can
+ * still see the full pipeline state.
+ */
+const PUBLIC_CLAIM_FILTER = {
+  status: "published",
+  editorApproved: true,
+} as const;
+
 export async function getRecentClaims(days: number = 30) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
 
   return prisma.claim.findMany({
     where: {
+      ...PUBLIC_CLAIM_FILTER,
       date: { gte: cutoff },
-      status: "published",
     },
     include: {
       politician: true,
@@ -19,7 +39,9 @@ export async function getRecentClaims(days: number = 30) {
 }
 
 export async function getAllPoliticians(windowDays?: number) {
-  const where: { status: string; date?: { gte: Date } } = { status: "published" };
+  const where: { status: string; editorApproved: boolean; date?: { gte: Date } } = {
+    ...PUBLIC_CLAIM_FILTER,
+  };
   if (windowDays !== undefined) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - windowDays);
@@ -37,7 +59,7 @@ export async function getPoliticianById(id: string) {
     where: { id },
     include: {
       claims: {
-        where: { status: "published" },
+        where: PUBLIC_CLAIM_FILTER,
         orderBy: { date: "desc" },
         include: { _count: { select: { comments: true } } },
       },
@@ -126,7 +148,7 @@ export async function getPartyStats(windowDays?: number) {
 }
 
 export async function hasAnyPublishedClaims(): Promise<boolean> {
-  const count = await prisma.claim.count({ where: { status: "published" } });
+  const count = await prisma.claim.count({ where: PUBLIC_CLAIM_FILTER });
   return count > 0;
 }
 
@@ -135,7 +157,9 @@ export async function getUnrankedPoliticians(windowDays?: number) {
   const cutoff = new Date();
   if (windowDays !== undefined) cutoff.setDate(cutoff.getDate() - windowDays);
 
-  const claimWhere: { status: string; date?: { gte: Date } } = { status: "published" };
+  const claimWhere: { status: string; editorApproved: boolean; date?: { gte: Date } } = {
+    ...PUBLIC_CLAIM_FILTER,
+  };
   if (windowDays !== undefined) claimWhere.date = { gte: cutoff };
 
   return prisma.politician.findMany({
@@ -156,7 +180,7 @@ export async function getLastUpdate(): Promise<Date | null> {
   try {
     const [latestClaim, latestArticle] = await Promise.all([
       prisma.claim.findFirst({
-        where: { status: "published" },
+        where: PUBLIC_CLAIM_FILTER,
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       }),

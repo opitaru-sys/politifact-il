@@ -12,7 +12,19 @@ Living document. Tier order = priority. Check items off as they ship.
 
 - [x] **Anthropic web_search in fact-check pipeline** — DONE. `factCheckClaim()` now declares the `web_search_20260209` tool with `max_uses: 3` and Israeli `user_location`. Prompt instructs the model to search for current events / recent data before deciding. Response parser updated to pick the LAST text block (after interleaved `server_tool_use` / `web_search_tool_result` blocks). Cost: ~$0.025 + up to 3×$0.01 per claim → max ~$0.055/claim, ~$1.65/day at 30 claims/day. Next run will exercise it.
 - [ ] **Neon serverless adapter** (`@prisma/adapter-neon` + `@neondatabase/serverless`) — uses HTTP instead of TCP, handles cold-starts gracefully. Eliminates the 500-on-first-request-after-suspend issue. ~1 hour.
+- [ ] **More reliable cron than GitHub Actions free tier.** May 21 03:00/04:00 UTC scheduled runs simply didn't fire — known free-tier flakiness, not a config problem. Pipeline is idempotent so a missed day self-heals the next, but for a public site this looks bad. Options: Vercel cron (free, more reliable, but max 60s function runtime — wrong fit since our daily run is ~10 min), Upstash QStash (paid, reliable, can call a long-running endpoint), or a $1/mo VPS with system cron. Lean toward QStash. ~30 min.
+- [ ] **Migrate fact-check / extraction / verifier to Gemini Flash + Google Search grounding.** Real cost on Anthropic Sonnet + web_search came in at ~$8/day = ~$240/mo, not the ~$1.40/day I initially estimated. Web search itself is $0.01/request but each search dumps 30-80K tokens of results back into context at $3/M input — that's where the bill goes. Optimizations landed today (max_uses 3→1, daily cap 300→50) bring it to ~$1.50/day = $45/mo. Gemini Flash is $0.10/M input + free Google grounding → ~$0.30/day = $9/mo. ~3-4 hour refactor (different SDK, JSON output less robust, but Hebrew quality is competitive). Worth it once the project ships and runs reliably.
+
+## Cost-savings already applied (do not re-litigate)
+
+- max_uses on web_search: 3 → 1 (60% saving on search-result input tokens per claim)
+- daily.mts article cap: 300 → 50 (caps any single run at ~$5 worst case)
+- Public queries filter `editorApproved: true` so the public never sees the rejects (avoiding pressure to re-run pipelines just to clean up display)
 - [ ] **Spot-check 10-20 verified claims by hand.** No human review yet — even after the second-pass AI verifier, some claims may have wrong verdicts. A human pass on ~10% of claims before any PR push is the right pre-launch hygiene.
+
+## Recently fixed (do not re-litigate)
+
+- [x] **AI was approving rhetorical quotes as "true"** — e.g. Ben Gvir saying "they're terrorism supporters" got verdict=true because the citation was accurate. Three-layer fix: (1) extraction prompt now requires a specific number/event/action/comparison or rejects; (2) fact-check prompt explicitly states verdict is about content not attribution, sets confidence=0 for opinion/slogan/rhetoric; (3) verifier rejects "true verdict justified by 'he said it' instead of content evidence". (4) Public queries now filter `editorApproved: true` so rejected claims don't show on site. Re-ran verifier on all existing claims with new criteria.
 
 ## Tier 1 · Data expansion (current cron handles this organically)
 

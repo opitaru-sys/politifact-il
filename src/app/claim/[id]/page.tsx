@@ -11,8 +11,10 @@ interface PageProps {
 }
 
 async function getClaim(id: string) {
-  return prisma.claim.findUnique({
-    where: { id },
+  // Match the public filter from queries.ts — unapproved or rejected claims
+  // 404 instead of being viewable by direct URL.
+  return prisma.claim.findFirst({
+    where: { id, status: "published", editorApproved: true },
     include: {
       politician: true,
       _count: { select: { comments: true } },
