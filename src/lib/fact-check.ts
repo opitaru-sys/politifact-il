@@ -315,19 +315,47 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
 **החזר אך ורק JSON בפורמט הבא, בלי טקסט נוסף לפניו או אחריו:**
 {"verdict": "true|half-true|false", "summary": "...", "explanation": "...", "factSource": "...", "factSourceUrl": "...", "confidence": 0.0}`;
 
+  // Backfill switch: set BADAK_DISABLE_GROUNDING=1 to skip the
+  // googleSearch tool. Grounding adds ~20-25s per fact-check (live
+  // search round-trip + grounded-output streaming) and is the dominant
+  // cost when processing thousands of historical articles. Disabling
+  // it speeds the drain ~6-8x. Trade-off: the model has to rely on
+  // training-data knowledge for current events — many recent-event
+  // claims will get half-true / low confidence as a result, then the
+  // verifier rejects them, and they stay hidden from the public site
+  // (which only shows editorApproved=true). High-quality historical
+  // claims still get through.
+  const useGrounding = process.env.BADAK_DISABLE_GROUNDING !== "1";
+
   try {
     const response = await getGemini().models.generateContent({
       model: MODEL,
       contents: prompt,
-      config: {
-        // Gemini gotcha: `googleSearch` tool and `responseMimeType:
-        // "application/json"` are mutually exclusive — the API returns
-        // INVALID_ARGUMENT if both are set. We choose grounding here and
-        // ask for JSON in the prompt + parse it loosely. The model
-        // reliably emits JSON when instructed; parseJsonLoose handles
-        // the occasional ```json``` fence.
-        tools: [{ googleSearch: {} }],
-      },
+      config: useGrounding
+        ? {
+            // Gemini gotcha: `googleSearch` tool and `responseMimeType:
+            // "application/json"` are mutually exclusive — the API
+            // returns INVALID_ARGUMENT if both are set. We choose
+            // grounding here and ask for JSON in the prompt + parse it
+            // loosely.
+            tools: [{ googleSearch: {} }],
+          }
+        : {
+            // No grounding → we can use the strict JSON schema.
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                verdict: { type: Type.STRING, enum: ["true", "half-true", "false"] },
+                summary: { type: Type.STRING },
+                explanation: { type: Type.STRING },
+                factSource: { type: Type.STRING },
+                factSourceUrl: { type: Type.STRING },
+                confidence: { type: Type.NUMBER },
+              },
+              required: ["verdict", "summary", "explanation"],
+            },
+          },
     });
 
     const text = response.text ?? "";
@@ -355,14 +383,22 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
       confidence?: number;
     }>(text);
 
+    // Defensive coercion: the model sometimes omits required fields
+    // (especially the explanation, when its JSON output truncates). We
+    // can't persist undefined to a NOT-NULL Postgres column, so coalesce
+    // to a non-empty placeholder. The verifier will subsequently reject
+    // these (criterion #5: "explanation is entirely vague").
+    const explanation = (p.explanation && String(p.explanation).trim()) ||
+      "ההסבר חסר. נדרשת בדיקה ידנית.";
     return {
-      verdict: p.verdict,
-      summary: p.summary || p.explanation?.split(/[.!?]/)[0] || "",
-      explanation: p.explanation,
+      verdict: p.verdict ?? "half-true",
+      summary: (p.summary && String(p.summary).trim()) ||
+        explanation.split(/[.!?]/)[0] || "",
+      explanation,
       factSource: p.factSource ?? null,
       // Prefer grounding URL over model-written URL — see comment above.
       factSourceUrl: groundingUrl || p.factSourceUrl || null,
-      confidence: p.confidence ?? 0.5,
+      confidence: typeof p.confidence === "number" ? p.confidence : 0.5,
     };
   } catch (err) {
     console.error("Fact-check failed for", claim.quote.slice(0, 50), err instanceof Error ? err.message : err);
@@ -556,16 +592,21 @@ export async function processArticle(articleId: string) {
 
 /**
  * How many articles to process concurrently. Gemini Flash allows 1500
- * req/min on the paid tier and the free tier still allows ~60 req/min;
- * with avg ~5-15s per article (depending on whether it yields claims),
- * 5-way parallelism stays well under both quotas. Going higher (10+)
- * starts to push the daily 500-grounded-request limit on the free tier
- * if a batch happens to be claim-dense.
+ * req/min on the paid tier and the free tier still allows ~60 req/min.
+ *
+ * Default 8: with claim-level parallelism inside each article and
+ * grounding disabled (BADAK_DISABLE_GROUNDING=1), per-call latency
+ * drops to ~3s. 8 articles × ~3 claims = ~24 concurrent Gemini calls
+ * at peak, well under 60 RPM.
+ *
+ * If you re-enable grounding for the cron path, drop this to 4 — each
+ * grounded call takes ~25s and the daily 500-grounded-request quota
+ * fills fast at higher concurrency.
  *
  * If you bump this, also watch the Prisma connection pool (default is
  * num_cpus*2+1) — each in-flight processArticle holds 2-4 connections.
  */
-const ARTICLE_CONCURRENCY = 5;
+const ARTICLE_CONCURRENCY = Number(process.env.BADAK_ARTICLE_CONCURRENCY ?? 8);
 
 export async function processUnprocessedArticles(limit: number = 50) {
   const articles = await prisma.article.findMany({
