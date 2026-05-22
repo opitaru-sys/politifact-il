@@ -45,11 +45,12 @@ export async function fetchFeed(feed: FeedSource) {
 }
 
 export async function fetchAllFeeds() {
-  const results = [];
-  for (const feed of RSS_FEEDS) {
-    const result = await fetchFeed(feed);
-    results.push(result);
-    console.log(`${feed.name}: ${result.fetched} new articles`);
+  // RSS fetching is network-bound and cheap. Run feeds in parallel so a
+  // slow/broken source does not delay the daily freshness pass for every
+  // other source. Each individual feed still has its own 10s timeout.
+  const results = await Promise.all(RSS_FEEDS.map((feed) => fetchFeed(feed)));
+  for (const result of results) {
+    console.log(`${result.feed}: ${result.fetched} new articles`);
   }
   return results;
 }

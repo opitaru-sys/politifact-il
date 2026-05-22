@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { jsonrepair } from "jsonrepair";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
-import { NAME_TO_ID } from "./rss-feeds";
+import { NAME_TO_ID, RSS_FEEDS } from "./rss-feeds";
 import { getEnvVar } from "./env";
 import { verifyClaim } from "./verify-claim";
 
@@ -608,11 +609,50 @@ export async function processArticle(articleId: string) {
  */
 const ARTICLE_CONCURRENCY = Number(process.env.BADAK_ARTICLE_CONCURRENCY ?? 8);
 
-export async function processUnprocessedArticles(limit: number = 50) {
+const KNESSET_SOURCE = "כנסת · מליאה";
+const RSS_SOURCE_NAMES = RSS_FEEDS.map((feed) => feed.name);
+
+type ArticleQueueOrder = "oldest" | "newest";
+
+interface ProcessArticlesOptions {
+  limit?: number;
+  sources?: string[];
+  excludeSources?: string[];
+  fetchedSince?: Date;
+  publishedSince?: Date;
+  order?: ArticleQueueOrder;
+}
+
+type NormalizedProcessOptions =
+  Required<Pick<ProcessArticlesOptions, "limit" | "order">> &
+  Omit<ProcessArticlesOptions, "limit" | "order">;
+
+function normalizeProcessOptions(
+  input: number | ProcessArticlesOptions = 50,
+): NormalizedProcessOptions {
+  if (typeof input === "number") return { limit: input, order: "oldest" };
+  return {
+    ...input,
+    limit: input.limit ?? 50,
+    order: input.order ?? "oldest",
+  };
+}
+
+export async function processUnprocessedArticles(input: number | ProcessArticlesOptions = 50) {
+  const options = normalizeProcessOptions(input);
+  const where: Prisma.ArticleWhereInput = { processed: false };
+  if (options.sources?.length) where.source = { in: options.sources };
+  if (options.excludeSources?.length) where.source = { notIn: options.excludeSources };
+  if (options.fetchedSince) where.fetchedAt = { gte: options.fetchedSince };
+  if (options.publishedSince) where.publishedAt = { gte: options.publishedSince };
+
   const articles = await prisma.article.findMany({
-    where: { processed: false },
-    orderBy: { fetchedAt: "asc" },
-    take: limit,
+    where,
+    orderBy:
+      options.order === "newest"
+        ? [{ fetchedAt: "desc" }]
+        : [{ fetchedAt: "asc" }],
+    take: options.limit,
   });
 
   console.log(`Processing ${articles.length} unprocessed articles (concurrency=${ARTICLE_CONCURRENCY})...`);
@@ -638,4 +678,31 @@ export async function processUnprocessedArticles(limit: number = 50) {
   }
 
   return allResults;
+}
+
+/**
+ * Priority lane for public freshness. This processes only RSS/news articles
+ * fetched recently, newest first, so a huge Knesset transcript backlog can
+ * never starve today's news coverage.
+ */
+export async function processFreshNewsArticles(limit: number = 80, hours: number = 48) {
+  const fetchedSince = new Date(Date.now() - hours * 60 * 60 * 1000);
+  return processUnprocessedArticles({
+    limit,
+    sources: RSS_SOURCE_NAMES,
+    fetchedSince,
+    order: "newest",
+  });
+}
+
+/**
+ * Low-budget backfill lane. Use a small daily cap so the historical Knesset
+ * corpus drains eventually without consuming the daily freshness budget.
+ */
+export async function processKnessetBacklog(limit: number = 5) {
+  return processUnprocessedArticles({
+    limit,
+    sources: [KNESSET_SOURCE],
+    order: "oldest",
+  });
 }

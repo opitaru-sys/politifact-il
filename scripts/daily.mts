@@ -53,7 +53,11 @@ if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.length < 10) {
 
 // Now safe to import the pipeline modules (they read env at import time)
 const { fetchAllFeeds } = await import("../src/lib/ingest");
-const { processUnprocessedArticles } = await import("../src/lib/fact-check");
+const {
+  processFreshNewsArticles,
+  processKnessetBacklog,
+  processUnprocessedArticles,
+} = await import("../src/lib/fact-check");
 const { ingestKnessetPlenum } = await import("../src/lib/knesset-ingest");
 
 console.log("\n--- Ingesting RSS feeds ---");
@@ -64,6 +68,15 @@ for (const r of ingestResults) {
   console.log(`  ${r.feed}: ${r.fetched}${r.error ? ` (error: ${r.error.slice(0, 80)})` : ""}`);
 }
 
+console.log("\n--- Processing fresh RSS news first ---");
+// Fresh news is the public SLA. Process recently fetched RSS items newest
+// first before touching the Knesset/backfill corpus, so a transcript dump
+// can never starve today's news cycle.
+const freshLimit = Number(process.env.BADAK_FRESH_NEWS_LIMIT ?? 80);
+const freshHours = Number(process.env.BADAK_FRESH_NEWS_HOURS ?? 48);
+const freshClaims = await processFreshNewsArticles(freshLimit, freshHours);
+console.log(`Fresh news created ${freshClaims.length} new claims`);
+
 console.log("\n--- Ingesting Knesset plenary transcripts ---");
 try {
   const knesset = await ingestKnessetPlenum({ knessetNum: 25, sessionLimit: 3 });
@@ -72,14 +85,31 @@ try {
   console.error("Knesset ingest failed:", err);
 }
 
-console.log("\n--- Processing articles ---");
-// Cap at 50 articles per run as a cost ceiling. At ~$0.20-0.25 per article
-// that yields a fact-check, this caps a single run at ~$3-5 worst case.
-// Previously 300 (which would have been ~$15-25/run after the web_search
-// cost reality came in). If the queue grows past this, run
-// scripts/drain-queue.mts manually with eyes on the bill.
-const claims = await processUnprocessedArticles(50);
-console.log(`\nCreated ${claims.length} new claims`);
+console.log("\n--- Processing older RSS backlog ---");
+// Small non-Knesset catch-up lane. This keeps older news moving without
+// letting it consume the whole run.
+const rssBacklogLimit = Number(process.env.BADAK_RSS_BACKLOG_LIMIT ?? 20);
+const rssBacklogClaims = await processUnprocessedArticles({
+  limit: rssBacklogLimit,
+  excludeSources: ["כנסת · מליאה"],
+  order: "oldest",
+});
+console.log(`RSS backlog created ${rssBacklogClaims.length} new claims`);
+
+console.log("\n--- Processing Knesset backlog (low budget) ---");
+// Knesset transcripts are valuable, but they are the main backlog source.
+// Keep them on a tiny daily budget so they drain slowly without blocking
+// fresh public news.
+const previousDisableGrounding = process.env.BADAK_DISABLE_GROUNDING;
+process.env.BADAK_DISABLE_GROUNDING = process.env.BADAK_KNESSET_DISABLE_GROUNDING ?? "1";
+const knessetLimit = Number(process.env.BADAK_KNESSET_DAILY_LIMIT ?? 5);
+const knessetClaims = await processKnessetBacklog(knessetLimit);
+if (previousDisableGrounding === undefined) delete process.env.BADAK_DISABLE_GROUNDING;
+else process.env.BADAK_DISABLE_GROUNDING = previousDisableGrounding;
+console.log(`Knesset backlog created ${knessetClaims.length} new claims`);
+
+const totalClaims = freshClaims.length + rssBacklogClaims.length + knessetClaims.length;
+console.log(`\nCreated ${totalClaims} new claims`);
 
 console.log(`\n[${new Date().toISOString()}] Daily run complete ✓`);
 process.exit(0);
