@@ -29,10 +29,21 @@ const ROLLCALL_PATTERNS: { regex: RegExp; reason: string }[] = [
   { regex: /לא נוכח[ת]?\s*$/, reason: "Knesset roll-call: not present" },
   { regex: /^נוכחים?:/, reason: "Knesset roll-call: presence list" },
   { regex: /^נעדרים?:/, reason: "Knesset roll-call: absentee list" },
-  { regex: /הצבעה (מס׳|מספר) \d+/, reason: "Knesset vote-number header" },
-  { regex: /^ההצבעה .{0,30}(התקבלה|נדחתה)\s*$/, reason: "Knesset vote outcome line" },
+  { regex: /הצבעה (מס׳|מספר|מס\.) \d+/, reason: "Knesset vote-number header" },
+  { regex: /(ההצבעה|ההצעה|ההסתייגויות?) .{0,40}(התקבלה|נדחתה|התקבלו|נדחו)\s*[\.\)]?\s*$/, reason: "Knesset vote outcome line" },
+  // Vote tallies — "בעד - 50" / "נגד - 32" / "נמנעים - 2"
+  { regex: /^(בעד|נגד|נמנעים?)\s*[-–]\s*\d+\s*$/, reason: "Knesset vote tally" },
+  { regex: /^(אין מתנגדים|אין נמנעים|אין מצביעים)\s*[\.\)]?\s*$/, reason: "Knesset null-vote line" },
+  // Section / clause acceptance — "סעיפים 1-3 נתקבלו", "סעיף 4 נדחה"
+  { regex: /^סעיפ?י?ם?\s+[\dא-ת\-\,–\s]{1,30}\s+(נתקבלו|נתקבל|נדחו|נדחה|אושרו|אושר)\s*[\.\)]?\s*$/, reason: "Knesset section acceptance" },
+  // "פה אחד" / "ברוב קולות" outcome lines without context
+  { regex: /^(פה אחד|ברוב קולות|בקריאה (ראשונה|שנייה|שלישית))\s*[\.\)]?\s*$/, reason: "Knesset vote modality line" },
   // Generic procedural lines that the extractor sometimes promotes
   { regex: /^(הישיבה|הדיון|הוועדה) .{0,40}(נפתחה|ננעלה|הסתיימה|נדחתה)/, reason: "Knesset session housekeeping" },
+  // "אני נועל את הישיבה" type
+  { regex: /(נועל|נועלת|פותח|פותחת) את (הישיבה|הדיון)/, reason: "Knesset session housekeeping" },
+  // Pure thanks / chairmanship niceties
+  { regex: /^(תודה רבה|בבקשה|אנא רשמו לפרוטוקול)\s*[,\.]?\s*(אדוני |אדונית )?(היו"ר|היושב.ראש|חברת הכנסת|חבר הכנסת)?\s*[\.\)]?\s*$/, reason: "Knesset ceremonial speech" },
 ];
 
 const all = await prisma.claim.findMany({

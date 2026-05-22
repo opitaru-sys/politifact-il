@@ -135,12 +135,20 @@ function parseJsonLoose<T>(text: string): T {
  * model silently substitutes older similar events (e.g. it'll fact-check a
  * 2026 Gaza flotilla quote against the 2010 Mavi Marmara incident).
  */
-function dateContextPreamble(): string {
+function dateContextPreamble(claimDate?: Date | null): string {
   const today = new Date();
   const iso = today.toISOString().split("T")[0];
   const hebrew = today.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+  // If we know when the quote was said, include that — critical for
+  // relative time expressions ("we are now", "this week", "last month").
+  // Without it the model judged "we are now end of March" against today's
+  // date and called it false, even when the quote was from a March
+  // Knesset session.
+  const claimDateBlock = claimDate
+    ? `\nתאריך הציטוט: ${claimDate.toISOString().split("T")[0]} (${claimDate.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}).\nכשיש בציטוט ביטוי זמן יחסי ("עכשיו", "השבוע", "החודש", "השנה", "אתמול", "השנים האחרונות"), פרש אותו ביחס לתאריך הציטוט, לא ביחס להיום. דוגמה: ציטוט מ-20 במרץ שאומר "אנחנו עכשיו בסוף מרץ" — נכון, לא שקר.`
+    : "";
   return `**הקשר זמני קריטי לפני הבדיקה:**
-היום: ${iso} (${hebrew}).
+היום: ${iso} (${hebrew}).${claimDateBlock}
 מודל ה-AI שלך מאומן על מידע שעלול לא לכלול אירועים אחרונים. אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות מתוך הידע שלך, אל תנחש ואל תייחס אותה לאירוע דומה מהעבר. במקום זה הצהר שאינך יכול לאמת אותה ובחר verdict "half-true" עם confidence נמוך, או החזר בקשה לבדיקה ידנית. עדיף "לא יודע" מאשר תשובה בטוחה לגבי אירוע לא נכון.
 
 `;
@@ -249,7 +257,10 @@ export async function extractClaims(
   }
 }
 
-export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckResult> {
+export async function factCheckClaim(
+  claim: ExtractedClaim,
+  options?: { claimDate?: Date | null },
+): Promise<FactCheckResult> {
   // Gemini 2.5 Flash + Google Search grounding. The model autonomously
   // decides whether to invoke Google Search before answering. Grounding
   // is free up to 500 requests/day on the Gemini API. Replaces the
@@ -257,7 +268,7 @@ export async function factCheckClaim(claim: ExtractedClaim): Promise<FactCheckRe
   // search-result tokens were factored in.
   //
   // Pricing target: ~$0.02/claim including grounded search.
-  const prompt = `${dateContextPreamble()}אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
+  const prompt = `${dateContextPreamble(options?.claimDate)}אתה בודק עובדות מקצועי לפוליטיקה ישראלית. בדוק את הטענה הבאה:
 
 פוליטיקאי: ${claim.politicianName}
 טענה: "${claim.quote}"
@@ -542,7 +553,10 @@ export async function processArticle(articleId: string) {
   // outer article-level chunk (see ARTICLE_CONCURRENCY).
   const results = await Promise.all(
     eligible.map(async ({ claim, politicianId, politicianName }) => {
-      const factCheck = await factCheckClaim(claim);
+      // Pass the article's publishedAt so the model interprets relative
+      // time expressions ("we are now", "this week") against when the
+      // quote was actually said, not against today.
+      const factCheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
       const saved = await prisma.claim.create({
         data: {
           politicianId,
@@ -570,6 +584,7 @@ export async function processArticle(articleId: string) {
           factSource: saved.factSource,
           politicianName,
           topic: saved.topic,
+          claimDate: article.publishedAt,
         });
         await prisma.claim.update({
           where: { id: saved.id },

@@ -40,12 +40,23 @@ export interface ClaimToVerify {
   factSource?: string | null;
   politicianName: string;
   topic: string;
+  /**
+   * When was the quote actually said? Used so the verifier doesn't
+   * reject claims that reference relative time ("this week", "now")
+   * by comparing them to today's date. If omitted, the verifier
+   * defaults to its own date-context heuristics.
+   */
+  claimDate?: Date | null;
 }
 
 export async function verifyClaim(claim: ClaimToVerify): Promise<VerificationResult> {
   const today = new Date();
   const todayIso = today.toISOString().split("T")[0];
-  const prompt = `**הקשר זמני קריטי:** היום ${todayIso}. מודל הבדיקה הקודם השתמש ב-Google Search כדי לחפש מידע עדכני — לכן ציטוטים מנתונים של החודשים האחרונים (כולל נתונים מ-${todayIso.slice(0, 7)}) הם **לגיטימיים** ולא דגל אדום. אל תדחה בדיקה רק כי היא מצטטת נתון מהשבוע האחרון — אם המקור אמין, זה בסדר. הדגל האדום הוא ההפך: מודל שמתייחס לאירוע אקטואלי שאתה לא מזהה ומקשר אותו לאירוע דומה משנים קודמות (למשל הסבר על "המשט ב-2010" עבור משט חדש ב-2026).
+  const claimDateNote = claim.claimDate
+    ? `הציטוט נאמר ב-${claim.claimDate.toISOString().split("T")[0]}. כשמופיע בציטוט "עכשיו" / "השבוע" / "החודש", זה מתייחס לתאריך הציטוט ולא להיום. אל תדחה רק כי הציטוט אומר "עכשיו" וההסבר מציין תאריך אחר — בדוק התאמה לתאריך הציטוט.`
+    : "";
+  const prompt = `**הקשר זמני קריטי:** היום ${todayIso}. ${claimDateNote}
+מודל הבדיקה הקודם השתמש ב-Google Search כדי לחפש מידע עדכני — לכן ציטוטים מנתונים של החודשים האחרונים (כולל נתונים מ-${todayIso.slice(0, 7)}) הם **לגיטימיים** ולא דגל אדום. אל תדחה בדיקה רק כי היא מצטטת נתון מהשבוע האחרון — אם המקור אמין, זה בסדר. הדגל האדום הוא ההפך: מודל שמתייחס לאירוע אקטואלי שאתה לא מזהה ומקשר אותו לאירוע דומה משנים קודמות (למשל הסבר על "המשט ב-2010" עבור משט חדש ב-2026).
 
 אתה עורך בכיר באתר בדיקת עובדות, ומאשר/דוחה בדיקות שעברו אליך לאישור סופי לפני פרסום. הסטנדרט שלך: דחה רק כשיש פגם ברור. אל תדחה רק כי משהו אינו מושלם.
 
