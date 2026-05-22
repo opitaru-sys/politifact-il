@@ -87,6 +87,20 @@ function formatHHMM(d: Date): string {
   });
 }
 
+function bucketQueueByAge(articles: { fetchedAt: Date }[]): Record<string, number> {
+  const now = Date.now();
+  const buckets: Record<string, number> = { "<30דק": 0, "30דק-1ש": 0, "1-3ש": 0, "3-24ש": 0, ">24ש": 0 };
+  for (const a of articles) {
+    const minutes = (now - a.fetchedAt.getTime()) / 60_000;
+    if (minutes < 30) buckets["<30דק"]++;
+    else if (minutes < 60) buckets["30דק-1ש"]++;
+    else if (minutes < 180) buckets["1-3ש"]++;
+    else if (minutes < 1440) buckets["3-24ש"]++;
+    else buckets[">24ש"]++;
+  }
+  return buckets;
+}
+
 function timeUntil(d: Date): string {
   const sec = Math.floor((d.getTime() - Date.now()) / 1000);
   if (sec < 60) return "בכל רגע";
@@ -195,16 +209,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
 
   // Bucket the queue by age so the admin sees "13 from the last hour, 17 from
   // 1-6h ago" instead of just a total. Makes "why is there a queue" concrete.
-  const now = Date.now();
-  const queueAge = { "<30דק": 0, "30דק-1ש": 0, "1-3ש": 0, "3-24ש": 0, ">24ש": 0 };
-  for (const a of unprocessedArticlesForAge) {
-    const minutes = (now - a.fetchedAt.getTime()) / 60_000;
-    if (minutes < 30) queueAge["<30דק"]++;
-    else if (minutes < 60) queueAge["30דק-1ש"]++;
-    else if (minutes < 180) queueAge["1-3ש"]++;
-    else if (minutes < 1440) queueAge["3-24ש"]++;
-    else queueAge[">24ש"]++;
-  }
+  const queueAge = bucketQueueByAge(unprocessedArticlesForAge);
 
   const sourceRows: SourceStats[] = sourceRowsRaw.map((r) => {
     let lastFetched: Date | null = null;

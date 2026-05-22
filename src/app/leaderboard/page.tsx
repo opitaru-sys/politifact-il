@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { getPoliticianStats, getUnrankedPoliticians, STATS_WINDOW_DAYS } from "@/lib/data";
+import { getPoliticianStats, getUnrankedPoliticians } from "@/lib/data";
+import { getDataCollectionStart } from "@/lib/queries";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
+import { WindowSelector, resolveWindow, windowLabel as windowLabelFn } from "@/components/WindowSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -16,37 +17,22 @@ function scoreColor(pct: number): string {
   return "var(--verdict-true)";
 }
 
-// Day windows the user can switch between. `all` means no time filter —
-// useful now that we have a large backfilled dataset of older Knesset
-// transcripts that would otherwise be invisible on the leaderboard.
-const WINDOW_OPTIONS: { value: string; label: string; days: number | undefined }[] = [
-  { value: "7", label: "שבוע", days: 7 },
-  { value: "30", label: "חודש", days: 30 },
-  { value: "90", label: "3 חודשים", days: 90 },
-  { value: "365", label: "שנה", days: 365 },
-  { value: "all", label: "הכל", days: undefined },
-];
-
 interface PageProps {
   searchParams: Promise<{ window?: string }>;
 }
 
 export default async function LeaderboardPage({ searchParams }: PageProps) {
   const { window: windowParam } = await searchParams;
-  const selected =
-    WINDOW_OPTIONS.find((w) => w.value === windowParam) ??
-    WINDOW_OPTIONS.find((w) => w.days === STATS_WINDOW_DAYS) ??
-    WINDOW_OPTIONS[1];
+  const selected = resolveWindow(windowParam);
 
-  const [ascending, unranked] = await Promise.all([
+  const [ascending, unranked, collectionStart] = await Promise.all([
     getPoliticianStats(selected.days),
     getUnrankedPoliticians(selected.days),
+    getDataCollectionStart(),
   ]);
   const stats = [...ascending].reverse();
 
-  const windowLabel = selected.days
-    ? `${selected.days} ימים אחרונים`
-    : "מכל הזמנים";
+  const windowLabel = windowLabelFn(selected.value);
 
   return (
     <div>
@@ -60,28 +46,23 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         אמינות מחושבת כ-<span className="text-foreground font-bold">(טענות אמת + ½ × חצי אמת) ÷ סה״כ טענות</span>.
       </p>
 
-      {/* Window selector — mirrors the home feed's date filter. The query
-          param `?window=` is read on the server, so the page is fully
-          static and no client JS is needed. */}
-      <div className="mb-6 flex items-center gap-1 flex-wrap text-[12px]">
-        <span className="px-2 py-1 text-[10px] uppercase tracking-wider text-foreground-muted border border-border" style={{ borderRadius: 2 }}>
-          תקופה
-        </span>
-        {WINDOW_OPTIONS.map((w) => (
-          <Link
-            key={w.value}
-            href={w.value === "30" ? "/leaderboard" : `/leaderboard?window=${w.value}`}
-            className={`px-2.5 py-1 font-medium transition-colors border ${
-              w.value === selected.value
-                ? "bg-foreground text-background border-foreground"
-                : "border-border text-foreground-muted hover:text-foreground hover:border-foreground-muted"
-            }`}
-            style={{ borderRadius: 2 }}
-          >
-            {w.label}
-          </Link>
-        ))}
+      {/* Window selector — shared component, same options on the home
+          page and politician profile so visitors compare apples-to-
+          apples. */}
+      <div className="mb-6">
+        <WindowSelector basePath="/leaderboard" selectedValue={selected.value} />
       </div>
+
+      {/* Data-since anchor */}
+      {collectionStart && (
+        <p className="text-[11px] text-foreground-muted mb-6 -mt-2">
+          איסוף הנתונים מתחיל ב-
+          <strong className="text-foreground tabular-nums">
+            {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+          </strong>
+          . הטבלה הנוכחית מציגה {windowLabel}.
+        </p>
+      )}
 
       <div
         className="bg-card border border-border-strong overflow-hidden"

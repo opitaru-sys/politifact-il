@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { getRecentClaims, getPoliticianStats, getAllPoliticiansLite } from "@/lib/data";
+import { getDataCollectionStart } from "@/lib/queries";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { ClaimCard } from "@/components/ClaimCard";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
+import { WindowSelector, resolveWindow, windowLabel } from "@/components/WindowSelector";
 import { topicDisplayLabel } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +16,7 @@ const DAY_OPTIONS = [7, 30, 90, 365];
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; days?: string; politician?: string }>;
+  searchParams: Promise<{ topic?: string; days?: string; politician?: string; window?: string }>;
 }) {
   const sp = await searchParams;
   const activeTopic = sp.topic?.trim() || null;
@@ -22,10 +24,16 @@ export default async function Home({
   const daysRaw = parseInt(sp.days ?? "30", 10);
   const activeDays = DAY_OPTIONS.includes(daysRaw) ? daysRaw : 30;
 
-  const [allRecent, stats, allPoliticians] = await Promise.all([
+  // Stats window — separate from `days` (which controls the recent-claims
+  // feed below). Same selector + values are used on /leaderboard and on
+  // each politician page so visitors see the same numbers everywhere.
+  const statsWindow = resolveWindow(sp.window);
+
+  const [allRecent, stats, allPoliticians, collectionStart] = await Promise.all([
     getRecentClaims(activeDays),
-    getPoliticianStats(),
+    getPoliticianStats(statsWindow.days),
     getAllPoliticiansLite(),
+    getDataCollectionStart(),
   ]);
 
   let recentClaims = allRecent;
@@ -54,10 +62,38 @@ export default async function Home({
         </p>
       </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <LiarOfTheWeek stats={stats} />
-        <LeaderboardPreview stats={stats} />
+      {/* Stats-window selector — applies to both the hero card AND the
+          leaderboard preview, since both pull from `stats`. The two
+          cards next to it always share the same denominator. */}
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h2 className="text-[11px] tracking-[0.3em] uppercase text-foreground-muted font-bold">
+            סטטיסטיקה
+          </h2>
+          <span className="text-[11px] text-foreground-muted">
+            {windowLabel(statsWindow.value)}
+          </span>
+        </div>
+        <WindowSelector basePath="/" selectedValue={statsWindow.value} extraParams={{ days: sp.days ?? "", topic: sp.topic ?? "", politician: sp.politician ?? "" }} />
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} />
+        <LeaderboardPreview stats={stats} windowDays={statsWindow.days} />
+      </div>
+
+      {/* "Data since DATE" — anchors visitors so they understand the
+          temporal coverage of the dataset. Shown right under the
+          hero+leaderboard duo for visibility. */}
+      {collectionStart && (
+        <div className="text-[11px] text-foreground-muted text-center -mt-3">
+          איסוף הנתונים מתחיל ב-
+          <strong className="text-foreground tabular-nums">
+            {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+          </strong>
+          . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
+        </div>
+      )}
 
       <SearchBar politicians={allPoliticians} />
 

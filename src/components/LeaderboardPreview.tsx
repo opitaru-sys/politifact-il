@@ -11,10 +11,25 @@ function scoreColor(pct: number): string {
 // confidence. Matches MIN_CLAIMS_FOR_HERO in lib/data.ts.
 const LOW_SAMPLE_THRESHOLD = 5;
 
-export function LeaderboardPreview({ stats }: { stats: PoliticianStatsRow[] }) {
+export function LeaderboardPreview({
+  stats,
+  windowDays,
+}: {
+  stats: PoliticianStatsRow[];
+  /** Days in the rolling window; undefined = all-time. Used for the
+   *  caption below the title so reader knows what scope the numbers
+   *  reflect. */
+  windowDays?: number | undefined;
+}) {
   // Politicians with enough data to be ranked confidently. Lower-sample
   // entries still appear but get a less definitive treatment.
   const sorted = [...stats].reverse(); // most credible first
+  const caption = windowDays
+    ? `${windowDays} ימים אחרונים`
+    : "מכל הזמנים";
+  const leaderboardLink = windowDays === 30
+    ? "/leaderboard"
+    : `/leaderboard?window=${windowDays ?? "all"}`;
 
   return (
     <div
@@ -22,9 +37,14 @@ export function LeaderboardPreview({ stats }: { stats: PoliticianStatsRow[] }) {
       style={{ borderRadius: 4 }}
     >
       <div className="px-5 py-3.5 border-b border-border flex items-baseline justify-between">
-        <h2 className="font-black text-base tracking-tight">טבלת האמינות</h2>
+        <div>
+          <h2 className="font-black text-base tracking-tight">טבלת האמינות</h2>
+          <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
+            {caption}
+          </div>
+        </div>
         <a
-          href="/leaderboard"
+          href={leaderboardLink}
           className="text-[11px] tracking-wider uppercase text-accent hover:text-accent-dark font-bold"
         >
           הכל ←

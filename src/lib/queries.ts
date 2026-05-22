@@ -169,6 +169,28 @@ export async function getUnrankedPoliticians(windowDays?: number) {
 }
 
 /**
+ * Earliest claim we have on record. Used to render "data since DATE"
+ * so visitors understand the temporal coverage. Excludes rejected
+ * claims so the date reflects the publicly-visible dataset.
+ *
+ * Cached softly via the request memoization in queries (recomputed
+ * per request, but the underlying ORDER BY date ASC LIMIT 1 is fast).
+ */
+export async function getDataCollectionStart(): Promise<Date | null> {
+  try {
+    const first = await prisma.claim.findFirst({
+      where: PUBLIC_CLAIM_FILTER,
+      orderBy: { date: "asc" },
+      select: { date: true },
+    });
+    return first?.date ?? null;
+  } catch (err) {
+    console.error("getDataCollectionStart: DB unreachable", err);
+    return null;
+  }
+}
+
+/**
  * Most recent activity timestamp — used to render "last updated" on the site.
  * Returns the newest of: claim createdAt, article fetchedAt.
  */

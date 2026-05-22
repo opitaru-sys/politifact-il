@@ -3,6 +3,7 @@ import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
+import { WindowSelector, resolveWindow, windowLabel } from "@/components/WindowSelector";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -17,18 +18,36 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-export default async function PoliticianPage({ params }: { params: Promise<{ id: string }> }) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ window?: string }>;
+}
+
+export default async function PoliticianPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { window: windowParam } = await searchParams;
   const data = await getPoliticianById(id);
   if (!data) notFound();
 
-  const claims = data.claims;
-  const trueClaims = claims.filter((c) => c.verdict === "true").length;
-  const halfTrue = claims.filter((c) => c.verdict === "half-true").length;
-  const falseClaims = claims.filter((c) => c.verdict === "false").length;
-  const truthPct = claims.length > 0
-    ? Math.round(((trueClaims + halfTrue * 0.5) / claims.length) * 100)
-    : 0;
+  // Filter the politician's claims to the active stats window. The
+  // page used to show all-time data while the leaderboard showed the
+  // 30-day window — confusing visitors who landed here from the
+  // leaderboard expecting matching numbers. Now they're aligned.
+  const selected = resolveWindow(windowParam);
+  const cutoff = selected.days ? new Date() : null;
+  if (cutoff && selected.days) cutoff.setDate(cutoff.getDate() - selected.days);
+
+  const filteredClaims = cutoff
+    ? data.claims.filter((c) => new Date(c.date).getTime() >= cutoff.getTime())
+    : data.claims;
+
+  const trueClaims = filteredClaims.filter((c) => c.verdict === "true").length;
+  const halfTrue = filteredClaims.filter((c) => c.verdict === "half-true").length;
+  const falseClaims = filteredClaims.filter((c) => c.verdict === "false").length;
+  const truthPct =
+    filteredClaims.length > 0
+      ? Math.round(((trueClaims + halfTrue * 0.5) / filteredClaims.length) * 100)
+      : 0;
 
   const scoreColor =
     truthPct < 40
@@ -36,7 +55,9 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
       : truthPct < 60
       ? "var(--verdict-half)"
       : "var(--verdict-true)";
-  const sampleTooSmall = claims.length < MIN_CLAIMS_FOR_HERO;
+  const sampleTooSmall = filteredClaims.length < MIN_CLAIMS_FOR_HERO;
+  const totalAllTime = data.claims.length;
+  const showAllTimeNote = totalAllTime > filteredClaims.length;
 
   return (
     <div>
@@ -46,7 +67,7 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
       >
         <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-4">תיק פוליטיקאי</div>
         <div className="flex items-center gap-5 mb-6 pb-6 border-b border-border">
-          <PoliticianAvatar id={id} name={data.name} image={data.image} size="lg" />
+          <PoliticianAvatar id={id} name={data.name} image={data.image} size="lg" priority />
           <div>
             <h1 className="text-3xl font-black tracking-tight">{data.name}</h1>
             <div className="text-sm text-foreground-muted mt-1">
@@ -61,7 +82,17 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        {sampleTooSmall && (
+        {/* Stats-window selector — same chips as /leaderboard and the home
+            hero, so a visitor arriving from the leaderboard with "?window=all"
+            sees identical numbers on both pages. */}
+        <div className="mb-4 flex items-baseline justify-between gap-3 flex-wrap">
+          <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
+            סטטיסטיקה · {windowLabel(selected.value)}
+          </span>
+          <WindowSelector basePath={`/politician/${id}`} selectedValue={selected.value} />
+        </div>
+
+        {sampleTooSmall && filteredClaims.length > 0 && (
           <div
             className="mb-4 px-4 py-3 text-[11px] leading-snug border"
             style={{
@@ -72,7 +103,26 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
             }}
           >
             <strong className="tracking-wider uppercase ml-1">מדגם קטן.</strong>
-            רק {claims.length} טענות נבדקו עד כה. אחוז האמינות לא נחשב אינדיקציה אמינה עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות.
+            רק {filteredClaims.length} טענות בתקופה זו. אחוז האמינות לא נחשב אינדיקציה אמינה עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות.
+          </div>
+        )}
+
+        {filteredClaims.length === 0 && (
+          <div
+            className="mb-4 px-4 py-3 text-[12px] leading-snug border bg-card"
+            style={{ borderColor: "var(--border)", borderRadius: 2 }}
+          >
+            <strong>אין טענות בתקופה הזו.</strong>{" "}
+            {totalAllTime > 0 ? (
+              <>
+                ל-{data.name} יש {totalAllTime} טענות בסה״כ במאגר.{" "}
+                <a href={`/politician/${id}?window=all`} className="underline font-bold">
+                  הצג הכל ←
+                </a>
+              </>
+            ) : (
+              "טרם נמצאו טענות במאגר עבור הפוליטיקאי הזה."
+            )}
           </div>
         )}
 
@@ -124,16 +174,32 @@ export default async function PoliticianPage({ params }: { params: Promise<{ id:
             </div>
           </div>
         </div>
+
+        {showAllTimeNote && (
+          <p className="text-[11px] text-foreground-muted mt-3">
+            סך הכל ל-{data.name} {totalAllTime} טענות במאגר.{" "}
+            {selected.value !== "all" && (
+              <a
+                href={`/politician/${id}?window=all`}
+                className="underline font-bold hover:text-accent"
+              >
+                הצג את כולן ←
+              </a>
+            )}
+          </p>
+        )}
       </div>
 
       <div className="flex items-baseline justify-between mb-5 pb-3 border-b-[1.5px] border-border-strong">
-        <h2 className="font-black text-xl tracking-tight">כל הטענות שנבדקו</h2>
+        <h2 className="font-black text-xl tracking-tight">
+          טענות {windowLabel(selected.value)}
+        </h2>
         <span className="text-[11px] uppercase tracking-wider text-foreground-muted tabular-nums">
-          {claims.length} טענות
+          {filteredClaims.length} טענות
         </span>
       </div>
       <div className="space-y-4">
-        {claims.map((claim) => (
+        {filteredClaims.map((claim) => (
           <ClaimCard key={claim.id} claim={claim} />
         ))}
       </div>

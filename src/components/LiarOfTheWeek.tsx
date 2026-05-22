@@ -1,5 +1,5 @@
 import type { PoliticianStatsRow } from "@/lib/queries";
-import { MIN_CLAIMS_FOR_HERO, STATS_WINDOW_DAYS } from "@/lib/data";
+import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { PoliticianAvatar } from "./PoliticianAvatar";
 
 function scoreColor(pct: number): string {
@@ -8,7 +8,15 @@ function scoreColor(pct: number): string {
   return "var(--verdict-true)";
 }
 
-export function LiarOfTheWeek({ stats }: { stats: PoliticianStatsRow[] }) {
+export function LiarOfTheWeek({
+  stats,
+  windowDays,
+}: {
+  stats: PoliticianStatsRow[];
+  /** Days in the rolling window. Used in the sample disclaimer so the
+   *  reader sees which scope produced the 1st/last places. */
+  windowDays?: number | undefined;
+}) {
   // For the hero spots, only consider politicians with enough claims for a meaningful ranking.
   const qualified = stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_HERO);
   if (qualified.length === 0) return null;
@@ -19,6 +27,7 @@ export function LiarOfTheWeek({ stats }: { stats: PoliticianStatsRow[] }) {
   const showBottom = bottom.politician.id !== top.politician.id;
   // "Small pool" caveat — three politicians is not a definitive ranking.
   const smallPool = qualifiedCount < 5;
+  const windowText = windowDays ? `${windowDays} הימים האחרונים` : "כל הזמנים";
 
   return (
     <div className="flex flex-col gap-3 h-full">
@@ -40,7 +49,7 @@ export function LiarOfTheWeek({ stats }: { stats: PoliticianStatsRow[] }) {
 
         {/* Sample disclaimer — promoted to top, not buried */}
         <div className="text-[11px] text-foreground-muted leading-snug mb-5 pb-4 border-b border-border">
-          מבוסס על {qualifiedCount} פוליטיקאים שעמדו בסף של {MIN_CLAIMS_FOR_HERO}+ טענות שנבדקו ב-{STATS_WINDOW_DAYS} הימים האחרונים{smallPool ? "." : "."}
+          מבוסס על {qualifiedCount} פוליטיקאים שעמדו בסף של {MIN_CLAIMS_FOR_HERO}+ טענות שנבדקו ב-{windowText}{smallPool ? "." : "."}
           {smallPool && <span className="text-foreground-muted/80"> מדגם קטן.</span>}
         </div>
 
