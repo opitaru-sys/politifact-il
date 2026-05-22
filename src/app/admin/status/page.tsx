@@ -26,6 +26,77 @@ function formatRelative(d: Date | null): string {
   return `${days}ימ`;
 }
 
+/**
+ * Cron schedules from .github/workflows. Hardcoded so the admin doesn't
+ * need to hit the GitHub API to show "next run". Times are in UTC; the
+ * UI shows them in IL local time.
+ */
+const SCHEDULES = [
+  {
+    name: "תור RSS — איסוף פיד",
+    cron: "כל 30 דקות (00, 30)",
+    nextFromNow: () => {
+      const now = new Date();
+      const next = new Date(now);
+      // Round up to next 00 or 30 minute boundary
+      const mins = now.getMinutes();
+      next.setSeconds(0, 0);
+      if (mins < 30) next.setMinutes(30);
+      else next.setMinutes(60);
+      return next;
+    },
+    description: "מושך כותרות חדשות מ-14 מקורות. לא קורא ל-AI, רק שומר כתבות.",
+  },
+  {
+    name: "בדיקה של חדשות טריות",
+    cron: "כל שעתיים, בשעה עגולה",
+    nextFromNow: () => {
+      const now = new Date();
+      const next = new Date(now);
+      next.setSeconds(0, 0);
+      next.setMinutes(0);
+      // Round up to next even hour
+      const hr = now.getUTCHours();
+      const nextHour = hr % 2 === 0 && now.getUTCMinutes() === 0 ? hr + 2 : hr + (2 - (hr % 2));
+      next.setUTCHours(nextHour, 0, 0, 0);
+      if (next.getTime() <= now.getTime()) next.setUTCHours(next.getUTCHours() + 2);
+      return next;
+    },
+    description: "מעבד עד 30 כתבות RSS חדשות. עם Google Search. הצינור הציבורי.",
+  },
+  {
+    name: "ריצה יומית מלאה",
+    cron: "06:00 + 07:00 UTC (09:00 + 10:00 בארץ)",
+    nextFromNow: () => {
+      const now = new Date();
+      const next = new Date(now);
+      next.setUTCSeconds(0, 0);
+      next.setUTCHours(6, 0, 0, 0);
+      if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+      return next;
+    },
+    description: "כל הלאנים: RSS מלא, ייבוא כנסת, וכל הליקוטים מהיום הקודם.",
+  },
+];
+
+function formatHHMM(d: Date): string {
+  return d.toLocaleString("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jerusalem",
+  });
+}
+
+function timeUntil(d: Date): string {
+  const sec = Math.floor((d.getTime() - Date.now()) / 1000);
+  if (sec < 60) return "בכל רגע";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `בעוד ${min} דק׳`;
+  const hr = Math.floor(min / 60);
+  const remainder = min % 60;
+  return `בעוד ${hr}ש ${remainder > 0 ? `${remainder}דק׳` : ""}`.trim();
+}
+
 function formatExact(d: Date | null): string {
   if (!d) return "אין";
   return d.toLocaleString("he-IL", {
@@ -63,6 +134,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
     sourceRowsRaw,
     topPoliticiansRaw,
     recentClaims,
+    unprocessedArticlesForAge,
   ] = await Promise.all([
     prisma.claim.count(),
     prisma.claim.count({ where: { status: "published" } }),
@@ -114,7 +186,25 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
       take: 10,
       include: { politician: { select: { name: true } } },
     }),
+    // Queue age data — used to explain *why* articles are waiting.
+    prisma.article.findMany({
+      where: { processed: false },
+      select: { fetchedAt: true, source: true },
+    }),
   ]);
+
+  // Bucket the queue by age so the admin sees "13 from the last hour, 17 from
+  // 1-6h ago" instead of just a total. Makes "why is there a queue" concrete.
+  const now = Date.now();
+  const queueAge = { "<30דק": 0, "30דק-1ש": 0, "1-3ש": 0, "3-24ש": 0, ">24ש": 0 };
+  for (const a of unprocessedArticlesForAge) {
+    const minutes = (now - a.fetchedAt.getTime()) / 60_000;
+    if (minutes < 30) queueAge["<30דק"]++;
+    else if (minutes < 60) queueAge["30דק-1ש"]++;
+    else if (minutes < 180) queueAge["1-3ש"]++;
+    else if (minutes < 1440) queueAge["3-24ש"]++;
+    else queueAge[">24ש"]++;
+  }
 
   const sourceRows: SourceStats[] = sourceRowsRaw.map((r) => {
     let lastFetched: Date | null = null;
@@ -172,6 +262,80 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
           subtext={formatExact(lastClaim?.createdAt ?? null)}
         />
       </div>
+
+      {/* Pipeline schedule — when each automated workflow runs next.
+          Reads from hardcoded SCHEDULES (matched to .github/workflows).
+          No API call needed; the next-fire times are computed locally. */}
+      <section className="mt-10">
+        <div className="flex items-baseline justify-between mb-3 pb-2 border-b-[1.5px] border-border-strong">
+          <h2 className="font-black text-lg tracking-tight">לוח זמנים אוטומטי</h2>
+          <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
+            ריצות מתוזמנות
+          </span>
+        </div>
+        <div
+          className="bg-card border border-border overflow-hidden"
+          style={{ borderRadius: 4 }}
+        >
+          {SCHEDULES.map((s) => {
+            const next = s.nextFromNow();
+            return (
+              <div
+                key={s.name}
+                className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center px-4 py-3 border-b border-border last:border-b-0 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-bold truncate">{s.name}</div>
+                  <div className="text-[11px] text-foreground-muted truncate">{s.description}</div>
+                </div>
+                <div className="text-[11px] text-foreground-muted tabular-nums whitespace-nowrap">{s.cron}</div>
+                <div className="text-left tabular-nums whitespace-nowrap">
+                  <div className="font-bold text-sm">{formatHHMM(next)}</div>
+                  <div className="text-[10px] text-foreground-muted uppercase tracking-wider">
+                    {timeUntil(next)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Queue age — when will the current 30 articles get processed?
+          Each bucket tells the reader "this many articles are waiting for
+          the next fresh-process tick at HH:MM". Removes the "why is it
+          stuck" mystery. */}
+      {unprocessedTotal > 0 && (
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between mb-3 pb-2 border-b-[1.5px] border-border-strong">
+            <h2 className="font-black text-lg tracking-tight">פירוט התור</h2>
+            <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
+              {unprocessedTotal} כתבות ממתינות
+            </span>
+          </div>
+          <div className="bg-card border border-border p-4 text-sm" style={{ borderRadius: 4 }}>
+            <div className="grid grid-cols-5 gap-3 text-center">
+              {Object.entries(queueAge).map(([bucket, count]) => (
+                <div key={bucket}>
+                  <div
+                    className="font-black text-2xl tabular-nums"
+                    style={{ color: count > 0 ? "var(--verdict-half)" : "var(--foreground-muted)" }}
+                  >
+                    {count}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1">
+                    {bucket}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-foreground-muted leading-relaxed mt-4 pt-4 border-t border-border">
+              כתבות שנשאבו ב-48 השעות האחרונות מועברות ללוח &ldquo;בדיקה של חדשות טריות&rdquo;
+              שרץ כל שעתיים בשעות הזוגיות. כתבות ישנות יותר ממתינות ללוח backlog שרץ פעם ביום.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Per-source breakdown */}
       <section className="mt-10">
