@@ -8,6 +8,13 @@ export const RSS_FEEDS: FeedSource[] = [
   // High-yield politics-specific feeds (politicians' own quotes are common)
   { name: "מעריב פוליטי", url: "https://www.maariv.co.il/Rss/RssFeedsPolitiMedini", category: "politics" },
   { name: "Walla פוליטיקה", url: "https://rss.walla.co.il/feed/3", category: "politics" },
+  // N12 dedicated politics section. Channel 12 covers political talk-shows
+  // and interviews — high yield for direct quotes.
+  { name: "N12 פוליטי", url: "https://rcs.mako.co.il/rss/politic.xml", category: "politics" },
+  // Globes politics + economy — many ministerial quotes
+  { name: "גלובס פוליטי", url: "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2", category: "politics" },
+  // Channel 7 politics — covers ministers' interviews
+  { name: "ערוץ 7 פוליטיקה", url: "https://www.inn.co.il/Rss.aspx?act=4&kid=2", category: "politics" },
 
   // General news feeds — lower yield but broader coverage
   { name: "Ynet", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "general" },
@@ -15,6 +22,17 @@ export const RSS_FEEDS: FeedSource[] = [
   { name: "Walla", url: "https://rss.walla.co.il/feed/1", category: "general" },
   { name: "מעריב", url: "https://www.maariv.co.il/Rss/RssFeedsMivzakWorker", category: "general" },
   { name: "ישראל היום", url: "https://www.israelhayom.co.il/rss.xml", category: "general" },
+  // N12 main news — broader politics coverage
+  { name: "N12 חדשות", url: "https://rcs.mako.co.il/rss/news-israel.xml", category: "general" },
+  // ערוץ 13 חדשות
+  { name: "13 חדשות", url: "https://13news.co.il/feed/", category: "general" },
+  // Davar (left-leaning, labor/social) — adds opposition coverage
+  { name: "דבר", url: "https://www.davar1.co.il/feed/", category: "general" },
+
+  // Economy / business — ministerial quotes about budget, tax, etc.
+  { name: "כלכליסט", url: "https://www.calcalist.co.il/Integration/StoryRss2.xml", category: "economy" },
+  { name: "TheMarker", url: "https://www.themarker.com/cmlink/1.144", category: "economy" },
+
   // הארץ feed has had XML parse errors — re-enable if it stabilises
   // { name: "הארץ", url: "https://www.haaretz.co.il/cmlink/1.1617539", category: "general" },
   // כאן throttles non-browser UAs heavily — skip for now
