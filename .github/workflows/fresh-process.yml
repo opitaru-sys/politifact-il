@@ -12,11 +12,16 @@ name: Fresh-news fact-check (every 2 hours)
 #   90 minutes" so we use the cleaner 2-hour cadence and accept the
 #   slight delay.
 #
-# Cost ceiling: limit=30 means up to 30 extraction calls per run.
-# With ~3% claim yield that's ~1 grounded fact-check per run on
-# average. At ~$0.05/grounded claim + ~$0.05 extraction overhead
-# = ~$0.10/run × 12/day = ~$1.20/day worst case. In practice many
-# runs find 0 new articles and cost ~$0.
+# Cost ceiling: limit=60 means up to 60 extraction calls per run.
+# With ~10% claim yield that's ~6 grounded fact-checks per run.
+# At ~$0.05/grounded claim + ~$0.0015 extraction per article =
+# ~$0.40/run × 12/day = ~$4.80/day worst case. In practice many
+# runs find few new articles and cost much less.
+#
+# Bumped from 30 → 60 on 2026-05-22. Reason: RSS ingest fires every
+# 30 min and accumulates ~80-120 new articles between fresh-process
+# ticks; the previous limit of 30 only covered the newest third per
+# tick, leaving the rest for the once-daily backlog lane.
 on:
   schedule:
     - cron: "0 */2 * * *"
@@ -43,6 +48,6 @@ jobs:
             --request POST \
             --max-time 540 \
             --header "Authorization: Bearer ${ADMIN_SECRET}" \
-            "${TARGET_URL}/api/process?mode=fresh&limit=30")
+            "${TARGET_URL}/api/process?mode=fresh&limit=60")
           echo "$response" | head -c 4000
           echo

@@ -100,4 +100,5 @@ current-event claims.
 | 2026-05-20 | Same, plus heavy debugging | ~$18 |
 | 2026-05-21 | Migrate to Gemini; refact-check-all; first bulk drain attempts (3 restarts with grounding) | ~$55 (the bill that triggered this doc) |
 | 2026-05-22 | Final bulk drain (grounding off), mop-up | ~$1 |
-| Ongoing | Daily cron only (50-article cap) | **~$0.80/day projected** |
+| 2026-05-22 | Pipeline scheduler stood up: ingest-every-30-min, fresh-every-2h | n/a |
+| Ongoing | Daily cron + 30-min ingest + 2h fresh (limit=60) | **~$3-5/day projected** |
