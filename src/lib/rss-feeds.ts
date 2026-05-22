@@ -8,13 +8,12 @@ export const RSS_FEEDS: FeedSource[] = [
   // High-yield politics-specific feeds (politicians' own quotes are common)
   { name: "מעריב פוליטי", url: "https://www.maariv.co.il/Rss/RssFeedsPolitiMedini", category: "politics" },
   { name: "Walla פוליטיקה", url: "https://rss.walla.co.il/feed/3", category: "politics" },
-  // N12 dedicated politics section. Channel 12 covers political talk-shows
-  // and interviews — high yield for direct quotes.
-  { name: "N12 פוליטי", url: "https://rcs.mako.co.il/rss/politic.xml", category: "politics" },
+  // (N12 politics-specific feed URL was a 404 and we don't have a known
+  // working substitute; we ingest N12 via the general news feed below.)
   // Globes politics + economy — many ministerial quotes
   { name: "גלובס פוליטי", url: "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2", category: "politics" },
-  // Channel 7 politics — covers ministers' interviews
-  { name: "ערוץ 7 פוליטיקה", url: "https://www.inn.co.il/Rss.aspx?act=4&kid=2", category: "politics" },
+  // (Channel 7 / inn.co.il RSS URL returned 404. The site has a heavy
+  // paywall layer in front of feeds — re-evaluate later if needed.)
 
   // General news feeds — lower yield but broader coverage
   { name: "Ynet", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "general" },

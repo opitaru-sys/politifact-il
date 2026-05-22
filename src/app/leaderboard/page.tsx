@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { getPoliticianStats, getUnrankedPoliticians } from "@/lib/data";
+import Link from "next/link";
+import { getPoliticianStats, getUnrankedPoliticians, STATS_WINDOW_DAYS } from "@/lib/data";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 
 export const dynamic = "force-dynamic";
@@ -15,22 +16,72 @@ function scoreColor(pct: number): string {
   return "var(--verdict-true)";
 }
 
-export default async function LeaderboardPage() {
+// Day windows the user can switch between. `all` means no time filter —
+// useful now that we have a large backfilled dataset of older Knesset
+// transcripts that would otherwise be invisible on the leaderboard.
+const WINDOW_OPTIONS: { value: string; label: string; days: number | undefined }[] = [
+  { value: "7", label: "שבוע", days: 7 },
+  { value: "30", label: "חודש", days: 30 },
+  { value: "90", label: "3 חודשים", days: 90 },
+  { value: "365", label: "שנה", days: 365 },
+  { value: "all", label: "הכל", days: undefined },
+];
+
+interface PageProps {
+  searchParams: Promise<{ window?: string }>;
+}
+
+export default async function LeaderboardPage({ searchParams }: PageProps) {
+  const { window: windowParam } = await searchParams;
+  const selected =
+    WINDOW_OPTIONS.find((w) => w.value === windowParam) ??
+    WINDOW_OPTIONS.find((w) => w.days === STATS_WINDOW_DAYS) ??
+    WINDOW_OPTIONS[1];
+
   const [ascending, unranked] = await Promise.all([
-    getPoliticianStats(),
-    getUnrankedPoliticians(),
+    getPoliticianStats(selected.days),
+    getUnrankedPoliticians(selected.days),
   ]);
   const stats = [...ascending].reverse();
 
+  const windowLabel = selected.days
+    ? `${selected.days} ימים אחרונים`
+    : "מכל הזמנים";
+
   return (
     <div>
-      <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">דירוג · 30 ימים אחרונים</div>
+      <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
+        דירוג · {windowLabel}
+      </div>
       <h1 className="text-4xl font-black mb-3 tracking-tight">טבלת האמינות</h1>
-      <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
+      <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
         דירוג של {stats.length} פוליטיקאים לפי אחוז הטענות שנמצאו אמת מתוך הטענות שנבדקו{" "}
-        <span className="text-foreground font-bold">ב-30 הימים האחרונים</span>.
+        <span className="text-foreground font-bold">{windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}</span>.
         אמינות מחושבת כ-<span className="text-foreground font-bold">(טענות אמת + ½ × חצי אמת) ÷ סה״כ טענות</span>.
       </p>
+
+      {/* Window selector — mirrors the home feed's date filter. The query
+          param `?window=` is read on the server, so the page is fully
+          static and no client JS is needed. */}
+      <div className="mb-6 flex items-center gap-1 flex-wrap text-[12px]">
+        <span className="px-2 py-1 text-[10px] uppercase tracking-wider text-foreground-muted border border-border" style={{ borderRadius: 2 }}>
+          תקופה
+        </span>
+        {WINDOW_OPTIONS.map((w) => (
+          <Link
+            key={w.value}
+            href={w.value === "30" ? "/leaderboard" : `/leaderboard?window=${w.value}`}
+            className={`px-2.5 py-1 font-medium transition-colors border ${
+              w.value === selected.value
+                ? "bg-foreground text-background border-foreground"
+                : "border-border text-foreground-muted hover:text-foreground hover:border-foreground-muted"
+            }`}
+            style={{ borderRadius: 2 }}
+          >
+            {w.label}
+          </Link>
+        ))}
+      </div>
 
       <div
         className="bg-card border border-border-strong overflow-hidden"
@@ -117,11 +168,11 @@ export default async function LeaderboardPage() {
           <div className="flex items-baseline justify-between mb-4 pb-3 border-b-[1.5px] border-border-strong">
             <h2 className="font-black text-lg tracking-tight">פוליטיקאים שטרם נדרגו</h2>
             <span className="text-[11px] tracking-wider uppercase text-foreground-muted">
-              {unranked.length} ב-DB · אין טענות שנבדקו בחודש האחרון
+              {unranked.length} ב-DB · אין טענות שנבדקו ב{windowLabel}
             </span>
           </div>
           <p className="text-[12px] text-foreground-muted leading-relaxed mb-5 max-w-2xl">
-            פוליטיקאים שמופיעים במאגר אך לא נמצאה להם טענה ב-30 הימים האחרונים. הם יופיעו בטבלה ברגע שתופיע ציטוט שלהם בכתבה או בכנסת.
+            פוליטיקאים שמופיעים במאגר אך לא נמצאה להם טענה ב{windowLabel}. הם יופיעו בטבלה ברגע שתופיע ציטוט שלהם בכתבה או בכנסת.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {unranked.map((p) => (

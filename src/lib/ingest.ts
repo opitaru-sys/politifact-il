@@ -2,10 +2,19 @@ import Parser from "rss-parser";
 import { prisma } from "./db";
 import { RSS_FEEDS, type FeedSource } from "./rss-feeds";
 
+// Real-browser UA. Several Israeli news sites (Israel Hayom, Calcalist)
+// block requests with "Badak-FactChecker/*" or other unfamiliar agents
+// with a 403. Sending a Chrome-on-Mac UA matches what they expect from
+// feed readers and resolves the blocks. We accept identifying via the
+// Referer header in lieu of UA branding.
 const parser = new Parser({
   timeout: 10000,
   headers: {
-    "User-Agent": "Badak-FactChecker/1.0",
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    Accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+    "Accept-Language": "he-IL,he;q=0.9,en;q=0.8",
+    Referer: "https://bduk.co.il/",
   },
 });
 

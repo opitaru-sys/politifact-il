@@ -51,10 +51,12 @@ export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise
   }));
 }
 
-export async function getPoliticianStats(): Promise<queries.PoliticianStatsRow[]> {
+export async function getPoliticianStats(
+  windowDays: number | undefined = STATS_WINDOW_DAYS,
+): Promise<queries.PoliticianStatsRow[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    const stats = await queries.getPoliticianStats(STATS_WINDOW_DAYS);
+    const stats = await queries.getPoliticianStats(windowDays);
     return stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_RANKING);
   }
   return mock.getPoliticianStats()
@@ -132,10 +134,12 @@ export async function getAllPoliticianIds(): Promise<string[]> {
 }
 
 /** Politicians who exist but have no claims in the window. Used on leaderboard. */
-export async function getUnrankedPoliticians() {
+export async function getUnrankedPoliticians(
+  windowDays: number | undefined = STATS_WINDOW_DAYS,
+) {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (!hasReal) return [];
-  const all = await queries.getUnrankedPoliticians(STATS_WINDOW_DAYS);
+  const all = await queries.getUnrankedPoliticians(windowDays);
   return all.map((p) => ({
     id: p.id,
     name: p.name,
