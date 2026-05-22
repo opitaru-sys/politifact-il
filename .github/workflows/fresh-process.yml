@@ -1,0 +1,48 @@
+name: Fresh-news fact-check (every 2 hours)
+
+# Fact-checks recently-fetched RSS news so today's claims surface on
+# the site within ~2 hours of publication. Knesset transcripts and
+# older RSS backlog are NOT touched here — they ride the once-daily
+# pipeline (.github/workflows/daily-ingest.yml) on a separate budget.
+#
+# Cadence rationale:
+#   30-min ingest (rss-ingest.yml) + 2-hour fact-check means any RSS
+#   article is in the DB within 30 min and fact-checked within ~2.5
+#   hours of publication. Cron syntax can't natively express "every
+#   90 minutes" so we use the cleaner 2-hour cadence and accept the
+#   slight delay.
+#
+# Cost ceiling: limit=30 means up to 30 extraction calls per run.
+# With ~3% claim yield that's ~1 grounded fact-check per run on
+# average. At ~$0.05/grounded claim + ~$0.05 extraction overhead
+# = ~$0.10/run × 12/day = ~$1.20/day worst case. In practice many
+# runs find 0 new articles and cost ~$0.
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: fresh-process
+  # If a run is still in flight when the next one fires, just skip the
+  # new one. Better to lose a tick than overlap and double-bill.
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: POST /api/process?mode=fresh
+        env:
+          TARGET_URL: ${{ secrets.SITE_URL || 'https://bduk.co.il' }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: |
+          set -eo pipefail
+          response=$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --max-time 540 \
+            --header "Authorization: Bearer ${ADMIN_SECRET}" \
+            "${TARGET_URL}/api/process?mode=fresh&limit=30")
+          echo "$response" | head -c 4000
+          echo

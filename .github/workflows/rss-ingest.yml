@@ -1,0 +1,43 @@
+name: RSS ingest (every 30 min)
+
+# Fetches RSS feeds and writes article rows. No LLM calls — this is
+# free other than the GitHub Actions minutes. Keeps the article queue
+# warm so /api/process?mode=fresh always has recent material to work on.
+#
+# Why this is separate from the daily run:
+#   - daily-ingest.yml runs once a day and processes everything in
+#     priority order. By itself it gives at most one ingestion per day,
+#     so freshly-published news can sit unfetched for ~24h.
+#   - This workflow pulls feeds every 30 min so RSS items are in the
+#     DB within minutes of publication, even if no fact-checking
+#     happens yet.
+#
+# Pairs with .github/workflows/fresh-process.yml which actually fact-
+# checks the newly-ingested articles every ~90 min.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: rss-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/ingest
+        env:
+          TARGET_URL: ${{ secrets.SITE_URL || 'https://bduk.co.il' }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: |
+          set -eo pipefail
+          response=$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --max-time 60 \
+            --header "Authorization: Bearer ${ADMIN_SECRET}" \
+            "${TARGET_URL}/api/ingest")
+          echo "$response" | head -c 2000
+          echo
