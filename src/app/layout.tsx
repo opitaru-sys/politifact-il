@@ -16,11 +16,29 @@ const TITLE = "בדוק | בדיקת עובדות לפוליטיקאים";
 const DESCRIPTION =
   "בדיקת עובדות בלתי-תלויה לפוליטיקאים ישראליים. מי הכי ישר, מי מטעה, ומה האמת מאחורי כל טענה. ללא שיוך פוליטי.";
 
-// Resolves at build time to the production URL (set NEXT_PUBLIC_SITE_URL in
-// the Vercel env) or falls back to a hard-coded default for local dev.
-// metadataBase is required for social-preview images (OG, Twitter) to resolve
-// absolute URLs when rendered by WhatsApp / X / Telegram / Slack.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
+// Base URL used by Next.js to expand relative OG / Twitter / canonical
+// links into absolute URLs. Critical for link previews: WhatsApp /
+// Telegram / X fetch the OG image as an absolute URL, so if this points
+// at a domain that doesn't resolve, the preview shows title + description
+// but no image (which is exactly what was happening while bduk.co.il
+// was still pending DNS propagation through ISOC-IL).
+//
+// Resolution order:
+//   1. NEXT_PUBLIC_SITE_URL — explicit override. Set this once bduk.co.il
+//      DNS is live to pin the canonical domain.
+//   2. VERCEL_PROJECT_PRODUCTION_URL — Vercel auto-injects this on every
+//      deploy (hostname only, no protocol). It always points at the
+//      stable production domain, so previews work as soon as the site
+//      is deployed, no manual env var needed.
+//   3. Hard-coded bduk.co.il fallback — used only when neither of the
+//      above is present (local dev, build outside Vercel, etc.).
+const SITE_URL = (() => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  return "https://bduk.co.il";
+})();
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
