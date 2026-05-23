@@ -112,6 +112,16 @@ export async function getPoliticianStats(windowDays?: number): Promise<Politicia
       };
     })
     .filter((s) => s.totalClaims > 0)
+    // Sort ascending by credibility. Ties stay unordered here — the
+    // display layer (leaderboard / hero) applies the correct tiebreaker
+    // for *its* end of the spectrum:
+    //   Top-of-table / "most credible" → more claims wins (more
+    //     reliable signal of being credible).
+    //   "Last place" hero card → more claims also wins (more reliable
+    //     signal of being at the bottom).
+    // Since these are at opposite ends of the array, no single
+    // secondary sort can satisfy both — see LiarOfTheWeek and the
+    // leaderboard pages where the proper tiebreaker is applied.
     .sort((a, b) => a.truthPercentage - b.truthPercentage);
 }
 

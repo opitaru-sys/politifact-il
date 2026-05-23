@@ -23,7 +23,14 @@ export function LeaderboardPreview({
 }) {
   // Politicians with enough data to be ranked confidently. Lower-sample
   // entries still appear but get a less definitive treatment.
-  const sorted = [...stats].reverse(); // most credible first
+  // Sort for display: highest credibility first; ties broken by more
+  // claims (more sample = more reliable evidence of being on top).
+  const sorted = [...stats].sort((a, b) => {
+    if (a.truthPercentage !== b.truthPercentage) {
+      return b.truthPercentage - a.truthPercentage;
+    }
+    return b.totalClaims - a.totalClaims;
+  });
   const caption = windowDays === 1
     ? "24 השעות האחרונות"
     : `${windowDays ?? 30} ימים אחרונים`;

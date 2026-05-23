@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { getPoliticianStats, getUnrankedPoliticians } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
-import { WindowSelector, resolveWindow, windowLabel as windowLabelFn } from "@/components/WindowSelector";
+import { WindowSelector } from "@/components/WindowSelector";
+import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,14 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     getUnrankedPoliticians(selected.days),
     getDataCollectionStart(),
   ]);
-  const stats = [...ascending].reverse();
+  // Highest credibility first; ties broken by more claims (more
+  // sample = more reliable evidence of being on top).
+  const stats = [...ascending].sort((a, b) => {
+    if (a.truthPercentage !== b.truthPercentage) {
+      return b.truthPercentage - a.truthPercentage;
+    }
+    return b.totalClaims - a.totalClaims;
+  });
 
   const windowLabel = windowLabelFn(selected.value);
 

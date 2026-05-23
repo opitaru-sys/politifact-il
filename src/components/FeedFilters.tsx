@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 
 interface SearchPolitician {
   id: string;
@@ -9,68 +10,50 @@ interface SearchPolitician {
 }
 
 interface Props {
-  activeDays: number;
   activeTopic: string | null;
   activePolitician: string | null;
+  /** Current ?window= value, passed through so changing the politician
+   *  filter doesn't reset the time window. */
+  activeWindow: string;
   politicians: SearchPolitician[];
-  dayOptions: number[];
 }
 
-const DAY_LABELS: Record<number, string> = {
-  7: "שבוע",
-  30: "חודש",
-  90: "3 חודשים",
-  365: "שנה",
-};
-
+/**
+ * Filters strip below the recent-claims feed. Previously also held the
+ * day-range selector (7/30/90/365), but the homepage now has a single
+ * global ?window= selector at the top that controls everything below,
+ * so the date chips moved there and this component shrinks to the
+ * politician filter only.
+ *
+ * Client component because it does router.push() with useTransition
+ * to show pending UI during navigation.
+ */
 export function FeedFilters({
-  activeDays,
   activeTopic,
   activePolitician,
+  activeWindow,
   politicians,
-  dayOptions,
 }: Props) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
-  function update(patch: { days?: number; politician?: string | null; topic?: string | null }) {
+  function update(patch: { politician?: string | null; topic?: string | null }) {
     const sp = new URLSearchParams();
     const topic = patch.topic !== undefined ? patch.topic : activeTopic;
     const politician = patch.politician !== undefined ? patch.politician : activePolitician;
-    const days = patch.days !== undefined ? patch.days : activeDays;
     if (topic) sp.set("topic", topic);
     if (politician) sp.set("politician", politician);
-    if (days !== 30) sp.set("days", String(days));
+    if (activeWindow && activeWindow !== "30") sp.set("window", activeWindow);
     const qs = sp.toString();
-    router.push(qs ? `/?${qs}` : "/");
+    startTransition(() => {
+      router.push(qs ? `/?${qs}` : "/");
+    });
   }
 
-  // Sort politicians: those with results first (handled by parent), then alphabetical.
   const sortedPoliticians = [...politicians].sort((a, b) => a.name.localeCompare(b.name, "he"));
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[12px]">
-      {/* Date range */}
-      <div className="flex items-center gap-1 border border-border" style={{ borderRadius: 2 }}>
-        <span className="px-2 py-1 text-[10px] uppercase tracking-wider text-foreground-muted border-l border-border">
-          תקופה
-        </span>
-        {dayOptions.map((d) => (
-          <button
-            key={d}
-            onClick={() => update({ days: d })}
-            className={`px-2.5 py-1 font-medium transition-colors ${
-              d === activeDays
-                ? "bg-foreground text-background"
-                : "hover:bg-muted text-foreground-muted hover:text-foreground"
-            }`}
-            aria-pressed={d === activeDays}
-          >
-            {DAY_LABELS[d] ?? d}
-          </button>
-        ))}
-      </div>
-
-      {/* Politician filter */}
+    <div className={`flex flex-wrap items-center gap-2 text-[12px] mt-3 transition-opacity ${isPending ? "opacity-60" : ""}`}>
       <label className="flex items-center gap-1 border border-border" style={{ borderRadius: 2 }}>
         <span className="px-2 py-1 text-[10px] uppercase tracking-wider text-foreground-muted border-l border-border">
           פוליטיקאי
@@ -80,6 +63,7 @@ export function FeedFilters({
           onChange={(e) => update({ politician: e.target.value || null })}
           className="bg-transparent px-2 py-1 text-sm font-medium focus:outline-none cursor-pointer"
           dir="rtl"
+          disabled={isPending}
         >
           <option value="">הכל</option>
           {sortedPoliticians.map((p) => (
@@ -89,6 +73,11 @@ export function FeedFilters({
           ))}
         </select>
       </label>
+      {isPending && (
+        <span className="text-[10px] text-foreground-muted uppercase tracking-wider animate-pulse mr-2">
+          טוען...
+        </span>
+      )}
     </div>
   );
 }

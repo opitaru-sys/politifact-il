@@ -6,28 +6,28 @@ import { ClaimCard } from "@/components/ClaimCard";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
-import { WindowSelector, resolveWindow, windowLabel } from "@/components/WindowSelector";
+import { WindowSelector } from "@/components/WindowSelector";
+import { resolveWindow, windowLabel } from "@/lib/window";
 import { topicDisplayLabel } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
-const DAY_OPTIONS = [7, 30, 90, 365];
-
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; days?: string; politician?: string; window?: string }>;
+  searchParams: Promise<{ topic?: string; politician?: string; window?: string }>;
 }) {
   const sp = await searchParams;
   const activeTopic = sp.topic?.trim() || null;
   const activePolitician = sp.politician?.trim() || null;
-  const daysRaw = parseInt(sp.days ?? "30", 10);
-  const activeDays = DAY_OPTIONS.includes(daysRaw) ? daysRaw : 30;
 
-  // Stats window — separate from `days` (which controls the recent-claims
-  // feed below). Same selector + values are used on /leaderboard and on
-  // each politician page so visitors see the same numbers everywhere.
+  // Single global window — controls stats (hero + leaderboard preview)
+  // AND the recent-claims feed below. Previously had a separate
+  // `?days=` param for the feed, but the duplicated selector confused
+  // visitors ("why are the two different?"). One filter, everything
+  // moves together.
   const statsWindow = resolveWindow(sp.window);
+  const activeDays = statsWindow.days;
 
   const [allRecent, stats, allPoliticians, collectionStart] = await Promise.all([
     getRecentClaims(activeDays),
@@ -44,7 +44,7 @@ export default async function Home({
     ? allPoliticians.find((p) => p.id === activePolitician)?.name ?? activePolitician
     : null;
 
-  const hasFilter = activeTopic || activePolitician || activeDays !== 30;
+  const hasFilter = activeTopic || activePolitician || statsWindow.value !== "30";
 
   return (
     <div className="space-y-10">
@@ -54,7 +54,21 @@ export default async function Home({
           עודכן · {new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
         </div>
         <h1 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-tight max-w-3xl">
-          מי הכי <span style={{ color: "var(--verdict-true)" }}>אמין</span> בפוליטיקה
+          {/* "אמין" used to be coloured with the verdict-true green, which
+              read like a UI badge rather than a headline word. Underlined
+              in press-red instead — more editorial, less verdict-y. */}
+          מי הכי{" "}
+          <span
+            style={{
+              textDecoration: "underline",
+              textDecorationColor: "var(--accent)",
+              textDecorationThickness: "3px",
+              textUnderlineOffset: "8px",
+            }}
+          >
+            אמין
+          </span>{" "}
+          בפוליטיקה
           <span className="text-accent">.</span>
         </h1>
         <p className="text-sm md:text-base text-foreground-muted max-w-2xl mt-3 leading-relaxed">
@@ -65,16 +79,18 @@ export default async function Home({
       {/* Stats-window selector — applies to both the hero card AND the
           leaderboard preview, since both pull from `stats`. The two
           cards next to it always share the same denominator. */}
+      {/* Global window selector — controls the hero, leaderboard preview,
+          AND the recent-claims feed below. One toggle moves everything. */}
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
           <h2 className="text-[11px] tracking-[0.3em] uppercase text-foreground-muted font-bold">
-            סטטיסטיקה
+            תקופה
           </h2>
           <span className="text-[11px] text-foreground-muted">
-            {windowLabel(statsWindow.value)}
+            הסינון משפיע על כל הנתונים בעמוד
           </span>
         </div>
-        <WindowSelector basePath="/" selectedValue={statsWindow.value} extraParams={{ days: sp.days ?? "", topic: sp.topic ?? "", politician: sp.politician ?? "" }} />
+        <WindowSelector basePath="/" selectedValue={statsWindow.value} extraParams={{ topic: sp.topic ?? "", politician: sp.politician ?? "" }} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -105,7 +121,7 @@ export default async function Home({
             </h2>
             {activeTopic && (
               <a
-                href={buildHref({ topic: null, politician: activePolitician, days: activeDays })}
+                href={buildHref({ topic: null, politician: activePolitician, window: statsWindow.value })}
                 className="inline-flex items-center gap-2 text-xs bg-accent text-background px-2.5 py-1 hover:bg-accent-dark transition-colors font-bold max-w-[16rem]"
                 style={{ borderRadius: 2 }}
                 title={`הסר סינון נושא: ${activeTopic}`}
@@ -116,7 +132,7 @@ export default async function Home({
             )}
             {activePolitician && politicianFilterLabel && (
               <a
-                href={buildHref({ topic: activeTopic, politician: null, days: activeDays })}
+                href={buildHref({ topic: activeTopic, politician: null, window: statsWindow.value })}
                 className="inline-flex items-center gap-2 text-xs bg-accent text-background px-2.5 py-1 hover:bg-accent-dark transition-colors font-bold"
                 style={{ borderRadius: 2 }}
                 title="הסר סינון פוליטיקאי"
@@ -127,21 +143,20 @@ export default async function Home({
             )}
           </div>
           <span className="text-[11px] tracking-wider uppercase text-foreground-muted tabular-nums">
-            {recentClaims.length} טענות · {activeDays} ימים אחרונים
+            {recentClaims.length} טענות · {windowLabel(statsWindow.value)}
           </span>
         </div>
 
         <FeedFilters
-          activeDays={activeDays}
           activePolitician={activePolitician}
           activeTopic={activeTopic}
+          activeWindow={statsWindow.value}
           politicians={allPoliticians}
-          dayOptions={DAY_OPTIONS}
         />
 
         {recentClaims.length === 0 ? (
           <div className="bg-card border border-border p-8 mt-5 text-center text-foreground-muted text-sm" style={{ borderRadius: 4 }}>
-            לא נמצאו טענות התואמות את הסינון ב-{activeDays} הימים האחרונים.
+            לא נמצאו טענות התואמות את הסינון {windowLabel(statsWindow.value)}.
             {hasFilter && (
               <div className="mt-3">
                 <Link href="/" className="text-accent hover:text-accent-dark font-bold underline">← נקה סינון</Link>
@@ -162,11 +177,11 @@ export default async function Home({
   );
 }
 
-function buildHref(params: { topic: string | null; politician: string | null; days: number }): string {
+function buildHref(params: { topic: string | null; politician: string | null; window?: string }): string {
   const sp = new URLSearchParams();
   if (params.topic) sp.set("topic", params.topic);
   if (params.politician) sp.set("politician", params.politician);
-  if (params.days !== 30) sp.set("days", String(params.days));
+  if (params.window && params.window !== "30") sp.set("window", params.window);
   const qs = sp.toString();
   return qs ? `/?${qs}` : "/";
 }

@@ -3,7 +3,8 @@ import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
-import { WindowSelector, resolveWindow, windowLabel } from "@/components/WindowSelector";
+import { WindowSelector } from "@/components/WindowSelector";
+import { resolveWindow, windowLabel } from "@/lib/window";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";

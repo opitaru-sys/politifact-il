@@ -21,8 +21,20 @@ export function LiarOfTheWeek({
   const qualified = stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_HERO);
   if (qualified.length === 0) return null;
 
-  const top = qualified[qualified.length - 1];
-  const bottom = qualified[0];
+  // Explicit picks instead of array endpoints so we can apply the
+  // "more claims wins ties" rule at BOTH ends — array endpoints would
+  // only let us pick one direction (and we'd need the opposite at the
+  // other end). For each end of the spectrum:
+  //   max % → if tied, prefer more claims
+  //   min % → if tied, prefer more claims (more reliable last place)
+  const maxPct = Math.max(...qualified.map((q) => q.truthPercentage));
+  const minPct = Math.min(...qualified.map((q) => q.truthPercentage));
+  const top = qualified
+    .filter((q) => q.truthPercentage === maxPct)
+    .reduce((best, q) => (q.totalClaims > best.totalClaims ? q : best));
+  const bottom = qualified
+    .filter((q) => q.truthPercentage === minPct)
+    .reduce((best, q) => (q.totalClaims > best.totalClaims ? q : best));
   const qualifiedCount = qualified.length;
   const showBottom = bottom.politician.id !== top.politician.id;
   // "Small pool" caveat — three politicians is not a definitive ranking.
