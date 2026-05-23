@@ -117,20 +117,31 @@ const SCHEDULES = [
   },
   {
     name: "בדיקה של חדשות טריות",
-    cron: "כל שעתיים, בשעה עגולה",
+    cron: "כל שעתיים, ב-15 דקות אחרי שעה עגולה",
     nextFromNow: () => {
+      // Fires at :15 of every even UTC hour (`15 */2 * * *`).
+      // Offset from the RSS ingest at :00 so the ingest's DB writes
+      // are settled before fresh-process queries.
       const now = new Date();
       const next = new Date(now);
-      next.setSeconds(0, 0);
-      next.setMinutes(0);
-      // Round up to next even hour
-      const hr = now.getUTCHours();
-      const nextHour = hr % 2 === 0 && now.getUTCMinutes() === 0 ? hr + 2 : hr + (2 - (hr % 2));
-      next.setUTCHours(nextHour, 0, 0, 0);
+      next.setUTCSeconds(0, 0);
+      const hrUTC = now.getUTCHours();
+      const minUTC = now.getUTCMinutes();
+      // Decide which even-hour:15 slot comes next.
+      const isEvenHour = hrUTC % 2 === 0;
+      let nextHour: number;
+      if (isEvenHour && minUTC < 15) {
+        // Same even hour, :15 hasn't fired yet.
+        nextHour = hrUTC;
+      } else {
+        // Roll forward to the next even hour.
+        nextHour = hrUTC + (2 - (hrUTC % 2));
+      }
+      next.setUTCHours(nextHour, 15, 0, 0);
       if (next.getTime() <= now.getTime()) next.setUTCHours(next.getUTCHours() + 2);
       return next;
     },
-    description: "מעבד עד 30 כתבות RSS חדשות. עם Google Search. הצינור הציבורי.",
+    description: "מעבד עד 60 כתבות RSS חדשות. עם Google Search. הצינור הציבורי.",
   },
   {
     name: "ריצה יומית מלאה",

@@ -2,6 +2,34 @@ import Parser from "rss-parser";
 import { prisma } from "./db";
 import { RSS_FEEDS, type FeedSource } from "./rss-feeds";
 
+/**
+ * URLs that match any of these patterns are dropped at ingest time
+ * before the Article row is written. They're things that will never
+ * produce a political claim about an Israeli politician — sports
+ * scores, foreign-language editions, live tickers — so accepting
+ * them just wastes a Gemini extraction call (~$0.0015 each) and
+ * clutters the queue.
+ *
+ * The big offender is Ynet's main news feed (StoryRss1/StoryRss2),
+ * which mixes Hebrew Ynet, Ynet sports, Ynet English (ynetnews.com),
+ * and Ynet Russian (vesty.co.il) into a single feed. Filtering by URL
+ * is a lot cleaner than picking apart the RSS by source field.
+ *
+ * Extend cautiously: each new pattern silently drops content. Better
+ * to over-include and let the fact-check pipeline reject than to
+ * silently exclude political coverage we care about.
+ */
+const URL_BLOCKLIST: RegExp[] = [
+  /\/sport(\/|$)/i,           // ynet.co.il/sport/* and similar
+  /livegame\.ynet\.co\.il/i,  // live game-tickers
+  /ynetnews\.com/i,           // Ynet English edition
+  /vesty\.co\.il/i,           // Ynet Russian edition
+];
+
+function isBlockedUrl(url: string): boolean {
+  return URL_BLOCKLIST.some((re) => re.test(url));
+}
+
 // Real-browser UA. Several Israeli news sites (Israel Hayom, Calcalist)
 // block requests with "Badak-FactChecker/*" or other unfamiliar agents
 // with a 403. Sending a Chrome-on-Mac UA matches what they expect from
@@ -28,6 +56,9 @@ export async function fetchFeed(feed: FeedSource) {
       const content = item.contentSnippet || item.content || "";
       const url = item.link;
       if (!url) continue;
+      // Drop sports / foreign-language editions before they even land
+      // in the Article table — see URL_BLOCKLIST above for rationale.
+      if (isBlockedUrl(url)) continue;
 
       const existing = await prisma.article.findUnique({ where: { url } });
       if (existing) continue;

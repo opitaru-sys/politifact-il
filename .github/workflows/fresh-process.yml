@@ -12,6 +12,15 @@ name: Fresh-news fact-check (every 2 hours)
 #   90 minutes" so we use the cleaner 2-hour cadence and accept the
 #   slight delay.
 #
+# Schedule offset: fires at :15 of every even UTC hour, not :00. The
+# RSS ingest workflow fires at :00 and :30 (`0,30 * * * *`); without
+# the 15-minute offset, both workflows kicked off simultaneously at
+# every even hour. The fresh-process query then ran against the DB
+# before the parallel ingest had committed its newest rows, so the
+# freshest articles slipped through to the NEXT 2h tick. Offsetting
+# by :15 lets ingest finish (and its DB writes settle) before
+# fresh-process queries.
+#
 # Cost ceiling: limit=60 means up to 60 extraction calls per run.
 # With ~10% claim yield that's ~6 grounded fact-checks per run.
 # At ~$0.05/grounded claim + ~$0.0015 extraction per article =
@@ -24,7 +33,7 @@ name: Fresh-news fact-check (every 2 hours)
 # tick, leaving the rest for the once-daily backlog lane.
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    - cron: "15 */2 * * *"
   workflow_dispatch:
 
 concurrency:
