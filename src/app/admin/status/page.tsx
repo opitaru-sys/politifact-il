@@ -2,6 +2,74 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Start of today in Israel local time, returned as a UTC `Date` so it
+ * can be used directly in Prisma `gte` filters. We deliberately use
+ * Israel time (not UTC) because the admin viewer is in Israel and
+ * "today's activity" means "since midnight Asia/Jerusalem", not since
+ * 00:00 UTC (which would land at 03:00 IDT and lose 3h of activity).
+ *
+ * Handles DST automatically — `Intl.DateTimeFormat` with timeZone
+ * returns the correct offset for the moment, so this works year-round
+ * without a manual summer/winter switch.
+ */
+/**
+ * One column inside the "פעילות יומית" four-tile card. Hoisted to
+ * module scope (rather than defined inside the render IIFE) so the
+ * `react-hooks/static-components` rule passes — defining a component
+ * during render creates a fresh component type on every paint, which
+ * confuses React's reconciler.
+ */
+function CountCell({
+  value,
+  label,
+  highlight,
+}: {
+  value: number;
+  label: string;
+  highlight?: boolean;
+}) {
+  const color = highlight
+    ? "var(--verdict-true)"
+    : value > 0
+    ? "var(--foreground)"
+    : "var(--foreground-muted)";
+  return (
+    <div className="px-4 py-4 border-l border-border last:border-l-0 text-center">
+      <div className="text-2xl font-black tabular-nums leading-none" style={{ color }}>
+        {value}
+      </div>
+      <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function todayMidnightIsrael(): Date {
+  const now = new Date();
+  // Parts of "now" expressed in Asia/Jerusalem.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  // The current UTC offset for Asia/Jerusalem (e.g. "+03:00" in
+  // summer, "+02:00" in winter). longOffset gives a parseable form.
+  const offsetPart = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jerusalem",
+    timeZoneName: "longOffset",
+  })
+    .formatToParts(now)
+    .find((p) => p.type === "timeZoneName")?.value; // e.g. "GMT+03:00"
+  const offset = offsetPart?.replace("GMT", "") || "+03:00";
+  return new Date(`${y}-${m}-${d}T00:00:00${offset}`);
+}
+
 interface PageProps {
   searchParams: Promise<{ key?: string }>;
 }
@@ -134,6 +202,12 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
     );
   }
 
+  // Start-of-today in Israel time. All "פעילות יומית" counts below
+  // are gated on this cutoff so the card answers "what has the
+  // pipeline produced since midnight in Israel?" — independent of
+  // whether a DailySnapshot row exists or when the cron last ran.
+  const todayStart = todayMidnightIsrael();
+
   // Parallel data fetch
   const [
     totalClaims,
@@ -149,7 +223,10 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
     topPoliticiansRaw,
     recentClaims,
     unprocessedArticlesForAge,
-    dailySnapshots,
+    todayClaimsCreated,
+    todayClaimsApproved,
+    todayClaimsPublished,
+    todayArticlesFetched,
   ] = await Promise.all([
     prisma.claim.count(),
     prisma.claim.count({ where: { status: "published" } }),
@@ -206,11 +283,17 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
       where: { processed: false },
       select: { fetchedAt: true, source: true },
     }),
-    // Daily snapshot history — last 14 days of pipeline stats.
-    prisma.dailySnapshot.findMany({
-      orderBy: { day: "desc" },
-      take: 14,
+    // "פעילות יומית" — four counts, all gated on Israel-midnight cutoff.
+    // Queried fresh on every page load so the card shows real activity,
+    // not a snapshot-vs-snapshot diff that needed yesterday's row.
+    prisma.claim.count({ where: { createdAt: { gte: todayStart } } }),
+    prisma.claim.count({
+      where: { editorApproved: true, verifiedAt: { gte: todayStart } },
     }),
+    prisma.claim.count({
+      where: { status: "published", createdAt: { gte: todayStart } },
+    }),
+    prisma.article.count({ where: { fetchedAt: { gte: todayStart } } }),
   ]);
 
   // Bucket the queue by age so the admin sees "13 from the last hour, 17 from
@@ -348,62 +431,45 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         </section>
       )}
 
-      {/* Today's activity — focused on what happened TODAY (deltas vs
-          yesterday's snapshot), not lifetime totals. The four big
-          numbers up top already show lifetime; this answers "what did
-          the cron actually produce in the last 24h?" */}
-      {dailySnapshots.length > 0 && (() => {
-        const today = dailySnapshots[0];
-        const yesterday = dailySnapshots[1] ?? null;
-        const deltaPublished = yesterday ? today.publishedClaims - yesterday.publishedClaims : null;
-        const deltaApproved = yesterday ? today.editorApproved - yesterday.editorApproved : null;
-        const deltaArticles = yesterday ? today.totalArticles - yesterday.totalArticles : null;
+      {/* "פעילות יומית" — live counts since midnight Israel time.
+          Queried fresh on every admin page load (no dependency on
+          DailySnapshot snapshots or yesterday's row), so the numbers
+          are always up-to-the-minute. */}
+      {(() => {
+        // Today's approval rate: of the claims created today and
+        // marked published, what fraction passed the verifier? Uses
+        // published-today (not all created-today) as denominator so
+        // claims still in draft don't drag the percentage down.
         const todayPct =
-          today.publishedClaims > 0
-            ? Math.round((today.editorApproved / today.publishedClaims) * 100)
+          todayClaimsPublished > 0
+            ? Math.round((todayClaimsApproved / todayClaimsPublished) * 100)
             : 0;
 
-        function DeltaCell({ delta, label }: { delta: number | null; label: string }) {
-          const positive = delta !== null && delta > 0;
-          const zero = delta === 0;
-          const color = positive
-            ? "var(--verdict-true)"
-            : zero
-            ? "var(--foreground-muted)"
-            : "var(--verdict-false)";
-          return (
-            <div className="px-4 py-4 border-l border-border last:border-l-0 text-center">
-              <div
-                className="text-2xl font-black tabular-nums leading-none"
-                style={{ color }}
-              >
-                {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta}`}
-              </div>
-              <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-                {label}
-              </div>
-            </div>
-          );
-        }
+        const todayLabel = todayStart.toLocaleDateString("he-IL", {
+          day: "numeric",
+          month: "long",
+        });
 
         return (
           <section className="mt-10">
             <div className="flex items-baseline justify-between mb-3 pb-2 border-b-[1.5px] border-border-strong">
               <h2 className="font-black text-lg tracking-tight">פעילות יומית</h2>
               <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
-                {today.day}{" "}
-                {yesterday ? `· שינוי מ-${yesterday.day}` : "· אין יום קודם להשוואה"}
+                מאז חצות · {todayLabel}
               </span>
             </div>
             <div
               className="bg-card border border-border-strong grid grid-cols-2 sm:grid-cols-4"
               style={{ borderRadius: 4 }}
             >
-              <DeltaCell delta={deltaPublished} label="טענות חדשות" />
-              <DeltaCell delta={deltaApproved} label="אושרו חדשות" />
-              <DeltaCell delta={deltaArticles} label="כתבות חדשות" />
+              <CountCell value={todayClaimsCreated} label="טענות חדשות" />
+              <CountCell value={todayClaimsApproved} label="אושרו היום" />
+              <CountCell value={todayArticlesFetched} label="כתבות חדשות" />
               <div className="px-4 py-4 text-center">
-                <div className="text-2xl font-black tabular-nums leading-none" style={{ color: "var(--verdict-true)" }}>
+                <div
+                  className="text-2xl font-black tabular-nums leading-none"
+                  style={{ color: "var(--verdict-true)" }}
+                >
                   {todayPct}%
                 </div>
                 <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
@@ -412,8 +478,8 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
               </div>
             </div>
             <p className="text-[11px] text-foreground-muted leading-relaxed mt-3">
-              נכתב בסיום ה-cron היומי. הדלתאות מחושבות מול הצילום של אתמול. כשאין יום קודם
-              (סיבוב ראשון), הערכים מסומנים &ldquo;—&rdquo;.
+              נספר מאז חצות (שעון ישראל). כולל כל מה שה-cron כבר הספיק לעבד היום
+              מתוך {todayClaimsPublished} טענות שפורסמו.
             </p>
           </section>
         );
