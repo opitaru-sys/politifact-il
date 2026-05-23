@@ -20,21 +20,65 @@ const PUBLIC_CLAIM_FILTER = {
   editorApproved: true,
 } as const;
 
-export async function getRecentClaims(days: number = 30) {
+export interface RecentClaimsOpts {
+  limit?: number;
+  offset?: number;
+  topic?: string | null;
+  politicianId?: string | null;
+}
+
+/**
+ * Build the WHERE clause shared by `getRecentClaims` and
+ * `getRecentClaimsCount`. Filters (topic / politicianId) are pushed
+ * into the SQL query so pagination can be done correctly in the DB
+ * — previously we fetched everything and filtered with `.filter()`
+ * in `page.tsx`, which made limit/offset meaningless.
+ */
+function buildRecentClaimsWhere(days: number, opts: RecentClaimsOpts = {}) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
+  const where: {
+    status: string;
+    editorApproved: boolean;
+    date: { gte: Date };
+    topic?: string;
+    politicianId?: string;
+  } = {
+    ...PUBLIC_CLAIM_FILTER,
+    date: { gte: cutoff },
+  };
+  if (opts.topic) where.topic = opts.topic;
+  if (opts.politicianId) where.politicianId = opts.politicianId;
+  return where;
+}
 
+export async function getRecentClaims(
+  days: number = 30,
+  opts: RecentClaimsOpts = {},
+) {
   return prisma.claim.findMany({
-    where: {
-      ...PUBLIC_CLAIM_FILTER,
-      date: { gte: cutoff },
-    },
+    where: buildRecentClaimsWhere(days, opts),
     include: {
       politician: true,
       _count: { select: { comments: true } },
     },
     orderBy: { date: "desc" },
+    ...(opts.limit !== undefined ? { take: opts.limit } : {}),
+    ...(opts.offset !== undefined ? { skip: opts.offset } : {}),
   });
+}
+
+/**
+ * Cheap row count for the header (`{N} טענות`). Separated so the
+ * paginated `getRecentClaims` doesn't have to fetch every row just
+ * to compute a total — Postgres can count via index without
+ * materializing the full result set.
+ */
+export async function getRecentClaimsCount(
+  days: number = 30,
+  opts: RecentClaimsOpts = {},
+): Promise<number> {
+  return prisma.claim.count({ where: buildRecentClaimsWhere(days, opts) });
 }
 
 export async function getAllPoliticians(windowDays?: number) {

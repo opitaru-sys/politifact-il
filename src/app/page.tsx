@@ -1,12 +1,13 @@
-import Link from "next/link";
-import { getRecentClaims, getPoliticianStats, getAllPoliticiansLite } from "@/lib/data";
+import { Suspense } from "react";
+import { getPoliticianStats, getAllPoliticiansLite } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
-import { ClaimCard } from "@/components/ClaimCard";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
 import { WindowSelector } from "@/components/WindowSelector";
+import { RecentClaimsFeed } from "@/components/RecentClaimsFeed";
+import { FeedSkeleton } from "@/components/FeedSkeleton";
 import { resolveWindow, windowLabel } from "@/lib/window";
 import { topicDisplayLabel } from "@/lib/topics";
 
@@ -29,22 +30,46 @@ export default async function Home({
   const statsWindow = resolveWindow(sp.window);
   const activeDays = statsWindow.days;
 
-  const [allRecent, stats, allPoliticians, collectionStart] = await Promise.all([
-    getRecentClaims(activeDays),
-    getPoliticianStats(statsWindow.days),
-    getAllPoliticiansLite(),
-    getDataCollectionStart(),
+  // Light queries above the fold — these all return small payloads
+  // (stats are aggregates, politicians-lite is id+name+image, the
+  // collection-start is one row). The heavy `getRecentClaims` call
+  // is now inside `<Suspense>` below so a slow feed query doesn't
+  // block the masthead/hero/leaderboard from streaming in.
+  console.time("page.parallel-queries");
+  const [stats, allPoliticians, collectionStart] = await Promise.all([
+    (async () => {
+      console.time("page.getPoliticianStats");
+      const r = await getPoliticianStats(statsWindow.days);
+      console.timeEnd("page.getPoliticianStats");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getAllPoliticiansLite");
+      const r = await getAllPoliticiansLite();
+      console.timeEnd("page.getAllPoliticiansLite");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getDataCollectionStart");
+      const r = await getDataCollectionStart();
+      console.timeEnd("page.getDataCollectionStart");
+      return r;
+    })(),
   ]);
-
-  let recentClaims = allRecent;
-  if (activeTopic) recentClaims = recentClaims.filter((c) => c.topic === activeTopic);
-  if (activePolitician) recentClaims = recentClaims.filter((c) => c.politicianId === activePolitician);
+  console.timeEnd("page.parallel-queries");
 
   const politicianFilterLabel = activePolitician
     ? allPoliticians.find((p) => p.id === activePolitician)?.name ?? activePolitician
     : null;
 
-  const hasFilter = activeTopic || activePolitician || statsWindow.value !== "30";
+  const hasFilter = Boolean(activeTopic || activePolitician || statsWindow.value !== "30");
+
+  // Suspense reset key: when `?window=`, `?topic=` or `?politician=`
+  // changes, React must unmount the previous feed and re-show the
+  // skeleton. Without a `key` React would keep showing stale cards
+  // until the new query resolved — exactly the slow-feeling
+  // behaviour we're fixing.
+  const feedKey = `${activeDays}-${activeTopic ?? ""}-${activePolitician ?? ""}`;
 
   return (
     <div className="space-y-10">
@@ -76,9 +101,6 @@ export default async function Home({
         </p>
       </section>
 
-      {/* Stats-window selector — applies to both the hero card AND the
-          leaderboard preview, since both pull from `stats`. The two
-          cards next to it always share the same denominator. */}
       {/* Global window selector — controls the hero, leaderboard preview,
           AND the recent-claims feed below. One toggle moves everything. */}
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -142,9 +164,6 @@ export default async function Home({
               </a>
             )}
           </div>
-          <span className="text-[11px] tracking-wider uppercase text-foreground-muted tabular-nums">
-            {recentClaims.length} טענות · {windowLabel(statsWindow.value)}
-          </span>
         </div>
 
         <FeedFilters
@@ -154,24 +173,22 @@ export default async function Home({
           politicians={allPoliticians}
         />
 
-        {recentClaims.length === 0 ? (
-          <div className="bg-card border border-border p-8 mt-5 text-center text-foreground-muted text-sm" style={{ borderRadius: 4 }}>
-            לא נמצאו טענות התואמות את הסינון {windowLabel(statsWindow.value)}.
-            {hasFilter && (
-              <div className="mt-3">
-                <Link href="/" className="text-accent hover:text-accent-dark font-bold underline">← נקה סינון</Link>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4 mt-5">
-            {recentClaims.map((claim, i) => (
-              <div key={claim.id} className="card-in" style={{ animationDelay: `${i * 40}ms` }}>
-                <ClaimCard claim={claim} />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Suspense boundary scoped to just the feed. The `key` forces
+            React to unmount the previous feed on any filter change so
+            the skeleton reappears — without it React keeps the stale
+            cards visible until the new query resolves, which is the
+            "feels frozen" sensation we're fixing. */}
+        <div className="mt-5">
+          <Suspense key={feedKey} fallback={<FeedSkeleton count={5} />}>
+            <RecentClaimsFeed
+              activeDays={activeDays}
+              activeTopic={activeTopic}
+              activePolitician={activePolitician}
+              windowValue={statsWindow.value}
+              hasFilter={hasFilter}
+            />
+          </Suspense>
+        </div>
       </section>
     </div>
   );

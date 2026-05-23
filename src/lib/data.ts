@@ -14,10 +14,18 @@ export const MIN_CLAIMS_FOR_RANKING = 3;
  *  Three is the smallest number where a verdict mix is meaningful. */
 export const MIN_CLAIMS_FOR_HERO = 3;
 
-export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise<(mock.Claim & { _politician?: { id: string; name: string; party: string; image?: string | null }; _commentCount?: number })[]> {
+export type SerializedClaim = mock.Claim & {
+  _politician?: { id: string; name: string; party: string; image?: string | null };
+  _commentCount?: number;
+};
+
+export async function getRecentClaims(
+  days: number = STATS_WINDOW_DAYS,
+  opts: queries.RecentClaimsOpts = {},
+): Promise<SerializedClaim[]> {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    const claims = await queries.getRecentClaims(days);
+    const claims = await queries.getRecentClaims(days, opts);
     return claims.map((c) => ({
       id: c.id,
       politicianId: c.politicianId,
@@ -42,13 +50,34 @@ export async function getRecentClaims(days: number = STATS_WINDOW_DAYS): Promise
       _commentCount: c._count.comments,
     }));
   }
-  return mock.getRecentClaims(days).map((c) => ({
+  // Mock path: apply the same filters in memory so dev mode without
+  // a real DB still gets correct topic / politician / pagination.
+  let claims = mock.getRecentClaims(days);
+  if (opts.topic) claims = claims.filter((c) => c.topic === opts.topic);
+  if (opts.politicianId) claims = claims.filter((c) => c.politicianId === opts.politicianId);
+  if (opts.offset !== undefined) claims = claims.slice(opts.offset);
+  if (opts.limit !== undefined) claims = claims.slice(0, opts.limit);
+  return claims.map((c) => ({
     ...c,
     _politician: mock.getPolitician(c.politicianId)
       ? { ...mock.getPolitician(c.politicianId)!, image: mock.getPolitician(c.politicianId)!.image ?? null }
       : undefined,
     _commentCount: 0,
   }));
+}
+
+/** Total matching the same filters. Used by the feed header so the
+ *  count reflects the entire window, not just the first page. */
+export async function getRecentClaimsCount(
+  days: number = STATS_WINDOW_DAYS,
+  opts: queries.RecentClaimsOpts = {},
+): Promise<number> {
+  const hasReal = await queries.hasAnyPublishedClaims();
+  if (hasReal) return queries.getRecentClaimsCount(days, opts);
+  let claims = mock.getRecentClaims(days);
+  if (opts.topic) claims = claims.filter((c) => c.topic === opts.topic);
+  if (opts.politicianId) claims = claims.filter((c) => c.politicianId === opts.politicianId);
+  return claims.length;
 }
 
 export async function getPoliticianStats(
