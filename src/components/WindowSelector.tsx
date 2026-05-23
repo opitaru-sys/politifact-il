@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { WINDOW_OPTIONS, DEFAULT_WINDOW_VALUE } from "@/lib/window";
+import { BenGurionSpinner } from "./BenGurionSpinner";
 
 /**
  * Shared "rolling window" selector chips. Wraps router.push() in
@@ -77,8 +78,11 @@ export function WindowSelector({
         );
       })}
       {isPending && (
-        <span className="text-[10px] text-foreground-muted uppercase tracking-wider animate-pulse mr-2">
-          טוען...
+        <span className="inline-flex items-center gap-2 mr-2" title="טוען...">
+          <BenGurionSpinner size={34} />
+          <span className="text-[10px] text-foreground-muted uppercase tracking-wider">
+            טוען...
+          </span>
         </span>
       )}
       {!isPending && rightLabel && (

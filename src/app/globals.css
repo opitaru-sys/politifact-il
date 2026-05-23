@@ -82,6 +82,15 @@ blockquote {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Loading indicator: Ben Gurion spinning on his head. The
+ * `transform-origin` on the consuming element pins the rotation to
+ * his head position so it really does spin on his head, not around
+ * the SVG centre. */
+@keyframes bg-headstand-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .card-in {
   animation: cardIn 0.35s ease-out backwards;
 }

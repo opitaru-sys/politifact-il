@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { BenGurionSpinner } from "./BenGurionSpinner";
 
 interface SearchPolitician {
   id: string;
@@ -74,8 +75,9 @@ export function FeedFilters({
         </select>
       </label>
       {isPending && (
-        <span className="text-[10px] text-foreground-muted uppercase tracking-wider animate-pulse mr-2">
-          טוען...
+        <span className="inline-flex items-center gap-2 mr-2" title="טוען...">
+          <BenGurionSpinner size={32} />
+          <span className="text-[10px] text-foreground-muted uppercase tracking-wider">טוען...</span>
         </span>
       )}
     </div>
