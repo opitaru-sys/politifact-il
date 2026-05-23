@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Rubik } from "next/font/google";
 import "./globals.css";
 import { Logo } from "@/components/Logo";
 import { HeaderNav } from "@/components/HeaderNav";
+import { PostHogProvider } from "@/components/PostHogProvider";
+import { PostHogPageView } from "@/components/PostHogPageView";
 import { getLastUpdate } from "@/lib/queries";
 
 const rubik = Rubik({
@@ -91,6 +94,15 @@ export default async function RootLayout({
   return (
     <html lang="he" dir="rtl" className={rubik.variable}>
       <body className="min-h-screen bg-background text-foreground">
+        {/* PostHog wraps everything so any client component can use
+            `usePostHog()` for custom events later. PageView is in its
+            own Suspense boundary because useSearchParams suspends
+            during the static-shell pass; without the boundary the
+            entire app would fall behind that suspense. */}
+        <PostHogProvider>
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
         <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b-[1.5px] border-border-strong">
           <div className="max-w-5xl mx-auto px-5 py-3.5 flex items-center justify-between">
             <Link
@@ -175,6 +187,7 @@ export default async function RootLayout({
             </div>
           </div>
         </footer>
+        </PostHogProvider>
       </body>
     </html>
   );
