@@ -96,22 +96,17 @@ export default async function Home({
           בפוליטיקה
           <span className="text-accent">.</span>
         </h1>
-        <p className="text-sm md:text-base text-foreground-muted max-w-2xl mt-3 leading-relaxed">
+        <p className="text-sm md:text-base text-foreground-muted mt-3 leading-relaxed">
           בדיקת עובדות לכל טענה ציבורית של פוליטיקאי ישראלי. ציטוט מקורי, פסק דין מנומק, וקישור לכתבה המקורית.
         </p>
       </section>
 
       {/* Global window selector — controls the hero, leaderboard preview,
-          AND the recent-claims feed below. One toggle moves everything. */}
-      <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <h2 className="text-[11px] tracking-[0.3em] uppercase text-foreground-muted font-bold">
-            תקופה
-          </h2>
-          <span className="text-[11px] text-foreground-muted">
-            הסינון משפיע על כל הנתונים בעמוד
-          </span>
-        </div>
+          AND the recent-claims feed below. One toggle moves everything.
+          The "תקופה" label and explanatory subtext were removed: the
+          chip labels (יום / שבוע / חודש / etc.) are self-evidently a
+          time filter, and the explanatory line was visual noise. */}
+      <div className="flex justify-end">
         <WindowSelector basePath="/" selectedValue={statsWindow.value} extraParams={{ topic: sp.topic ?? "", politician: sp.politician ?? "" }} />
       </div>
 
