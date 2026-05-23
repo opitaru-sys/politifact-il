@@ -149,6 +149,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
     topPoliticiansRaw,
     recentClaims,
     unprocessedArticlesForAge,
+    dailySnapshots,
   ] = await Promise.all([
     prisma.claim.count(),
     prisma.claim.count({ where: { status: "published" } }),
@@ -204,6 +205,11 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
     prisma.article.findMany({
       where: { processed: false },
       select: { fetchedAt: true, source: true },
+    }),
+    // Daily snapshot history — last 14 days of pipeline stats.
+    prisma.dailySnapshot.findMany({
+      orderBy: { day: "desc" },
+      take: 14,
     }),
   ]);
 
@@ -339,6 +345,85 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
               שרץ כל שעתיים בשעות הזוגיות. כתבות ישנות יותר ממתינות ללוח backlog שרץ פעם ביום.
             </p>
           </div>
+        </section>
+      )}
+
+      {/* Daily history — last 14 days of pipeline metrics. Each row
+          mirrors the four top-of-page numbers (claims, approved, queue,
+          last activity) on a different day so we can spot trends. */}
+      {dailySnapshots.length > 0 && (
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between mb-3 pb-2 border-b-[1.5px] border-border-strong">
+            <h2 className="font-black text-lg tracking-tight">היסטוריה יומית</h2>
+            <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
+              צילום מצב יומי · 14 ימים אחרונים
+            </span>
+          </div>
+          <div className="bg-card border border-border overflow-hidden" style={{ borderRadius: 4 }}>
+            <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 px-4 py-2 border-b border-border text-[10px] uppercase tracking-wider text-foreground-muted font-bold">
+              <span>תאריך</span>
+              <span className="text-left tabular-nums">פורסם</span>
+              <span className="text-left tabular-nums">אושר</span>
+              <span className="text-left tabular-nums">אחוז</span>
+              <span className="text-left tabular-nums">בתור</span>
+              <span className="text-left tabular-nums">סה״כ</span>
+            </div>
+            {dailySnapshots.map((row, i) => {
+              const prev = dailySnapshots[i + 1];
+              const delta = prev ? row.publishedClaims - prev.publishedClaims : 0;
+              const approvalPct =
+                row.publishedClaims > 0
+                  ? Math.round((row.editorApproved / row.publishedClaims) * 100)
+                  : 0;
+              return (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2 border-b border-border last:border-b-0 text-sm"
+                >
+                  <span className="font-bold tabular-nums">
+                    {row.day}
+                    {i === 0 && (
+                      <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">היום</span>
+                    )}
+                  </span>
+                  <span className="tabular-nums text-left">{row.publishedClaims}</span>
+                  <span className="tabular-nums text-left" style={{ color: "var(--verdict-true)" }}>
+                    {row.editorApproved}
+                  </span>
+                  <span className="tabular-nums text-left text-foreground-muted">
+                    {approvalPct}%
+                  </span>
+                  <span
+                    className="tabular-nums text-left font-bold"
+                    style={{
+                      color: row.queueDepth > 100 ? "var(--verdict-half)" : "var(--foreground-muted)",
+                    }}
+                  >
+                    {row.queueDepth}
+                  </span>
+                  <span
+                    className="tabular-nums text-left text-foreground-muted"
+                    title={`Δ ${delta >= 0 ? "+" : ""}${delta} מאתמול`}
+                  >
+                    {row.totalClaims}
+                    {delta !== 0 && (
+                      <span
+                        className="text-[10px] ml-1"
+                        style={{ color: delta > 0 ? "var(--verdict-true)" : "var(--verdict-false)" }}
+                      >
+                        {delta > 0 ? "+" : ""}
+                        {delta}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-foreground-muted leading-relaxed mt-3">
+            שורה אחת ביום, נכתבת בסיום ה-cron היומי. עמודת &ldquo;סה״כ&rdquo; כוללת שינוי
+            מהיום הקודם לזיהוי בעיות (יום ללא טענות חדשות = פיפליין תקוע).
+          </p>
         </section>
       )}
 

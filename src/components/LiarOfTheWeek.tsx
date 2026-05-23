@@ -27,7 +27,10 @@ export function LiarOfTheWeek({
   const showBottom = bottom.politician.id !== top.politician.id;
   // "Small pool" caveat — three politicians is not a definitive ranking.
   const smallPool = qualifiedCount < 5;
-  const windowText = windowDays ? `${windowDays} הימים האחרונים` : "כל הזמנים";
+  const windowText =
+    windowDays === 1
+      ? "24 השעות האחרונות"
+      : `${windowDays ?? 30} הימים האחרונים`;
 
   return (
     <div className="flex flex-col gap-3 h-full">

@@ -111,5 +111,45 @@ console.log(`Knesset backlog created ${knessetClaims.length} new claims`);
 const totalClaims = freshClaims.length + rssBacklogClaims.length + knessetClaims.length;
 console.log(`\nCreated ${totalClaims} new claims`);
 
+// Record today's metrics in DailySnapshot so the admin dashboard's
+// history chart has a fresh row. Idempotent — re-runs the same day
+// just update the existing row. Inlined here (rather than importing
+// scripts/snapshot.mts) to avoid TypeScript's .mts import-extension
+// restriction.
+try {
+  const day = new Date().toISOString().slice(0, 10);
+  const { PrismaClient: PC } = await import("@prisma/client");
+  const p2 = new PC();
+  const [totalC, publishedC, editorC, totalA, queueD, lastC] = await Promise.all([
+    p2.claim.count(),
+    p2.claim.count({ where: { status: "published" } }),
+    p2.claim.count({ where: { editorApproved: true } }),
+    p2.article.count(),
+    p2.article.count({ where: { processed: false } }),
+    p2.claim.findFirst({
+      where: { status: "published" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  ]);
+  const data = {
+    totalClaims: totalC,
+    publishedClaims: publishedC,
+    editorApproved: editorC,
+    totalArticles: totalA,
+    queueDepth: queueD,
+    lastClaimAt: lastC?.createdAt ?? null,
+  };
+  await p2.dailySnapshot.upsert({
+    where: { day },
+    create: { day, ...data },
+    update: data,
+  });
+  console.log(`Snapshot ${day}: ${editorC}/${publishedC} approved, queue=${queueD}`);
+  await p2.$disconnect();
+} catch (err) {
+  console.error("Snapshot write failed:", err);
+}
+
 console.log(`\n[${new Date().toISOString()}] Daily run complete ✓`);
 process.exit(0);

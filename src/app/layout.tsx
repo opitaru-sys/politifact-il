@@ -104,31 +104,23 @@ export default async function RootLayout({
           </div>
         </header>
 
-        {/* AI methodology warning. Compact one-line on mobile (icon + short
-            sentence + link to full methodology), full sentence on desktop. */}
+        {/* AI methodology warning — full text on every viewport. Earlier
+            we had a compact mobile variant but the user wants the full
+            disclaimer visible everywhere because it's a core trust
+            signal, not chrome. Slightly tighter line-height on mobile
+            so it doesn't dominate the first viewport. */}
         <div
-          className="px-5 py-2 text-center text-[11px] leading-relaxed border-b border-border"
+          className="px-4 sm:px-5 py-2 text-center text-[11px] leading-snug sm:leading-relaxed border-b border-border"
           style={{
             backgroundColor: "var(--verdict-half-bg)",
             color: "var(--verdict-half)",
           }}
         >
-          {/* Mobile: short, one line */}
-          <div className="sm:hidden flex items-center justify-center gap-2 text-[11px]">
-            <span className="font-bold">בדיקה אוטומטית (AI)</span>
-            <span className="opacity-50">·</span>
-            <a href="/about" className="underline hover:no-underline font-medium">
-              איך זה עובד?
-            </a>
-          </div>
-          {/* Desktop: full warning */}
-          <div className="hidden sm:block">
-            <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
-            <span className="opacity-90">
-              אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
-              <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
-            </span>
-          </div>
+          <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
+          <span className="opacity-90">
+            אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
+            <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+          </span>
         </div>
 
         <main className="max-w-5xl mx-auto px-5 py-10">

@@ -6,22 +6,27 @@ import Link from "next/link";
  * a reader can compare apples to apples across pages.
  *
  * URL contract:
+ *   ?window=1        -> last 24 hours
  *   ?window=7        -> last 7 days
  *   ?window=30       -> last 30 days (default — selected when param absent)
  *   ?window=60       -> last 60 days
  *   ?window=90       -> last 90 days
- *   ?window=all      -> no date filter
+ *
+ * "all-time" was removed: with backfilled Knesset transcripts going
+ * back months, it produced misleading "X% lifetime" numbers dominated
+ * by old, possibly resolved positions. Visitors get a date-bounded
+ * view by design.
  *
  * `basePath` is the route to link to (e.g. "/leaderboard", "/" or
  * "/politician/abc"). Other URL params can be passed through via
  * `extraParams` so we don't lose other filters when switching the window.
  */
-export const WINDOW_OPTIONS: { value: string; label: string; days: number | undefined }[] = [
+export const WINDOW_OPTIONS: { value: string; label: string; days: number }[] = [
+  { value: "1", label: "יום", days: 1 },
   { value: "7", label: "שבוע", days: 7 },
   { value: "30", label: "חודש", days: 30 },
   { value: "60", label: "חודשיים", days: 60 },
   { value: "90", label: "3 חודשים", days: 90 },
-  { value: "all", label: "הכל", days: undefined },
 ];
 
 /** Default = 30 days. */
@@ -34,7 +39,8 @@ export function resolveWindow(value: string | undefined | null) {
 
 export function windowLabel(value: string | undefined | null): string {
   const w = resolveWindow(value);
-  return w.days ? `${w.days} ימים אחרונים` : "מכל הזמנים";
+  if (w.days === 1) return "24 השעות האחרונות";
+  return `${w.days} ימים אחרונים`;
 }
 
 export function WindowSelector({

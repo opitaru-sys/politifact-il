@@ -83,7 +83,7 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
         </div>
 
         {/* Stats-window selector — same chips as /leaderboard and the home
-            hero, so a visitor arriving from the leaderboard with "?window=all"
+            hero, so a visitor arriving from the leaderboard with "?window=90"
             sees identical numbers on both pages. */}
         <div className="mb-4 flex items-baseline justify-between gap-3 flex-wrap">
           <span className="text-[11px] uppercase tracking-wider text-foreground-muted">
@@ -116,8 +116,8 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
             {totalAllTime > 0 ? (
               <>
                 ל-{data.name} יש {totalAllTime} טענות בסה״כ במאגר.{" "}
-                <a href={`/politician/${id}?window=all`} className="underline font-bold">
-                  הצג הכל ←
+                <a href={`/politician/${id}?window=90`} className="underline font-bold">
+                  הצג 3 חודשים ←
                 </a>
               </>
             ) : (
@@ -178,12 +178,12 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
         {showAllTimeNote && (
           <p className="text-[11px] text-foreground-muted mt-3">
             סך הכל ל-{data.name} {totalAllTime} טענות במאגר.{" "}
-            {selected.value !== "all" && (
+            {selected.value !== "90" && (
               <a
-                href={`/politician/${id}?window=all`}
+                href={`/politician/${id}?window=90`}
                 className="underline font-bold hover:text-accent"
               >
-                הצג את כולן ←
+                הצג 3 חודשים ←
               </a>
             )}
           </p>

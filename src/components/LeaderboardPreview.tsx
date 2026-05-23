@@ -24,12 +24,12 @@ export function LeaderboardPreview({
   // Politicians with enough data to be ranked confidently. Lower-sample
   // entries still appear but get a less definitive treatment.
   const sorted = [...stats].reverse(); // most credible first
-  const caption = windowDays
-    ? `${windowDays} ימים אחרונים`
-    : "מכל הזמנים";
-  const leaderboardLink = windowDays === 30
+  const caption = windowDays === 1
+    ? "24 השעות האחרונות"
+    : `${windowDays ?? 30} ימים אחרונים`;
+  const leaderboardLink = windowDays === 30 || windowDays === undefined
     ? "/leaderboard"
-    : `/leaderboard?window=${windowDays ?? "all"}`;
+    : `/leaderboard?window=${windowDays}`;
 
   return (
     <div

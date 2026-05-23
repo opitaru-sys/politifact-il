@@ -92,3 +92,22 @@ model Article {
   @@index([source])
   @@index([processed])
 }
+
+/// One row per day. Written at the end of each daily cron run and
+/// surfaced on the admin status page so we can spot regressions
+/// (queue depth blowing up, approval rate dropping, no fresh claims
+/// for N days). Day field is stored as a string in YYYY-MM-DD form
+/// so we get one row per calendar day regardless of write time.
+model DailySnapshot {
+  id              String   @id @default(cuid())
+  day             String   @unique   // "2026-05-23"
+  totalClaims     Int
+  publishedClaims Int
+  editorApproved  Int
+  queueDepth      Int
+  totalArticles   Int
+  lastClaimAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([day])
+}
