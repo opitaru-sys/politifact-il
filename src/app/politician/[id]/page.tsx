@@ -1,9 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
+import { KnessetActivityCard } from "@/components/KnessetActivityCard";
 import { resolveWindow, windowLabel } from "@/lib/window";
 import { notFound } from "next/navigation";
 
@@ -190,6 +192,16 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
           </p>
         )}
       </div>
+
+      {/* Knesset activity card — plenum participation %, bill
+          sponsorship, current committee/role roster. Rendered inside
+          its own Suspense so a slow Knesset OData fetch doesn't
+          block the credibility card paint above. Returns null
+          (i.e. nothing rendered) for non-MKs or politicians not
+          covered by the daily activity ingest. */}
+      <Suspense fallback={null}>
+        <KnessetActivityCard politicianId={id} politicianName={data.name} />
+      </Suspense>
 
       <div className="flex items-baseline justify-between mb-5 pb-3 border-b-[1.5px] border-border-strong">
         <h2 className="font-black text-xl tracking-tight">

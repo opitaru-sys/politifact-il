@@ -13,6 +13,19 @@ export const MIN_CLAIMS_FOR_RANKING = 3;
 /** Minimum claims to qualify for the "most credible" / "least credible" hero spots.
  *  Three is the smallest number where a verdict mix is meaningful. */
 export const MIN_CLAIMS_FOR_HERO = 3;
+/** Minimum plenum participation % to qualify for the credibility
+ *  ranking. Same logic as MIN_CLAIMS_FOR_RANKING — an MK who never
+ *  showed up to speak in the last 90 days isn't really "in the
+ *  game" enough to be ranked against more active peers. Their
+ *  profile page still shows their truth%; they just don't appear
+ *  on the leaderboard.
+ *
+ *  20% is intentionally permissive: hit it and you've spoken at
+ *  ~4 out of ~20 plenum sessions over the window, which is the
+ *  threshold of "showing up enough to be measured." Below it,
+ *  the truth% sample is dominated by a handful of public-event
+ *  appearances rather than parliamentary work. */
+export const MIN_PARTICIPATION_FOR_RANKING = 20;
 
 export type SerializedClaim = mock.Claim & {
   _politician?: { id: string; name: string; party: string; image?: string | null };
@@ -64,6 +77,51 @@ export async function getRecentClaims(
       : undefined,
     _commentCount: 0,
   }));
+}
+
+/**
+ * Map of politicianId → minimal KnessetActivity snapshot. One row per
+ * MK we've matched to the Knesset OData. Used by the leaderboard to
+ * filter for the minimum-participation threshold, by the scatter
+ * chart, and anywhere else activity data needs to be joined to
+ * politician stats.
+ *
+ * Returns an empty map gracefully if the DB is unreachable so the
+ * leaderboard still renders during a Neon cold-start.
+ */
+export interface ActivitySnapshot {
+  plenumParticipationPct: number;
+  plenumSessionsTotal: number;
+  plenumSessionsSpoken: number;
+  billsSponsored: number;
+}
+export async function getKnessetActivityMap(): Promise<Map<string, ActivitySnapshot>> {
+  try {
+    const { prisma } = await import("./db");
+    const rows = await prisma.knessetActivity.findMany({
+      select: {
+        politicianId: true,
+        plenumParticipationPct: true,
+        plenumSessionsTotal: true,
+        plenumSessionsSpoken: true,
+        billsSponsored: true,
+      },
+    });
+    return new Map(
+      rows.map((r) => [
+        r.politicianId,
+        {
+          plenumParticipationPct: r.plenumParticipationPct,
+          plenumSessionsTotal: r.plenumSessionsTotal,
+          plenumSessionsSpoken: r.plenumSessionsSpoken,
+          billsSponsored: r.billsSponsored,
+        },
+      ]),
+    );
+  } catch (err) {
+    console.error("getKnessetActivityMap: DB unreachable", err);
+    return new Map();
+  }
 }
 
 /** Total matching the same filters. Used by the feed header so the
