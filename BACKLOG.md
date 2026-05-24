@@ -1,11 +1,10 @@
 # בדוק · Product Backlog
 
 Living document. Tier order = priority. Check items off as they ship.
-Last reconciled: 2026-05-23.
+Last reconciled: 2026-05-24.
 
 ## Now / blocking
 
-- [ ] **`bduk.co.il` DNS** — domain bought, Galcomm DNS records correctly configured, but the `.il` registry (ISOC-IL) still hasn't published it to the public zone. Support ticket with Galcomm. Site lives at `politifact-il.vercel.app` until then. When DNS publishes: delete the `SITE_URL` GitHub secret (it overrides the hardcoded `https://bduk.co.il` default in the workflows).
 - [ ] **Rotate `ADMIN_SECRET`** — value was pasted into chat in a previous session. Regenerate, update in Vercel + GitHub secret + `.env.local`.
 - [ ] **Set Google Cloud budget alert** at ₪100-200/month. Without this, a runaway script could be expensive before you notice.
 - [ ] **Spot-check 10-20 visible claims by hand** before any public PR push. AI-only review still misses things; a human pass on ~10% is the right pre-launch hygiene.
@@ -49,6 +48,12 @@ Last reconciled: 2026-05-23.
 
 ## Recently shipped (do not re-litigate)
 
+- `bduk.co.il` DNS published 2026-05-24; site primary domain switched off `politifact-il.vercel.app`. `SITE_URL` GitHub secret removed.
+- PostHog Web Analytics (EU region), no cookies, `person_profiles: "identified_only"`.
+- News-narrative + hyperbolic-insult rejection at extraction prompt, verifier criteria 8+9, and retroactive sweep (16 claims un-approved).
+- RSS ingest URL blocklist drops sports paths + Ynet English/Russian editions before they hit the DB.
+- Fresh-process cron staggered to `:15` so it runs 15min after RSS ingest, not in parallel.
+- Suspense-streamed claim feed with FeedSkeleton + "טען עוד" pagination via `/api/claims`.
 - Gemini 2.5 Flash + Google Search grounding pipeline (replaced Anthropic Sonnet + web_search — see `KNOWN_COSTS.md`).
 - Three-lane processing in `scripts/daily.mts`: fresh RSS first, then Knesset ingest, then RSS backlog, then Knesset backlog (grounding off by default for Knesset).
 - GitHub Actions cron: `rss-ingest` (30min), `fresh-process` (2h), `daily-ingest` (06+07 UTC).
