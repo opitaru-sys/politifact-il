@@ -5,6 +5,7 @@ import { prisma } from "./db";
 import { NAME_TO_ID, RSS_FEEDS } from "./rss-feeds";
 import { getEnvVar } from "./env";
 import { verifyClaim } from "./verify-claim";
+import { findClaimQualityIssues } from "./claim-quality";
 
 /**
  * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
@@ -575,6 +576,17 @@ export async function processArticle(articleId: string) {
       select: { id: true, name: true },
     });
     if (!politician) continue;
+    const qualityIssues = findClaimQualityIssues({
+      quote: claim.quote,
+      politicianName: politician.name,
+      source: article.source,
+    });
+    if (qualityIssues.length > 0) {
+      console.log(
+        `Skipping extracted claim for ${politician.name}: ${qualityIssues.map((i) => i.reason).join("; ")}`,
+      );
+      continue;
+    }
     if (await isDuplicate(politicianId, claim.quote)) continue;
     eligible.push({ claim, politicianId, politicianName: politician.name });
   }
