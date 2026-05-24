@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPartyStats } from "@/lib/data";
+import { getPartyStats, getPartyParticipationMap } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,10 @@ function scoreColor(pct: number): string {
 }
 
 export default async function PartiesPage() {
-  const ascending = await getPartyStats();
+  const [ascending, participationMap] = await Promise.all([
+    getPartyStats(),
+    getPartyParticipationMap(),
+  ]);
   const stats = [...ascending].reverse();
 
   return (
@@ -25,6 +28,7 @@ export default async function PartiesPage() {
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
         איזו מפלגה הכי אמינה? דירוג לפי אחוז הטענות שנמצאו אמת מתוך הטענות שנבדקו{" "}
         <span className="text-foreground font-bold">ב-30 הימים האחרונים</span>.
+        {" "}עמודת <span className="text-foreground font-bold">נוכחות</span> מציגה ממוצע השתתפות פעילה של ח״כי המפלגה בישיבות המליאה ב-90 הימים האחרונים.
       </p>
 
       <div className="space-y-3">
@@ -39,24 +43,44 @@ export default async function PartiesPage() {
               className="bg-card border border-border-strong px-5 py-4"
               style={{ borderRadius: 4 }}
             >
-              <div className="flex items-baseline justify-between mb-3">
+              <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
                 <div className="flex items-baseline gap-3">
                   <span className="text-sm font-black text-foreground-muted tabular-nums">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <span className="font-black text-lg tracking-tight">{stat.party}</span>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className="font-black text-2xl tabular-nums leading-none"
-                    style={{ color: scoreColor(stat.truthPercentage) }}
-                  >
-                    {stat.truthPercentage}
-                    <span className="text-base">%</span>
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-foreground-muted">
-                    אמינות
-                  </span>
+                <div className="flex items-baseline gap-5">
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className="font-black text-2xl tabular-nums leading-none"
+                      style={{ color: scoreColor(stat.truthPercentage) }}
+                    >
+                      {stat.truthPercentage}
+                      <span className="text-base">%</span>
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-foreground-muted">
+                      אמינות
+                    </span>
+                  </div>
+                  {(() => {
+                    const part = participationMap.get(stat.party);
+                    if (!part) return null;
+                    return (
+                      <div
+                        className="flex items-baseline gap-2"
+                        title={`ממוצע ${part.mkCount} ח״כים מהמפלגה`}
+                      >
+                        <span className="font-black text-2xl tabular-nums leading-none text-foreground">
+                          {Math.round(part.avgPct)}
+                          <span className="text-base">%</span>
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider text-foreground-muted">
+                          נוכחות
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

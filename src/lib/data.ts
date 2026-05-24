@@ -13,19 +13,6 @@ export const MIN_CLAIMS_FOR_RANKING = 3;
 /** Minimum claims to qualify for the "most credible" / "least credible" hero spots.
  *  Three is the smallest number where a verdict mix is meaningful. */
 export const MIN_CLAIMS_FOR_HERO = 3;
-/** Minimum plenum participation % to qualify for the credibility
- *  ranking. Same logic as MIN_CLAIMS_FOR_RANKING — an MK who never
- *  showed up to speak in the last 90 days isn't really "in the
- *  game" enough to be ranked against more active peers. Their
- *  profile page still shows their truth%; they just don't appear
- *  on the leaderboard.
- *
- *  20% is intentionally permissive: hit it and you've spoken at
- *  ~4 out of ~20 plenum sessions over the window, which is the
- *  threshold of "showing up enough to be measured." Below it,
- *  the truth% sample is dominated by a handful of public-event
- *  appearances rather than parliamentary work. */
-export const MIN_PARTICIPATION_FOR_RANKING = 20;
 
 export type SerializedClaim = mock.Claim & {
   _politician?: { id: string; name: string; party: string; image?: string | null };
@@ -95,6 +82,49 @@ export interface ActivitySnapshot {
   plenumSessionsSpoken: number;
   billsSponsored: number;
 }
+/**
+ * Per-party plenum participation aggregate.
+ *
+ * For each party, averages `plenumParticipationPct` across the MKs we
+ * have activity data for. Returns a map keyed on the politician.party
+ * string so /parties can join it directly to PartyStats rows.
+ *
+ * The average is unweighted — each MK contributes equally regardless
+ * of how many sessions there were. Editorially this is the right
+ * thing for "how active is this party on average" because we want
+ * to detect parties where most MKs are absent, not whitewash a
+ * party with one very-active speaker.
+ */
+export async function getPartyParticipationMap(): Promise<
+  Map<string, { avgPct: number; mkCount: number }>
+> {
+  try {
+    const { prisma } = await import("./db");
+    const rows = await prisma.knessetActivity.findMany({
+      select: {
+        plenumParticipationPct: true,
+        politician: { select: { party: true } },
+      },
+    });
+    const byParty = new Map<string, number[]>();
+    for (const r of rows) {
+      const p = r.politician.party;
+      if (!p) continue;
+      if (!byParty.has(p)) byParty.set(p, []);
+      byParty.get(p)!.push(r.plenumParticipationPct);
+    }
+    const result = new Map<string, { avgPct: number; mkCount: number }>();
+    for (const [party, pcts] of byParty) {
+      const avg = pcts.reduce((s, x) => s + x, 0) / pcts.length;
+      result.set(party, { avgPct: avg, mkCount: pcts.length });
+    }
+    return result;
+  } catch (err) {
+    console.error("getPartyParticipationMap: DB unreachable", err);
+    return new Map();
+  }
+}
+
 export async function getKnessetActivityMap(): Promise<Map<string, ActivitySnapshot>> {
   try {
     const { prisma } = await import("./db");

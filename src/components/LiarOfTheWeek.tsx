@@ -1,4 +1,5 @@
 import type { PoliticianStatsRow } from "@/lib/queries";
+import type { ActivitySnapshot } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { PoliticianAvatar } from "./PoliticianAvatar";
 
@@ -11,11 +12,16 @@ function scoreColor(pct: number): string {
 export function LiarOfTheWeek({
   stats,
   windowDays,
+  activityMap,
 }: {
   stats: PoliticianStatsRow[];
   /** Days in the rolling window. Used in the sample disclaimer so the
    *  reader sees which scope produced the 1st/last places. */
   windowDays?: number | undefined;
+  /** When provided, top + bottom cards show a small "נוכחות N%"
+   *  chip — the plenum participation % from KnessetActivity. Same
+   *  metric the leaderboard table and politician card surface. */
+  activityMap?: Map<string, ActivitySnapshot>;
 }) {
   // For the hero spots, only consider politicians with enough claims for a meaningful ranking.
   const qualified = stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_HERO);
@@ -43,6 +49,9 @@ export function LiarOfTheWeek({
     windowDays === 1
       ? "24 השעות האחרונות"
       : `${windowDays ?? 30} הימים האחרונים`;
+
+  const topActivity = activityMap?.get(top.politician.id);
+  const bottomActivity = activityMap?.get(bottom.politician.id);
 
   return (
     <div className="flex flex-col gap-3 h-full">
@@ -99,6 +108,14 @@ export function LiarOfTheWeek({
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-2">
               אמינות · מתוך {top.totalClaims} טענות
             </div>
+            {topActivity && (
+              <div
+                className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1 tabular-nums"
+                title={`דיבר ב-${topActivity.plenumSessionsSpoken} מתוך ${topActivity.plenumSessionsTotal} ישיבות מליאה ב-90 הימים האחרונים`}
+              >
+                נוכחות · {Math.round(topActivity.plenumParticipationPct)}%
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1 text-[11px] font-bold tabular-nums shrink-0">
             <span
@@ -164,6 +181,14 @@ export function LiarOfTheWeek({
             </div>
             <div className="text-[11px] text-foreground-muted tabular-nums">
               {bottom.trueClaims} אמת · {bottom.halfTrueClaims} חצי · {bottom.falseClaims} שקר
+              {bottomActivity && (
+                <>
+                  <span className="mx-1 opacity-40">·</span>
+                  <span title={`דיבר ב-${bottomActivity.plenumSessionsSpoken} מתוך ${bottomActivity.plenumSessionsTotal} ישיבות מליאה`}>
+                    נוכחות {Math.round(bottomActivity.plenumParticipationPct)}%
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <div

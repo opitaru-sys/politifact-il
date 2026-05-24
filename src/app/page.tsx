@@ -117,7 +117,7 @@ export default async function Home({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} />
+        <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
         <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
 
@@ -133,6 +133,34 @@ export default async function Home({
           . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
         </div>
       )}
+
+      {/* Legend — explains what the two numbers in every card mean.
+          Kept compact (one card with two short lines) so it doesn't
+          push the recent-claims feed below the fold, but explicit
+          enough that first-time visitors aren't guessing what
+          "67% נוכחות" means. */}
+      <div
+        className="bg-card border border-border px-5 py-4 -mt-2"
+        style={{ borderRadius: 4 }}
+      >
+        <div className="text-[10px] tracking-[0.25em] uppercase text-foreground-muted font-bold mb-3">
+          מקרא
+        </div>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-[12px] leading-snug">
+          <div className="flex gap-2">
+            <dt className="font-bold text-foreground shrink-0">אמינות</dt>
+            <dd className="text-foreground-muted">
+              (טענות אמת + ½ × חצי אמת) ÷ סה״כ טענות שנבדקו
+            </dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="font-bold text-foreground shrink-0">נוכחות</dt>
+            <dd className="text-foreground-muted">
+              אחוז ישיבות המליאה שבהן הח״כ דיבר ב-90 הימים האחרונים
+            </dd>
+          </div>
+        </dl>
+      </div>
 
       <SearchBar politicians={allPoliticians} />
 
