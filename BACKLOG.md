@@ -5,9 +5,7 @@ Last reconciled: 2026-05-24.
 
 ## Now / blocking
 
-- [ ] **Rotate `ADMIN_SECRET`** — value was pasted into chat in a previous session. Regenerate, update in Vercel + GitHub secret + `.env.local`.
 - [ ] **Set Google Cloud budget alert** at ₪100-200/month. Without this, a runaway script could be expensive before you notice.
-- [ ] **Spot-check 10-20 visible claims by hand** before any public PR push. AI-only review still misses things; a human pass on ~10% is the right pre-launch hygiene.
 
 ## High-impact next
 
@@ -27,11 +25,10 @@ Last reconciled: 2026-05-24.
 
 ## Trust mechanics (next pre-launch milestone)
 
-- [ ] **Human-reviewed badge** — `humanReviewed: boolean` field + distinct UI badge for claims an admin manually approved. Distinct from the silent AI second-pass approval that exists today.
-- [ ] **Corrections log page** at `/corrections` — lists every claim modified/removed after publication. Builds trust by visibly owning mistakes.
+- [ ] **Human-reviewed badge** — `humanReviewed: boolean` field + distinct UI badge for claims an admin manually approved. Distinct from the silent AI second-pass approval that exists today. (User explicitly skipped hand-curated claims in 2026-05-24 review — keep on backlog as low-priority.)
 - [ ] **Per-source quality tier** — tag each source as official/primary-press/secondary-press/social. Small chip next to source name.
 - [ ] **Claim submission flow** — public form: "I heard X say Y on date Z" → moderation queue → admin reviews.
-- [ ] **Methodology / coverage page** at `/methodology` — split out from `/about`. Show sources scanned + last-fetched per source + claim yield. Strong trust signal.
+- [ ] **Methodology / coverage page** at `/methodology` — show sources scanned + last-fetched per source + claim yield. `/about` already covers the formula + the pipeline; this would be the operational view.
 
 ## Polish
 
@@ -48,6 +45,10 @@ Last reconciled: 2026-05-24.
 
 ## Recently shipped (do not re-litigate)
 
+- `/corrections` public log + `correctionNote` / `correctedAt` schema. 234 historical corrections backfilled. Sweeps + admin editor write the fields atomically going forward. See memory `corrections_log.md`.
+- Knesset activity dashboard — `KnessetActivity` model, daily OData ingest, `KnessetActivityCard` on `/politician/[id]`, attendance column on `/leaderboard`, per-party avg on `/parties`, `נוכחות` line in hero + leaderboard preview, home-page legend. See memory `knesset_activity.md`.
+- Quality-gate triple defense — `src/lib/claim-quality.ts` shared module powering extraction-time block (`processArticle`) + verifier criteria 8/9 + retroactive sweep. See memory `quality_gate_triple_defense.md`.
+- ADMIN_SECRET rotated (user did this 2026-05-24).
 - `bduk.co.il` DNS published 2026-05-24; site primary domain switched off `politifact-il.vercel.app`. `SITE_URL` GitHub secret removed.
 - PostHog Web Analytics (EU region), no cookies, `person_profiles: "identified_only"`.
 - News-narrative + hyperbolic-insult rejection at extraction prompt, verifier criteria 8+9, and retroactive sweep (16 claims un-approved).

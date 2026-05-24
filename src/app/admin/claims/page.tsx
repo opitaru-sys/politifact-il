@@ -170,6 +170,8 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
               explanation: c.explanation,
               confidence: c.confidence,
               verifierNotes: c.verifierNotes,
+              correctionNote: c.correctionNote,
+              correctedAt: c.correctedAt,
               createdAt: c.createdAt,
               politician: c.politician,
             }}
@@ -243,6 +245,8 @@ interface ClaimRowData {
   explanation: string;
   confidence: number | null;
   verifierNotes: string | null;
+  correctionNote: string | null;
+  correctedAt: Date | null;
   createdAt: Date;
   politician: { id: string; name: string };
 }
@@ -350,6 +354,30 @@ function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowDat
               className="bg-card border border-border text-sm py-1.5 px-2 resize-y"
               style={{ borderRadius: 4 }}
             />
+          </label>
+
+          {/* Correction note — required when amending or hiding a
+              previously-public claim. Drives the /corrections log. */}
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-foreground-muted font-bold">
+              סיבת התיקון / ההסרה
+              <span className="text-foreground-muted/70 normal-case tracking-normal mr-2">
+                · חובה אם משנים טענה ציבורית
+              </span>
+            </span>
+            <textarea
+              name="correctionNote"
+              defaultValue={claim.correctionNote ?? ""}
+              rows={2}
+              placeholder="לדוגמה: הוסר — הציטוט הוא דיווח עיתונאי, לא אמירה של הפוליטיקאי"
+              className="bg-card border border-border text-sm py-1.5 px-2 resize-y"
+              style={{ borderRadius: 4 }}
+            />
+            {claim.correctedAt && (
+              <span className="text-[10px] text-foreground-muted">
+                תיקון אחרון: {claim.correctedAt.toLocaleString("he-IL")}
+              </span>
+            )}
           </label>
 
           <div className="flex items-center gap-2 pt-1">

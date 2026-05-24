@@ -21,6 +21,14 @@ function assertAdmin(formData: FormData): void {
 /**
  * Update a claim's editable fields. Only changes fields that are present
  * in the FormData — undefined fields are left alone.
+ *
+ * Correction-logging rule: if a previously-public claim is being amended
+ * or hidden (status -> rejected, editorApproved true -> false, or any
+ * summary/explanation/verdict edit), the editor MUST supply a
+ * `correctionNote` and we record it on the row so `/corrections` picks
+ * it up. Re-approving (false -> true) does NOT require a note — it's
+ * restoration, not a correction. If the note is supplied on any update,
+ * we write it; the date is also stamped.
  */
 export async function updateClaim(formData: FormData): Promise<void> {
   assertAdmin(formData);
@@ -33,6 +41,9 @@ export async function updateClaim(formData: FormData): Promise<void> {
   const editorApproved = formData.get("editorApproved");
   const summary = formData.get("summary");
   const explanation = formData.get("explanation");
+  const correctionNoteRaw = formData.get("correctionNote");
+  const correctionNote =
+    typeof correctionNoteRaw === "string" ? correctionNoteRaw.trim() : "";
 
   const data: {
     verdict?: string;
@@ -40,6 +51,8 @@ export async function updateClaim(formData: FormData): Promise<void> {
     editorApproved?: boolean;
     summary?: string;
     explanation?: string;
+    correctionNote?: string;
+    correctedAt?: Date;
   } = {};
 
   if (typeof verdict === "string" && ["true", "half-true", "false"].includes(verdict)) {
@@ -60,7 +73,44 @@ export async function updateClaim(formData: FormData): Promise<void> {
     data.explanation = explanation.trim();
   }
 
-  if (Object.keys(data).length === 0) return;
+  if (Object.keys(data).length === 0 && !correctionNote) return;
+
+  // Detect whether this edit is a "correction" — modifies a previously-
+  // public claim in a way readers care about. We need the existing row
+  // to compare.
+  const existing = await prisma.claim.findUnique({
+    where: { id },
+    select: {
+      editorApproved: true,
+      status: true,
+      verdict: true,
+      summary: true,
+      explanation: true,
+    },
+  });
+  if (!existing) throw new Error("Claim not found");
+
+  const wasPublic = existing.editorApproved && existing.status === "published";
+  const willHide =
+    (data.editorApproved === false && existing.editorApproved) ||
+    (data.status === "rejected" && existing.status !== "rejected");
+  const contentChanged =
+    (data.verdict !== undefined && data.verdict !== existing.verdict) ||
+    (data.summary !== undefined && data.summary !== existing.summary) ||
+    (data.explanation !== undefined && data.explanation !== existing.explanation);
+  const isCorrection = wasPublic && (willHide || contentChanged);
+
+  if (isCorrection && !correctionNote) {
+    throw new Error(
+      "Correction note required: this edit changes a publicly-visible claim. " +
+        "Provide a `correctionNote` so it appears on /corrections.",
+    );
+  }
+
+  if (correctionNote) {
+    data.correctionNote = correctionNote;
+    data.correctedAt = new Date();
+  }
 
   await prisma.claim.update({ where: { id }, data });
 
@@ -68,6 +118,7 @@ export async function updateClaim(formData: FormData): Promise<void> {
   revalidatePath("/admin/claims");
   revalidatePath(`/claim/${id}`);
   revalidatePath("/");
+  if (correctionNote) revalidatePath("/corrections");
 }
 
 /**
