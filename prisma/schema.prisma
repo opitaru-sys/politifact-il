@@ -24,6 +24,57 @@ model Politician {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   claims    Claim[]
+  knessetActivity KnessetActivity?
+}
+
+/// Knesset activity snapshot for one MK. One row per Politician, refreshed
+/// daily by scripts/ingest-knesset-activity.mts. The metrics are computed
+/// over a rolling window (default 90 days) and used by the
+/// `<KnessetActivityCard>` on /politician/[id] + the leaderboard's
+/// attendance threshold filter.
+///
+/// Data sources:
+///  - Knesset OData `ParliamentInfo.svc` for bills (`KNS_Bill` +
+///    `KNS_BillInitiator`, fresh — last bill ~4 days old) and committee
+///    memberships (`KNS_PersonToPosition`).
+///  - Our own `Article` table for plenum participation (counting
+///    distinct sessions where the MK spoke). Knesset's public vote
+///    OData is 5+ years stale and unusable for this purpose.
+model KnessetActivity {
+  id                       String     @id @default(cuid())
+  politicianId             String     @unique
+  politician               Politician @relation(fields: [politicianId], references: [id])
+
+  /// KNS_Person.PersonID — kept so re-queries don't have to redo
+  /// the Hebrew-name → MK lookup every run.
+  knsPersonId              Int
+
+  /// Window the stats below cover. Stored explicitly so a future cron
+  /// can recompute over a different window without ambiguity.
+  windowStart              DateTime
+  windowEnd                DateTime
+
+  /// Active plenum participation — derived from our Article rows
+  /// (source="כנסת · מליאה"). We count distinct plenum sessions in
+  /// the window where the MK spoke. Stronger signal than passive
+  /// attendance — silence in the room doesn't show here. Knesset's
+  /// own vote-attendance OData is 5+ years stale so this is the
+  /// best public signal available.
+  plenumSessionsTotal      Int
+  plenumSessionsSpoken     Int
+  plenumParticipationPct   Float
+
+  /// Bills the MK initiated or co-initiated whose PublicationDate
+  /// falls in the window.
+  billsSponsored           Int
+
+  /// Snapshot of current committee / role positions. JSON array of
+  /// `{ id: number, name: string }`. Not windowed.
+  committeesMember         Json
+
+  fetchedAt                DateTime   @default(now())
+
+  @@index([politicianId])
 }
 
 model Claim {

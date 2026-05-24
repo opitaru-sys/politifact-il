@@ -111,6 +111,22 @@ console.log(`Knesset backlog created ${knessetClaims.length} new claims`);
 const totalClaims = freshClaims.length + rssBacklogClaims.length + knessetClaims.length;
 console.log(`\nCreated ${totalClaims} new claims`);
 
+// Refresh KnessetActivity snapshots — per-MK vote participation,
+// bill sponsorship, committee membership over the last 90 days.
+// Cheap (~140 OData fetches), idempotent, no AI cost. Lives in the
+// daily lane (not the freshness lane) because the source updates
+// roughly daily and the data is window-aggregated.
+console.log("\n--- Refreshing Knesset activity stats ---");
+try {
+  const { ingestKnessetActivity } = await import("../src/lib/knesset-activity");
+  const summary = await ingestKnessetActivity();
+  console.log(
+    `Knesset activity refreshed: ${summary.updated}/${summary.matched} MK rows updated`,
+  );
+} catch (err) {
+  console.error("Knesset activity refresh failed:", err);
+}
+
 // Record today's metrics in DailySnapshot so the admin dashboard's
 // history chart has a fresh row. Idempotent — re-runs the same day
 // just update the existing row. Inlined here (rather than importing
