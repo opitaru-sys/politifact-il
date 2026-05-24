@@ -121,46 +121,28 @@ export default async function Home({
         <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
 
-      {/* "Data since DATE" — anchors visitors so they understand the
-          temporal coverage of the dataset. Shown right under the
-          hero+leaderboard duo for visibility. */}
+      {/* "Data since DATE" + inline legend — one compact micro-caption
+          under the hero+leaderboard duo. Replaces the previous full-
+          width legend card which was eating too much above-the-fold
+          space. The metric labels in the cards above use the same
+          terms (אמינות / נוכחות), so anchoring them here once is
+          enough — no need to repeat in every card. */}
       {collectionStart && (
-        <div className="text-[11px] text-foreground-muted text-center -mt-3">
-          איסוף הנתונים מתחיל ב-
-          <strong className="text-foreground tabular-nums">
-            {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
-          </strong>
-          . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
+        <div className="text-[11px] text-foreground-muted text-center leading-relaxed -mt-3 space-y-1">
+          <div>
+            איסוף הנתונים מתחיל ב-
+            <strong className="text-foreground tabular-nums">
+              {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+            </strong>
+            . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
+          </div>
+          <div className="opacity-90">
+            <strong className="text-foreground">אמינות</strong> = (אמת + ½ × חצי) ÷ סה״כ
+            <span className="mx-2 opacity-40">·</span>
+            <strong className="text-foreground">נוכחות</strong> = % ישיבות מליאה שדיבר בהן ב-90 ימים
+          </div>
         </div>
       )}
-
-      {/* Legend — explains what the two numbers in every card mean.
-          Kept compact (one card with two short lines) so it doesn't
-          push the recent-claims feed below the fold, but explicit
-          enough that first-time visitors aren't guessing what
-          "67% נוכחות" means. */}
-      <div
-        className="bg-card border border-border px-5 py-4 -mt-2"
-        style={{ borderRadius: 4 }}
-      >
-        <div className="text-[10px] tracking-[0.25em] uppercase text-foreground-muted font-bold mb-3">
-          מקרא
-        </div>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-[12px] leading-snug">
-          <div className="flex gap-2">
-            <dt className="font-bold text-foreground shrink-0">אמינות</dt>
-            <dd className="text-foreground-muted">
-              (טענות אמת + ½ × חצי אמת) ÷ סה״כ טענות שנבדקו
-            </dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="font-bold text-foreground shrink-0">נוכחות</dt>
-            <dd className="text-foreground-muted">
-              אחוז ישיבות המליאה שבהן הח״כ דיבר ב-90 הימים האחרונים
-            </dd>
-          </div>
-        </dl>
-      </div>
 
       <SearchBar politicians={allPoliticians} />
 
