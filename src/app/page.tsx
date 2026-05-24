@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getPoliticianStats, getAllPoliticiansLite } from "@/lib/data";
+import { getPoliticianStats, getAllPoliticiansLite, getKnessetActivityMap } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
@@ -36,7 +36,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -53,6 +53,12 @@ export default async function Home({
       console.time("page.getDataCollectionStart");
       const r = await getDataCollectionStart();
       console.timeEnd("page.getDataCollectionStart");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getKnessetActivityMap");
+      const r = await getKnessetActivityMap();
+      console.timeEnd("page.getKnessetActivityMap");
       return r;
     })(),
   ]);
@@ -112,7 +118,7 @@ export default async function Home({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} />
-        <LeaderboardPreview stats={stats} windowDays={statsWindow.days} />
+        <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
 
       {/* "Data since DATE" — anchors visitors so they understand the

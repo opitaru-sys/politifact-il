@@ -1,4 +1,5 @@
 import type { PoliticianStatsRow } from "@/lib/queries";
+import type { ActivitySnapshot } from "@/lib/data";
 import { PoliticianAvatar } from "./PoliticianAvatar";
 
 function scoreColor(pct: number): string {
@@ -14,12 +15,17 @@ const LOW_SAMPLE_THRESHOLD = 5;
 export function LeaderboardPreview({
   stats,
   windowDays,
+  activityMap,
 }: {
   stats: PoliticianStatsRow[];
   /** Days in the rolling window; undefined = all-time. Used for the
    *  caption below the title so reader knows what scope the numbers
    *  reflect. */
   windowDays?: number | undefined;
+  /** Optional. When provided, each row gets a small "השתתפות N%"
+   *  line below its claim count so the home-page preview shows the
+   *  same accountability dimension the full leaderboard does. */
+  activityMap?: Map<string, ActivitySnapshot>;
 }) {
   // Politicians with enough data to be ranked confidently. Lower-sample
   // entries still appear but get a less definitive treatment.
@@ -60,6 +66,7 @@ export function LeaderboardPreview({
       <ol className="flex-1">
         {sorted.slice(0, 8).map((stat, i) => {
           const lowSample = stat.totalClaims < LOW_SAMPLE_THRESHOLD;
+          const activity = activityMap?.get(stat.politician.id);
           return (
             <li key={stat.politician.id} className="border-b border-border last:border-b-0">
               <a
@@ -98,6 +105,19 @@ export function LeaderboardPreview({
                       ? `מדגם קטן · ${stat.totalClaims}`
                       : `${stat.totalClaims} טענות`}
                   </div>
+                  {/* Plenum participation %, when available. Kept on
+                      its own muted line so it doesn't compete with
+                      the truth % visually but is still visible at a
+                      glance. Only renders for MKs we have activity
+                      data for (matched by NAME_TO_ID). */}
+                  {activity && (
+                    <div
+                      className="text-[10px] tabular-nums text-foreground-muted/80 mt-0.5"
+                      title={`דיבר ב-${activity.plenumSessionsSpoken} מתוך ${activity.plenumSessionsTotal} ישיבות מליאה ב-90 הימים האחרונים`}
+                    >
+                      {Math.round(activity.plenumParticipationPct)}% נוכחות
+                    </div>
+                  )}
                 </div>
               </a>
             </li>
