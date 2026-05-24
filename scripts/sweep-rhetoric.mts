@@ -43,6 +43,8 @@ for (const c of claims) {
         data: {
           editorApproved: false,
           verifierNotes: `Auto-rejected: ${reason}`,
+          correctionNote: `הוסר: רטוריקה/סלוגן (${reason})`,
+          correctedAt: new Date(),
         },
       });
       console.log(`✗ "${c.quote.slice(0, 70)}" — ${reason}`);

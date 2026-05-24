@@ -96,6 +96,13 @@ model Claim {
   editorApproved Boolean  @default(false) // passed second-pass AI verification
   verifiedAt     DateTime? // when the second-pass verifier ran
   verifierNotes  String?  // issues raised by the verifier (if not approved)
+  /// Set when a previously-public claim is amended or removed.
+  /// Drives the /corrections log. Free-text Hebrew reason like
+  /// "הוסר: דיווח עיתונאי בגוף שלישי, לא אמירה של הפוליטיקאי".
+  correctionNote String?
+  /// When the correction happened. Null = no correction. Updated
+  /// independently of `updatedAt` (which updates on every edit).
+  correctedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]

@@ -168,6 +168,7 @@ export default async function RootLayout({
             </div>
             <div className="flex flex-col items-start md:items-end gap-2 text-[11px] tracking-wider uppercase">
               <Link href="/about" className="hover:text-foreground transition-colors">אודות</Link>
+              <Link href="/corrections" className="hover:text-foreground transition-colors">תיקונים</Link>
               <a
                 href="https://www.linkedin.com/in/omripitaru/"
                 target="_blank"

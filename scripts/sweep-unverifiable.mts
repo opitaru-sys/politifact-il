@@ -85,6 +85,8 @@ for (const c of all) {
         data: {
           editorApproved: false,
           verifierNotes: `Auto-unapproved: explanation admits non-verifiability ("${matched}")`,
+          correctionNote: `הוסר: ההסבר ציין שהטענה לא נבדקה ("${matched}")`,
+          correctedAt: new Date(),
         },
       });
     }

@@ -106,11 +106,24 @@ async function main() {
     console.log("\nDry run. Re-run with --apply to actually un-approve these claims.");
   } else {
     console.log("\nApplying...");
-    const result = await prisma.claim.updateMany({
-      where: { id: { in: flagged.map((f) => f.claim.id) } },
-      data: { editorApproved: false },
-    });
-    console.log(`Un-approved ${result.count} claims.`);
+    // We can't use updateMany here because each row gets its own
+    // human-readable correction note (the matched reason). Loop per
+    // claim and update individually — N is small (≤30 typically) so
+    // the round-trip cost is fine.
+    const now = new Date();
+    let applied = 0;
+    for (const { claim, reason } of flagged) {
+      await prisma.claim.update({
+        where: { id: claim.id },
+        data: {
+          editorApproved: false,
+          correctionNote: `הוסר: ${reason}`,
+          correctedAt: now,
+        },
+      });
+      applied++;
+    }
+    console.log(`Un-approved ${applied} claims and logged in /corrections.`);
   }
 
   await prisma.$disconnect();

@@ -86,7 +86,7 @@ const all = await prisma.claim.findMany({
     source: "כנסת · מליאה",
     status: { not: "rejected" },
   },
-  select: { id: true, quote: true, politicianId: true },
+  select: { id: true, quote: true, politicianId: true, editorApproved: true },
 });
 
 let hit = 0;
@@ -95,12 +95,24 @@ for (const c of all) {
   const q = c.quote.trim();
   for (const { regex, reason } of ROLLCALL_PATTERNS) {
     if (regex.test(q)) {
+      // Only set the correction note if the claim was previously
+      // *publicly visible* (editorApproved=true). Most Knesset
+      // procedural lines are hidden from the start; logging every
+      // one as a "correction" would flood /corrections with noise
+      // that visitors never saw.
+      const wasVisible = c.editorApproved;
       await prisma.claim.update({
         where: { id: c.id },
         data: {
           status: "rejected",
           editorApproved: false,
           verifierNotes: `Auto-rejected: ${reason}`,
+          ...(wasVisible
+            ? {
+                correctionNote: `הוסר: תוכן פרוצדורלי של פרוטוקול הכנסת (${reason})`,
+                correctedAt: new Date(),
+              }
+            : {}),
         },
       });
       hit++;
