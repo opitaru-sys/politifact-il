@@ -18,9 +18,52 @@ export interface ClaimQualityIssue {
   reason: string;
 }
 
-const FIRST_PERSON_RE =
-  /\b(אני|אנחנו|אנו|הוצאנו|החלטתי|חתמתי|התפטרתי|הקמתי|אמרתי|אגיד|אומר|נחלץ|נטפל|נקים|נצליח|הצבעתי|התקשרתי|פעלתי|ביקשתי|דרשתי|סיכלנו|עשינו|העברנו|הקמנו)\b/;
+// First-person markers. If any of these appears in the quote as a whole
+// word, we treat it as the politician speaking and never flag it as
+// news-narrative — the more common case is the politician saying
+// "Liberman sent me a letter" (first-person framing), even though the
+// sentence starts with the third-person verb "sent".
+//
+// IMPORTANT: must use `hebrewWordMatch` (defined below) for the check.
+// JavaScript regex `\b` is ASCII-only — `/\b(אני)\b/` against pure
+// Hebrew text never matches because `\b` can't establish a boundary
+// between two non-word characters (space + Hebrew letter are both
+// "non-word" in the default `\w` class). The previous version used `\b`
+// and was silently broken — none of these patterns were ever matched,
+// so every claim slipped past the first-person whitelist.
+//
+// Categories (order doesn't matter, used as a flat list):
+//  - explicit subject pronouns: אני, אנחנו, אנו
+//  - first-person past-tense verb conjugations (-תי suffix)
+//  - first-person future-tense verb conjugations (-נ prefix plural)
+//  - pronominal forms: לי, אותי, שלי, אצלי, אליי/אלי, ממני, בשבילי,
+//    עליי/עלי, אתי/איתי
+const FIRST_PERSON_MARKERS: string[] = [
+  "אני", "אנחנו", "אנו",
+  "הוצאנו", "החלטתי", "חתמתי", "התפטרתי", "הקמתי", "אמרתי", "אגיד", "אומר",
+  "נחלץ", "נטפל", "נקים", "נצליח", "הצבעתי", "התקשרתי", "פעלתי",
+  "ביקשתי", "דרשתי", "סיכלנו", "עשינו", "העברנו", "הקמנו",
+  "לי", "אותי", "שלי", "אצלי", "אליי", "אלי", "ממני", "בשבילי",
+  "עליי", "עלי", "אתי", "איתי",
+];
 
+function hasFirstPersonMarker(quote: string): boolean {
+  for (const marker of FIRST_PERSON_MARKERS) {
+    if (hebrewWordMatch(quote, marker)) return true;
+  }
+  return false;
+}
+
+// Third-person past-tense action verbs commonly used by journalists to
+// describe what a politician did. A "quote" that starts with one of these
+// is almost certainly news prose mis-extracted as a quote, not the
+// politician's own words.
+//
+// Deliberately EXCLUDED — these are quote-introducing verbs ("X said Y"):
+//   אמר, אמרה, טען, טענה, הצהיר, הצהירה, מסר, מסרה, ציין, ציינה,
+//   הוסיף, הוסיפה, סיפר, סיפרה, השיב, השיבה
+// Including those would falsely reject legitimate paraphrases of the form
+// "Smotrich claimed the deficit will stay below 4%".
 const THIRD_PERSON_ACTION_VERBS = [
   "חתם", "חתמה", "חתום", "חתומה",
   "אישר", "אישרה",
@@ -49,6 +92,40 @@ const THIRD_PERSON_ACTION_VERBS = [
   "שיתף", "שיתפה",
   "הפיץ", "הפיצה",
   "פרש", "פרשה", "פורש", "פורשת",
+  // Added 2026-05-17 after a Netanyahu "quote" reading "עיכב את פרסום הדוח..."
+  // (he delayed the publication of the report) was approved — clearly a
+  // news-narrative report, not a quote. Expanded the list with verbs that
+  // commonly head news headlines describing politician actions.
+  "עיכב", "עיכבה",
+  "תקף", "תקפה",
+  "גינה", "גינתה",
+  "דרש", "דרשה",
+  "הוביל", "הובילה",
+  "יזם", "יזמה",
+  "שלל", "שללה",
+  "הזהיר", "הזהירה",
+  "הציג", "הציגה",
+  "ביטל", "ביטלה",
+  "השעה", "השעתה",
+  "בירך", "בירכה",
+  "שיגר", "שיגרה",
+  "כתב", "כתבה",
+  "שלח", "שלחה",
+  "הקים", "הקימה",
+  "התנגד", "התנגדה",
+  "הסכים", "הסכימה",
+  "הביע", "הביעה",
+  "הופיע", "הופיעה",
+  "השתתף", "השתתפה",
+  "חזר", "חזרה",
+  "נסע", "נסעה",
+  "טס", "טסה",
+  "הציל", "הצילה",
+  "קרא", "קראה",
+  "קבע", "קבעה",
+  "תיאר", "תיארה",
+  "התריע", "התריעה",
+  "הוקיר", "הוקירה",
 ];
 
 const THIRD_PERSON_POSSESSIVE_STARTS = [
@@ -152,7 +229,7 @@ function selfReferencesPolitician(input: ClaimQualityInput): ClaimQualityIssue |
 
 function newsNarrative(input: ClaimQualityInput): ClaimQualityIssue | null {
   if (isWrappedInQuotes(input.quote)) return null;
-  if (FIRST_PERSON_RE.test(input.quote)) return null;
+  if (hasFirstPersonMarker(input.quote)) return null;
 
   const possessiveStart = startsWithPossessiveNarrative(input.quote);
   if (possessiveStart) {
@@ -184,7 +261,7 @@ function newsNarrative(input: ClaimQualityInput): ClaimQualityIssue | null {
 }
 
 function opinionInsult(input: ClaimQualityInput): ClaimQualityIssue | null {
-  if (/\d{2,}/.test(input.quote) || FIRST_PERSON_RE.test(input.quote)) return null;
+  if (/\d{2,}/.test(input.quote) || hasFirstPersonMarker(input.quote)) return null;
   const insult = INSULT_WORDS.find((word) => hebrewWordMatch(input.quote, word));
   if (!insult) return null;
   return {
