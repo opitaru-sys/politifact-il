@@ -70,7 +70,7 @@ async function main() {
   console.log(`Scanning ${claims.length} approved+published claims...\n`);
 
   const flagged: { claim: Claim; reason: string }[] = [];
-  const stats = { A: 0, B: 0, C: 0 };
+  const stats = { A: 0, B: 0, C: 0, D: 0 };
 
   for (const claim of claims) {
     const issues: ClaimQualityIssue[] = claimQuality.findClaimQualityIssues({
@@ -83,6 +83,7 @@ async function main() {
     if (issues.some((issue) => issue.code === "news-narrative")) stats.A++;
     if (issues.some((issue) => issue.code === "self-reference")) stats.B++;
     if (issues.some((issue) => issue.code === "opinion-insult")) stats.C++;
+    if (issues.some((issue) => issue.code === "eulogy-memorial")) stats.D++;
 
     flagged.push({ claim, reason: issues.map((issue) => issue.reason).join("; ") });
   }
@@ -91,6 +92,7 @@ async function main() {
   console.log(`  Pattern A (news narrative):       ${stats.A}`);
   console.log(`  Pattern B (self-referencing 3p):  ${stats.B}`);
   console.log(`  Pattern C (hyperbolic insult):    ${stats.C}`);
+  console.log(`  Pattern D (eulogy / memorial):    ${stats.D}`);
   console.log(`  (counters may overlap when a row hits multiple patterns)\n`);
 
   for (const { claim, reason } of flagged.slice(0, 40)) {

@@ -14,7 +14,7 @@ export interface ClaimQualityInput {
 }
 
 export interface ClaimQualityIssue {
-  code: "news-narrative" | "self-reference" | "opinion-insult";
+  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial";
   reason: string;
 }
 
@@ -260,6 +260,68 @@ function newsNarrative(input: ClaimQualityInput): ClaimQualityIssue | null {
   return null;
 }
 
+// Eulogy / memorial / blessing / prayer patterns — content that is NOT
+// fact-checkable regardless of whether it's factually accurate. A claim
+// like "Sapir z\"l fell in battle in Lebanon" can be technically true,
+// but it has no place on a political fact-check site — it's a tragic
+// news item, not a political claim.
+//
+// All patterns are intentional substring matches (no \b — JS word
+// boundaries don't work between Hebrew chars). Each pattern is
+// distinctive enough that false positives are rare. The audit on
+// 2026-05-26 found 24 of 133 approved Telegram claims (18%) matched
+// at least one of these — Distel's channel was 8/8.
+const EULOGY_PATTERNS: { code: string; rx: RegExp; reason: string }[] = [
+  {
+    // Negative lookbehind on `ח` excludes "חז״ל" — the fixed idiom
+    // meaning "our sages of blessed memory" (Talmudic teachers). That's
+    // a religious citation marker, not a fallen-soldier eulogy.
+    code: "memorial-marker",
+    rx: /(?<!ח)ז["״]ל|הי["״]ד/,
+    reason: 'הספד/אזכרה ("ז״ל" או "הי״ד")',
+  },
+  {
+    code: "fell-in-battle",
+    rx: /נפל(?:ה|ו)? ב(?:קרב|מערכה|דרום|צפון|לבנון|רצועה|עזה|פעילות מבצעית|מילוי תפקיד)/,
+    reason: "תיאור נפילה בקרב",
+  },
+  {
+    code: "left-behind",
+    rx: /הותיר(?:ה)? אחרי(?:ו|ה)|השאיר(?:ה)? אחרי(?:ו|ה)|אחריו אישה|אחריו הורים|אחריו ילדים|אחריה בעל|אחריה הורים/,
+    reason: "תיאור משפחה שנותרה אחרי אדם שמת",
+  },
+  {
+    code: "funeral",
+    rx: /הלוויה|הלווייתו|הלווייתה|לזכרו|לזכרה|לזכר ה|תהא נשמתו|תהא נשמתה|יהי זכרו|יהי זכרה|נשמתו צרורה|נשמתה צרורה|למלאת שלושים|למלאת שנה לפטירתו|למלאת שנה לפטירתה/,
+    reason: "שפה של אזכרה/הלוויה",
+  },
+  {
+    code: "condolences",
+    rx: /משתתפים בצער|אבל כבד|אבל עמוק|מנחם אבלים|תנחומיי|תנחומינו|שולחים תנחומים|בכאב גדול/,
+    reason: "ניחומים/הבעת אבל",
+  },
+  {
+    code: "blessings",
+    rx: /שבת שלום|חג שמח|מועדים לשמחה|חג פסח שמח|ראש השנה|יום העצמאות שמח|פורים שמח|חנוכה שמח|בריאות איתנה ל|מזל טוב ל/,
+    reason: "ברכות/איחולים",
+  },
+  {
+    code: "religious-personal",
+    rx: /התפללתי לעילוי נשמת|תהא נשמתו|בעזרת השם|בעז["״]ה ננצח|אדוננו בר יוחאי|תורתו מגן/,
+    reason: "תוכן דתי-אישי, לא טענה ציבורית",
+  },
+];
+
+function eulogyOrMemorial(input: ClaimQualityInput): ClaimQualityIssue | null {
+  const text = input.quote;
+  for (const pat of EULOGY_PATTERNS) {
+    if (pat.rx.test(text)) {
+      return { code: "eulogy-memorial", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
 function opinionInsult(input: ClaimQualityInput): ClaimQualityIssue | null {
   if (/\d{2,}/.test(input.quote) || hasFirstPersonMarker(input.quote)) return null;
   const insult = INSULT_WORDS.find((word) => hebrewWordMatch(input.quote, word));
@@ -275,6 +337,7 @@ export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIs
     newsNarrative(input),
     selfReferencesPolitician(input),
     opinionInsult(input),
+    eulogyOrMemorial(input),
   ].filter(Boolean) as ClaimQualityIssue[];
 }
 
