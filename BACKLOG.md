@@ -15,7 +15,7 @@ Last reconciled: 2026-05-24.
 ## Tier 1 · Data sources
 
 - [ ] **Government press releases** — `gov.il` per-ministry feeds (PMO, Treasury, Defense, Education).
-- [ ] **Politicians' X/Twitter feeds** — direct quotes, dated, attributable. Via Nitter mirrors or playwright scraper. ~50 active politicians.
+- [ ] **Politicians' X/Twitter feeds** — direct quotes, dated, attributable. Nitter is dead, rsshub.app started blocking, X API Basic is $200/mo. Telegram shipped instead (see "Recently shipped"). Re-evaluate X if Telegram yield is too low.
 
 ## Tier 2 · Data (higher effort)
 
@@ -39,12 +39,17 @@ Last reconciled: 2026-05-24.
 - [ ] **Dismissible disclaimer banner** (cookie-based).
 - [ ] **"Report a missing politician" form**.
 - [ ] **Accessibility** — high-contrast mode, non-color verdict signals (symbols ✓ / ~ / ✕ next to badges for colour-blind and printed).
-- [ ] **Comparison view polish** — `/compare` exists but could use a deeper feature comparison.
+- [ ] **Comparison view polish** — `/compare` exists but could use a deeper feature comparison. (Done 2026-05-17: dropdown is now filtered to politicians with claims, sorted by claim count desc, shows `name · N טענות`.)
 - [ ] **Expose comment count near verdict** on the card.
 - [ ] **Per-source health badge in admin** — flag a source with a red dot if last successful fetch was >24h ago.
 
 ## Recently shipped (do not re-litigate)
 
+- **Telegram coverage expanded to 23 channels** (2026-05-17) — Probed every politician in NAME_TO_ID with plausible handle variants via a discovery script; found 15 additional active channels on top of the original 8. New: Lapid, Smotrich, Eisenkot, Sofer, Elkin, Haskel, Kisch, Karhi, Chikli, Distel, Golan, Kallner, Silman, Barkat, Ohana. Still missing across the spectrum: all Haredi parties, Liberman, Arab parties, Labor, Gantz, Bennett — these constituencies don't keep public Telegram presence. Backfill drain on 2026-05-17 processed ~200 posts → 168 claims → 133 editor-approved (79% pass rate), spend ~$9. Coverage bias toward coalition documented in `telegram-sources.ts`.
+- **Telegram ingest** (2026-05-17) — Scrapes `t.me/s/<channel>` HTML (no auth, no third-party service). Each post wrapped with `פוסט בטלגרם של <name>:` attribution so the existing extraction prompt's first-person / attribution heuristics don't false-reject. Telegram source names are in `FRESH_SOURCE_NAMES` so the fresh-news lane processes them alongside RSS. Implementation: `src/lib/telegram-sources.ts` + `fetchTelegramChannel()` in `ingest.ts`.
+- **OG image RTL fix** (2026-05-17) — The earlier `rtl()` workaround used split-by-word reversal that misplaced punctuation (question mark ended up mid-sentence) and inverted word order so a Hebrew reader saw gibberish. Replaced with full-codepoint reverse (`Array.from(s).reverse().join("")`), confirmed visually: brand wordmark now anchored right, headline reads correctly R→L, "?" lands at the visual end. Block alignment fixed with `alignItems: flex-end` on the headline column.
+- **Parties preview on home** (2026-05-17) — `PartiesPreview` component renders below the hero+leaderboard duo with the top-5 parties by truthPercentage and 3-color verdict bars. Driven by the same global `?window=` selector. `getPartyStats()` now accepts a `windowDays` argument.
+- **Compare dropdown filtered** (2026-05-17) — `/compare` selectors only show politicians with ≥1 published claim (via new `getPoliticiansWithClaimsLite()`), sorted by claim count desc. Search remains unfiltered for discovery; compare is for analysis.
 - `/corrections` public log + `correctionNote` / `correctedAt` schema. 234 historical corrections backfilled. Sweeps + admin editor write the fields atomically going forward. See memory `corrections_log.md`.
 - Knesset activity dashboard — `KnessetActivity` model, daily OData ingest, `KnessetActivityCard` on `/politician/[id]`, attendance column on `/leaderboard`, per-party avg on `/parties`, `נוכחות` line in hero + leaderboard preview, home-page legend. See memory `knesset_activity.md`.
 - Quality-gate triple defense — `src/lib/claim-quality.ts` shared module powering extraction-time block (`processArticle`) + verifier criteria 8/9 + retroactive sweep. See memory `quality_gate_triple_defense.md`.

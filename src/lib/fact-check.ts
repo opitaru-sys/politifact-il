@@ -3,6 +3,7 @@ import { jsonrepair } from "jsonrepair";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { NAME_TO_ID, RSS_FEEDS } from "./rss-feeds";
+import { TELEGRAM_SOURCE_NAMES } from "./telegram-sources";
 import { getEnvVar } from "./env";
 import { verifyClaim } from "./verify-claim";
 import { findClaimQualityIssues } from "./claim-quality";
@@ -676,6 +677,11 @@ const ARTICLE_CONCURRENCY = Number(process.env.BADAK_ARTICLE_CONCURRENCY ?? 8);
 
 const KNESSET_SOURCE = "כנסת · מליאה";
 const RSS_SOURCE_NAMES = RSS_FEEDS.map((feed) => feed.name);
+// "Fresh public sources" = RSS + Telegram. Both are time-sensitive
+// public-facing material we want to surface within the freshness SLA.
+// Knesset transcripts are intentionally excluded — they ride the
+// backfill lane on a tiny daily budget.
+const FRESH_SOURCE_NAMES = [...RSS_SOURCE_NAMES, ...TELEGRAM_SOURCE_NAMES];
 
 type ArticleQueueOrder = "oldest" | "newest";
 
@@ -754,7 +760,8 @@ export async function processFreshNewsArticles(limit: number = 80, hours: number
   const fetchedSince = new Date(Date.now() - hours * 60 * 60 * 1000);
   return processUnprocessedArticles({
     limit,
-    sources: RSS_SOURCE_NAMES,
+    // RSS + Telegram together — both are fresh public material.
+    sources: FRESH_SOURCE_NAMES,
     fetchedSince,
     order: "newest",
   });

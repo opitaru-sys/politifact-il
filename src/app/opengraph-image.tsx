@@ -13,30 +13,28 @@ async function loadHebrewFont(weight: 400 | 700 | 900) {
   ).then((r) => r.text());
   const match = css.match(/src: url\((https:[^)]+\.ttf)\)/);
   if (!match) throw new Error("Could not find Rubik font URL");
-  const fontData = await fetch(match[1]).then((r) => r.arrayBuffer());
-  return fontData;
+  return fetch(match[1]).then((r) => r.arrayBuffer());
 }
 
 /**
- * Satori does NOT apply the Unicode bidi algorithm — Hebrew text renders
- * character-by-character left-to-right. The workaround is to pre-reverse
- * any Hebrew-containing string and reverse word order back so the visual
- * result reads correctly.
+ * Satori does NOT apply the Unicode bidi algorithm to Hebrew text, even
+ * with `direction: "rtl"` on the container. To get Hebrew that reads
+ * correctly in the rendered PNG, we have to pre-arrange the source so
+ * that when Satori dumps glyphs left-to-right, a native Hebrew reader
+ * scanning right-to-left sees the intended sentence.
  *
- * Pure-Latin substrings (like "bduk.co.il") are kept intact.
+ * The earlier implementation split by space and reversed words AND
+ * chars inside Hebrew words — but it left the question mark attached
+ * to its source-leading word, which then ended up in the middle of
+ * the rendered sentence instead of at the end. Simpler and correct:
+ * reverse the ENTIRE codepoint sequence. Punctuation and spaces flip
+ * along with letters, which is exactly what we want for a pure-Hebrew
+ * string. (Mixed Hebrew+Latin would need word-aware logic, but the
+ * OG card only has pure-Hebrew text plus an isolated Latin URL that
+ * never passes through this helper.)
  */
-function rtl(s: string): string {
-  return s
-    .split(" ")
-    .reverse()
-    .map((word) => {
-      // Word contains Hebrew? Reverse its characters. Otherwise leave as-is.
-      if (/[֐-׿]/.test(word)) {
-        return Array.from(word).reverse().join("");
-      }
-      return word;
-    })
-    .join(" ");
+function rtlHe(s: string): string {
+  return Array.from(s).reverse().join("");
 }
 
 export default async function OpenGraphImage() {
@@ -52,12 +50,16 @@ export default async function OpenGraphImage() {
           flexDirection: "column",
           background: "#f5f1e8",
           fontFamily: "Rubik, system-ui, sans-serif",
-          direction: "rtl",
           padding: "70px",
           position: "relative",
         }}
       >
-        {/* Top rule + dateline */}
+        {/* Top rule. Satori arranges flex children left-to-right regardless
+            of direction styles, so we put the Hebrew dateline FIRST in
+            source (it lands on the LEFT of the row), with the red "weekly
+            edition" tag LAST (lands on the right). That mirrors the
+            visual rhythm of a Hebrew masthead: tag floats opposite the
+            dateline. */}
         <div
           style={{
             display: "flex",
@@ -72,19 +74,26 @@ export default async function OpenGraphImage() {
             fontWeight: 700,
           }}
         >
-          <div style={{ display: "flex" }}>{rtl("בדיקת עובדות · פוליטיקה ישראלית")}</div>
-          <div style={{ display: "flex", color: "#b3242a" }}>{rtl("מהדורה שבועית")}</div>
+          <div style={{ display: "flex" }}>{rtlHe("בדיקת עובדות · פוליטיקה ישראלית")}</div>
+          <div style={{ display: "flex", color: "#b3242a" }}>{rtlHe("מהדורה שבועית")}</div>
         </div>
 
-        {/* Headline */}
+        {/* Headline. alignItems flex-end anchors children to the RIGHT
+            edge of the column (since we're a vertical flex, cross-axis
+            is horizontal). That's where Hebrew display starts. */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             flex: 1,
             justifyContent: "center",
+            alignItems: "flex-end",
           }}
         >
+          {/* Brand: red period then "בדוק" — in source order so Satori's
+              LTR dump puts the period on the LEFT of the wordmark, which
+              is the END of the word in Hebrew (correct: "בדוק." has the
+              period after the last letter, which in RTL visual = LEFT). */}
           <div
             style={{
               fontSize: "160px",
@@ -96,8 +105,8 @@ export default async function OpenGraphImage() {
               lineHeight: 0.95,
             }}
           >
-            {rtl("בדוק")}
-            <span style={{ color: "#b3242a", marginInlineStart: "4px" }}>.</span>
+            <span style={{ color: "#b3242a", marginInlineEnd: "4px" }}>.</span>
+            <span>{rtlHe("בדוק")}</span>
           </div>
           <div
             style={{
@@ -110,11 +119,12 @@ export default async function OpenGraphImage() {
               lineHeight: 1.2,
             }}
           >
-            {rtl("?מי הפוליטיקאי הכי אמין")}
+            {rtlHe("מי הפוליטיקאי הכי אמין?")}
           </div>
         </div>
 
-        {/* Bottom rule */}
+        {/* Bottom rule. Domain (Latin, reads LTR naturally) on the left,
+            Hebrew tagline on the right via space-between. */}
         <div
           style={{
             display: "flex",
@@ -126,8 +136,8 @@ export default async function OpenGraphImage() {
             color: "#4a4a4a",
           }}
         >
-          <div style={{ display: "flex" }}>{rtl("ללא שיוך פוליטי · מעודכן יומית")}</div>
           <div style={{ display: "flex", fontWeight: 700 }}>bduk.co.il</div>
+          <div style={{ display: "flex" }}>{rtlHe("ללא שיוך פוליטי · מעודכן יומית")}</div>
         </div>
       </div>
     ),

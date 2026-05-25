@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { getPoliticianStats, getAllPoliticiansLite, getKnessetActivityMap } from "@/lib/data";
+import { getPoliticianStats, getAllPoliticiansLite, getKnessetActivityMap, getPartyStats } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
+import { PartiesPreview } from "@/components/PartiesPreview";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -36,7 +37,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart, activityMap] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap, partyStats] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -59,6 +60,12 @@ export default async function Home({
       console.time("page.getKnessetActivityMap");
       const r = await getKnessetActivityMap();
       console.timeEnd("page.getKnessetActivityMap");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getPartyStats");
+      const r = await getPartyStats(statsWindow.days);
+      console.timeEnd("page.getPartyStats");
       return r;
     })(),
   ]);
@@ -120,6 +127,11 @@ export default async function Home({
         <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
         <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
+
+      {/* Parties preview — third dimension (aggregated by faction).
+          Full width below the hero+leaderboard duo so the 3-color
+          verdict bar has room to read at a glance. */}
+      <PartiesPreview stats={partyStats} windowDays={statsWindow.days} />
 
       {/* "Data since DATE" + inline legend — one compact micro-caption
           under the hero+leaderboard duo. Replaces the previous full-

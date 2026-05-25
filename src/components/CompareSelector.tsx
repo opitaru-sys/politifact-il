@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 interface SearchPolitician {
   id: string;
   name: string;
+  /** Optional. When present, the dropdown shows "name · N טענות" so
+   *  the reader can prefer data-rich picks. */
+  claimCount?: number;
 }
 
 interface Props {
@@ -15,7 +18,15 @@ interface Props {
 
 export function CompareSelector({ politicians, selectedA, selectedB }: Props) {
   const router = useRouter();
-  const sorted = [...politicians].sort((a, b) => a.name.localeCompare(b.name, "he"));
+  // Sort by claim count desc so the most-covered politicians appear at
+  // the top, then alphabetically as the tiebreaker. Users who pick blind
+  // tend to choose the first ~5; better that those have meaningful data.
+  const sorted = [...politicians].sort((a, b) => {
+    const ca = a.claimCount ?? 0;
+    const cb = b.claimCount ?? 0;
+    if (ca !== cb) return cb - ca;
+    return a.name.localeCompare(b.name, "he");
+  });
 
   function update(side: "a" | "b", value: string) {
     const sp = new URLSearchParams();
@@ -71,7 +82,7 @@ function Picker({
         <option value="">בחר פוליטיקאי</option>
         {politicians.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.name}
+            {p.claimCount !== undefined ? `${p.name} · ${p.claimCount} טענות` : p.name}
           </option>
         ))}
       </select>

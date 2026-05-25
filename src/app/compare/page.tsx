@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPoliticianById, getAllPoliticiansLite } from "@/lib/data";
+import { getPoliticianById, getPoliticiansWithClaimsLite } from "@/lib/data";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { CompareSelector } from "@/components/CompareSelector";
@@ -71,7 +71,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const [statsA, statsB, allPoliticians] = await Promise.all([
     a ? loadStats(a) : Promise.resolve(null),
     b ? loadStats(b) : Promise.resolve(null),
-    getAllPoliticiansLite(),
+    // Only politicians who actually have published claims appear in
+    // the dropdown so users can't pick a dead-end.
+    getPoliticiansWithClaimsLite(),
   ]);
 
   return (

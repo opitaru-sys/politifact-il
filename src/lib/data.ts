@@ -188,10 +188,12 @@ export async function getPoliticianStats(
     }));
 }
 
-export async function getPartyStats() {
+export async function getPartyStats(
+  windowDays: number | undefined = STATS_WINDOW_DAYS,
+) {
   const hasReal = await queries.hasAnyPublishedClaims();
   if (hasReal) {
-    return queries.getPartyStats(STATS_WINDOW_DAYS);
+    return queries.getPartyStats(windowDays);
   }
   return mock.getPartyStats();
 }
@@ -285,4 +287,40 @@ export async function getAllPoliticiansLite(): Promise<
     party: p.party,
     image: p.image ?? null,
   }));
+}
+
+/**
+ * Politicians who actually have at least one publicly-visible claim.
+ * Used by the /compare dropdown so users can't pick a politician
+ * with no data and hit a dead-end "אין מספיק נתונים" state.
+ *
+ * Search/autocomplete keeps the full list — search is for discovery,
+ * compare is for analysis.
+ */
+export async function getPoliticiansWithClaimsLite(): Promise<
+  { id: string; name: string; party: string; image: string | null; claimCount: number }[]
+> {
+  const hasReal = await queries.hasAnyPublishedClaims();
+  if (hasReal) {
+    const all = await queries.getAllPoliticians();
+    return all
+      .filter((p) => p.claims.length > 0)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        party: p.party,
+        image: p.image,
+        claimCount: p.claims.length,
+      }));
+  }
+  // Mock path: same filter, in memory
+  return mock.politicians
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      party: p.party,
+      image: p.image ?? null,
+      claimCount: mock.getClaimsForPolitician(p.id).length,
+    }))
+    .filter((p) => p.claimCount > 0);
 }
