@@ -200,4 +200,19 @@ export const NAME_TO_ID: Record<string, string> = {
   // חד"ש-תע"ל: Samer Ben Saeed (sworn in June 2025 via rotation
   // agreement, replacing Yosef Atawneh on the Ta'al component).
   "סמיר בן סעיד": "samer-ben-saeed",
+
+  // === Second-round audit fixes (2026-05-26 late) ===
+  // Politicians who are ALREADY in the politician table but were
+  // missing NAME_TO_ID entries → claims silently dropped.
+  "ינון אזולאי": "yinon-azulai",
+  "שלי טל מירון": "shelly-tal-meron",
+  "אימאן ח'טיב יאסין": "iman-khatib-yasin", "אימאן חטיב יאסין": "iman-khatib-yasin",
+  // Middle-name variants of existing MKs:
+  "חנוך דב מלביצקי": "hanoch-milwidsky",
+  "מכלוף מיקי זוהר": "miki-zohar",
+  // Two real MKs surfaced by the second-round audit, verified via web
+  // research (knesset.gov.il profiles confirmed). Both still in 25th
+  // Knesset as of late 2025/2026.
+  "שלום דנינו": "shalom-danino",
+  "טטיאנה מזרסקי": "tatiana-mazarsky", "טניה מזרסקי": "tatiana-mazarsky",
 };
