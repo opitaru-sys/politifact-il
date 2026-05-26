@@ -18,6 +18,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing claimId or reason" }, { status: 400 });
     }
 
+    // Cap the user-submitted fields. Rate-limited to 3/min/IP, but
+    // each report could still be megabytes without these caps.
+    // Storage-abuse vector flagged in the 2026-05-26 audit (LOW).
+    const trimmedReason = String(reason).trim().slice(0, 200);
+    const trimmedDetails = details ? String(details).trim().slice(0, 1000) : null;
+    if (trimmedReason.length < 2) {
+      return NextResponse.json({ error: "reason too short" }, { status: 400 });
+    }
+
     const claim = await prisma.claim.findUnique({ where: { id: claimId } });
     if (!claim) {
       return NextResponse.json({ error: "Claim not found" }, { status: 404 });
@@ -26,8 +35,8 @@ export async function POST(request: Request) {
     const report = await prisma.report.create({
       data: {
         claimId,
-        reason,
-        details: details || null,
+        reason: trimmedReason,
+        details: trimmedDetails,
         id: `rep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       },
     });

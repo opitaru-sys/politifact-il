@@ -44,6 +44,25 @@ function isSpecificUrl(url: string | null | undefined): url is string {
   }
 }
 
+/**
+ * Serialize JSON for inlining inside a <script> tag. `JSON.stringify`
+ * by itself does NOT escape `</` or the U+2028 / U+2029 line
+ * separators — so a quote containing `</script><script>alert(1)</script>`
+ * would break out of the JSON-LD block and execute attacker JS.
+ *
+ * This was flagged in the 2026-05-26 security audit (HIGH). Always
+ * route any `dangerouslySetInnerHTML` containing JSON through this.
+ */
+function safeJsonForScript(obj: unknown): string {
+  // U+2028 / U+2029 are JS line terminators — they cannot appear in a
+  // /literal/ regex (TS1161). Constructed via RegExp() instead.
+  return JSON.stringify(obj)
+    .replace(/</g, "\\u003c")
+    .replace(/-->/g, "--\\u003e")
+    .replace(new RegExp("\\u2028", "g"), "\\u2028")
+    .replace(new RegExp("\\u2029", "g"), "\\u2029");
+}
+
 function formatLongDate(d: Date): string {
   return d.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
 }
@@ -131,7 +150,7 @@ export default async function ClaimPage({ params }: PageProps) {
           ships with the SSR response and is indexable. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonForScript(jsonLd) }}
       />
 
       {/* Breadcrumb / eyebrow */}

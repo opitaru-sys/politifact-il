@@ -65,6 +65,12 @@ function checkInMemory(action: Action, ip: string): boolean {
 }
 
 function getClientIp(request: Request): string {
+  // Prefer Vercel's own header, which they set after verifying the
+  // request actually traversed their edge. Client-supplied
+  // `x-forwarded-for` can be spoofed to rotate apparent IP and
+  // bypass rate-limits. Flagged in the 2026-05-26 audit (MEDIUM).
+  const vercel = request.headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",")[0].trim();
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) return forwardedFor.split(",")[0].trim();
   const realIp = request.headers.get("x-real-ip");
@@ -78,6 +84,20 @@ export async function checkRateLimit(action: Action, request: Request): Promise<
   if (limiter) {
     const result = await limiter.limit(ip);
     return result.success;
+  }
+  // Fail closed in production. The in-memory fallback is per-Lambda
+  // and resets on cold start, so on Vercel serverless it effectively
+  // provides no rate limiting at all. Better to deny the action and
+  // surface the missing config than to ship a fake limit.
+  //
+  // Flagged in the 2026-05-26 audit (MEDIUM). When this fires in prod,
+  // check that UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are
+  // set in the Vercel env.
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      `[rate-limit] Upstash not configured in production; denying ${action} for ${ip}`,
+    );
+    return false;
   }
   return checkInMemory(action, ip);
 }
