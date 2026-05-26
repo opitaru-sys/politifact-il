@@ -22,6 +22,7 @@ import {
 import { getPoliticianStats } from "@/lib/data";
 import { genderOf, verb, pronoun } from "@/lib/politician-gender";
 import { markPolitician } from "@/lib/insight-markup";
+import { prisma } from "@/lib/db";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { ClaimCard } from "@/components/ClaimCard";
@@ -85,10 +86,20 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   const winDays = selected.days;
   const windowLabel = windowLabelFn(selected.value);
 
-  const [allStats, recentClaims, overallStats] = await Promise.all([
+  // Pull the latest weekly AI insight for this topic in parallel with
+  // the live stats. If a weekly insight exists, it replaces the
+  // deterministic templates below. If not (no run yet for this slug),
+  // we fall back to the templates so the page is never empty.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const topicInsightModel = (prisma as any).topicInsight;
+  const [allStats, recentClaims, overallStats, weeklyInsight] = await Promise.all([
     getPoliticianStatsForTopic(slug, winDays),
     getRecentClaimsForTopic(slug, winDays, CLAIMS_FEED_LIMIT),
     getPoliticianStats(winDays),
+    topicInsightModel.findFirst({
+      where: { slug },
+      orderBy: { weekOf: "desc" },
+    }) as Promise<{ weekOf: Date; body: string; label: string } | null>,
   ]);
 
   const ranked = allStats.filter((s) => s.totalClaims >= MIN_FOR_RANKING);
@@ -338,12 +349,31 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
         <WindowSelector basePath={`/topic/${slug}`} selectedValue={selected.value} />
       </div>
 
-      {/* Insights band — multi-paragraph journalist-voice analysis,
-          replaces the previous 2-cell summary. Each paragraph only
-          fires when its underlying pattern is genuinely interesting
-          (skipped wholesale when data is thin). Computed deterministically
-          from already-loaded stats — no per-render AI call. */}
-      {insightParagraphs.length > 0 && (
+      {/* Insights band. Two surfaces, in priority order:
+          1. WEEKLY AI insight — single journalist-voice analysis,
+             generated each Friday via the weekly cron. AI-narrated,
+             richer than the templates. Refreshed once a week so the
+             same reader sees stable content (vs the live templates
+             that recompute every render).
+          2. FALLBACK deterministic templates — fire when no weekly
+             insight exists yet for this topic. Computed live from
+             current stats. Same patterns as before. */}
+      {weeklyInsight ? (
+        <article
+          className="bg-card border border-border-strong overflow-hidden mb-8"
+          style={{ borderRadius: 4 }}
+        >
+          <div className="px-5 py-3.5 border-b border-border">
+            <h2 className="font-black text-base tracking-tight">תובנות שבועיות בנושא {label}</h2>
+            <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
+              עודכן {weeklyInsight.weekOf.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })} · מתעדכן כל שבוע
+            </div>
+          </div>
+          <div className="p-6">
+            <InsightBody body={weeklyInsight.body} />
+          </div>
+        </article>
+      ) : insightParagraphs.length > 0 && (
         <article
           className="bg-card border border-border-strong overflow-hidden mb-8"
           style={{ borderRadius: 4 }}

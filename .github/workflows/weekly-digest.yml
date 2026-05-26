@@ -47,3 +47,10 @@ jobs:
         run: npx tsx scripts/generate-weekly-digest.mts --apply
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Generate per-topic weekly insights
+        run: npx tsx scripts/generate-topic-insights.mts --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
