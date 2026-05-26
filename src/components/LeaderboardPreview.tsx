@@ -1,6 +1,10 @@
 import type { PoliticianStatsRow } from "@/lib/queries";
 import type { ActivitySnapshot } from "@/lib/data";
 import { PoliticianAvatar } from "./PoliticianAvatar";
+import { ShareButtons } from "./ShareButtons";
+import { shareTextForRanking } from "@/lib/share-text";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 function scoreColor(pct: number): string {
   if (pct < 40) return "var(--verdict-false)";
@@ -44,19 +48,29 @@ export function LeaderboardPreview({
       className="bg-card border border-border-strong overflow-hidden h-full flex flex-col"
       style={{ borderRadius: 4 }}
     >
-      <div className="px-5 py-3.5 border-b border-border flex items-baseline justify-between">
+      <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
         <div>
           <h2 className="font-black text-base tracking-tight">טבלת האמינות</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             {caption}
           </div>
         </div>
-        <a
-          href={leaderboardLink}
-          className="text-[11px] tracking-wider uppercase text-accent hover:text-accent-dark font-bold"
-        >
-          הכל ←
-        </a>
+        <div className="flex items-center gap-3 shrink-0">
+          <ShareButtons
+            text={shareTextForRanking(
+              `טבלת האמינות · ${caption}`,
+              sorted.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
+              5,
+            )}
+            url={`${SITE_URL}${leaderboardLink}`}
+          />
+          <a
+            href={leaderboardLink}
+            className="text-[11px] tracking-wider uppercase text-accent hover:text-accent-dark font-bold"
+          >
+            הכל ←
+          </a>
+        </div>
       </div>
       <ol className="flex-1">
         {sorted.slice(0, 8).map((stat, i) => {

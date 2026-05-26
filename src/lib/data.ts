@@ -277,6 +277,50 @@ export async function getUnrankedPoliticians(
   }));
 }
 
+/**
+ * Top N politicians by claim count in the active window. Used for the
+ * "מי בכותרות" (in-the-news) strip on the home page — solves the
+ * "first-time visitors don't see the household names they expect" UX
+ * problem. Famous politicians naturally accumulate more claims (more
+ * news coverage), so sorting by raw count surfaces them without any
+ * editorial curation.
+ *
+ * Intentionally NOT filtered by `MIN_CLAIMS_FOR_RANKING` — the whole
+ * point is to be inclusive of politicians who've been mentioned at all.
+ * The credibility score is shown alongside, with its usual sample-size
+ * adjustment baked in.
+ */
+export async function getMostMentionedPoliticians(
+  windowDays: number | undefined = STATS_WINDOW_DAYS,
+  limit: number = 8,
+): Promise<queries.PoliticianStatsRow[]> {
+  const hasReal = await queries.hasAnyPublishedClaims();
+  if (hasReal) {
+    const stats = await queries.getPoliticianStats(windowDays);
+    // Sort by total claim count desc; tie-break by credibilityScore
+    // so two politicians with equal newsroom volume rank by quality.
+    return [...stats]
+      .sort((a, b) => {
+        if (a.totalClaims !== b.totalClaims) return b.totalClaims - a.totalClaims;
+        return b.credibilityScore - a.credibilityScore;
+      })
+      .slice(0, limit);
+  }
+  // Mock fallback: same shape, no Wilson.
+  return mock.getPoliticianStats()
+    .sort((a, b) => b.totalClaims - a.totalClaims)
+    .slice(0, limit)
+    .map((s) => ({
+      ...s,
+      politician: {
+        ...s.politician,
+        role: s.politician.role ?? null,
+        image: s.politician.image ?? null,
+      },
+      credibilityScore: s.truthPercentage,
+    }));
+}
+
 /** Lightweight list for search/autocomplete — pulls from real DB if available. */
 export async function getAllPoliticiansLite(): Promise<
   { id: string; name: string; party: string; image: string | null }[]

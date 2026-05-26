@@ -1,9 +1,16 @@
 import { Suspense } from "react";
-import { getPoliticianStats, getAllPoliticiansLite, getKnessetActivityMap, getPartyStats } from "@/lib/data";
+import {
+  getPoliticianStats,
+  getAllPoliticiansLite,
+  getKnessetActivityMap,
+  getPartyStats,
+  getMostMentionedPoliticians,
+} from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { PartiesPreview } from "@/components/PartiesPreview";
+import { InHeadlinesStrip } from "@/components/InHeadlinesStrip";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -37,7 +44,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart, activityMap, partyStats] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap, partyStats, mostMentioned] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -66,6 +73,12 @@ export default async function Home({
       console.time("page.getPartyStats");
       const r = await getPartyStats(statsWindow.days);
       console.timeEnd("page.getPartyStats");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getMostMentionedPoliticians");
+      const r = await getMostMentionedPoliticians(statsWindow.days, 8);
+      console.timeEnd("page.getMostMentionedPoliticians");
       return r;
     })(),
   ]);
@@ -133,6 +146,34 @@ export default async function Home({
           verdict bar has room to read at a glance. */}
       <PartiesPreview stats={partyStats} windowDays={statsWindow.days} />
 
+      {/* "מי בכותרות" strip — top politicians by raw claim count in the
+          active window. Solves the "first-time visitor doesn't see the
+          household names" UX problem. Pure volume sort, no editorial
+          curation. Famous politicians naturally dominate because they
+          generate the most news coverage. Credibility score travels
+          with each face as a color chip so the methodology stays visible. */}
+      <InHeadlinesStrip stats={mostMentioned} windowDays={statsWindow.days} />
+
+      {/* Discovery zone: prominent search bar for visitors who have a
+          specific politician in mind. Moved up from below the feed
+          (was buried). Pairs with the "מי בכותרות" strip above as a
+          natural "find what you came for" block. */}
+      <section
+        className="bg-card border-[1.5px] border-border-strong p-5 sm:p-6"
+        style={{ borderRadius: 4 }}
+      >
+        <div className="text-[10px] tracking-[0.25em] uppercase font-bold text-accent mb-3">
+          לא מצאתם את מי שחיפשתם?
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
+          חפשו פוליטיקאי
+        </h2>
+        <p className="text-xs text-foreground-muted mb-4 leading-relaxed">
+          הקלידו שם או מפלגה — נתאים מבין {allPoliticians.length} חברי כנסת ואישי ציבור במאגר.
+        </p>
+        <SearchBar politicians={allPoliticians} />
+      </section>
+
       {/* "Data since DATE" + inline legend — one compact micro-caption
           under the hero+leaderboard duo. Replaces the previous full-
           width legend card which was eating too much above-the-fold
@@ -159,8 +200,6 @@ export default async function Home({
           </div>
         </div>
       )}
-
-      <SearchBar politicians={allPoliticians} />
 
       <section>
         <div className="flex items-baseline justify-between mb-3 pb-3 border-b-[1.5px] border-border-strong gap-3 flex-wrap">

@@ -9,6 +9,10 @@
  * verdict bar to read at a glance.
  */
 import Link from "next/link";
+import { ShareButtons } from "./ShareButtons";
+import { shareTextForRanking } from "@/lib/share-text";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 interface PartyStat {
   party: string;
@@ -59,19 +63,29 @@ export function PartiesPreview({
       className="bg-card border border-border-strong overflow-hidden"
       style={{ borderRadius: 4 }}
     >
-      <div className="px-5 py-3.5 border-b border-border flex items-baseline justify-between">
+      <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
         <div>
           <h2 className="font-black text-base tracking-tight">דירוג מפלגות</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             {caption}
           </div>
         </div>
-        <Link
-          href={partiesLink}
-          className="text-[11px] tracking-wider uppercase text-accent hover:text-accent-dark font-bold"
-        >
-          הכל ←
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <ShareButtons
+            text={shareTextForRanking(
+              `דירוג מפלגות · ${caption}`,
+              sorted.slice(0, 5).map((s) => ({ name: s.party, score: s.credibilityScore })),
+              5,
+            )}
+            url={`${SITE_URL}${partiesLink}`}
+          />
+          <Link
+            href={partiesLink}
+            className="text-[11px] tracking-wider uppercase text-accent hover:text-accent-dark font-bold"
+          >
+            הכל ←
+          </Link>
+        </div>
       </div>
       <ol>
         {top.map((stat, i) => {
