@@ -9,6 +9,7 @@ import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { KnessetActivityCard } from "@/components/KnessetActivityCard";
 import { CredibilityTimeline } from "@/components/CredibilityTimeline";
+import { TopicBreakdown } from "@/components/TopicBreakdown";
 import { resolveWindow, windowLabel } from "@/lib/window";
 import { notFound } from "next/navigation";
 
@@ -231,6 +232,16 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
           />
         </div>
       )}
+
+      {/* Topic breakdown — Wilson score per normalized topic. Hidden
+          when fewer than 2 topics meet the minimum-sample threshold
+          (one row is just the headline restated). Pure in-memory work
+          on the already-loaded filteredClaims, no extra DB query. */}
+      <TopicBreakdown
+        politicianId={id}
+        claims={filteredClaims}
+        windowLabel={windowLabel(selected.value)}
+      />
 
       {/* Knesset activity card — plenum participation %, bill
           sponsorship, current committee/role roster. Rendered inside

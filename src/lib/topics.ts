@@ -53,3 +53,25 @@ export function topicDisplayLabel(topic: string | null | undefined): string {
   if (candidate.length <= MAX_DISPLAY_CHARS) return candidate;
   return candidate.slice(0, MAX_DISPLAY_CHARS - 1).trim() + "…";
 }
+
+/**
+ * Like `topicDisplayLabel` but for GROUPING — returns the canonical
+ * category label if the raw topic matches a known pattern, or the
+ * trimmed original otherwise. Crucially does NOT truncate, so two long
+ * topics that share a prefix don't accidentally end up in the same
+ * bucket after ellipsization.
+ *
+ * Used by the per-politician topic breakdown card so semantically
+ * similar topics ("מדיניות הביטחון בגבול הצפון" + "מבצע צבאי בעזה")
+ * roll up into one "ביטחון" group instead of fragmenting into single-
+ * claim buckets that fail the minimum-sample threshold.
+ */
+export function normalizeTopic(topic: string | null | undefined): string {
+  if (!topic) return "";
+  const trimmed = topic.trim();
+  if (!trimmed) return "";
+  for (const { match, label } of NORMALIZATIONS) {
+    if (match.test(trimmed)) return label;
+  }
+  return trimmed;
+}
