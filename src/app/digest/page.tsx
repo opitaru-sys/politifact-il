@@ -12,13 +12,17 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DigestRenderer, type DigestSection } from "@/components/DigestRenderer";
 import { buildDigestContext, digestSlug } from "@/lib/digest-helpers";
+import { ShareButtons } from "@/components/ShareButtons";
+import { shareTextForDigest } from "@/lib/share-text";
 
 export const dynamic = "force-dynamic";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
+
 export const metadata: Metadata = {
-  title: "השבוע באמינות | בדוק",
+  title: "תובנות השבוע | בדוק",
   description:
-    "סיכום שבועי של מה שקרה בעולם בדיקת העובדות הפוליטיות בישראל: מי עלה ומי ירד באמינות, הטענה השקרית הבולטת, והנושא שלא ירד מהכותרות.",
+    "סיכום שבועי של מה שקרה בעולם בדיקת העובדות הפוליטיות בישראל: תובנות מהותיות על מגמות אמינות, נושאים בולטים ודפוסי דיוק בקרב פוליטיקאים.",
 };
 
 const ARCHIVE_LIMIT = 12;
@@ -60,13 +64,29 @@ export default async function DigestPage() {
 
   const sections = (latest.sections ?? []) as unknown as DigestSection[];
   const { claimMap, topicMap } = await buildDigestContext(sections);
+  const dateLabel = latest.weekOf.toLocaleDateString("he-IL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const insightHeadings = sections.filter((s) => s.type === "insight").map((s) => s.heading);
+  // Share URL points to the specific issue's archive slug, not /digest.
+  // That way the link the reader shared keeps showing the issue they
+  // shared, not whatever's current when their followers click through.
+  const shareUrl = `${SITE_URL}/digest/${digestSlug(latest.weekOf)}`;
 
   return (
     <div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
-        סיכום שבועי · {latest.weekOf.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+        תובנות השבוע · {dateLabel}
       </div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">{latest.title}</h1>
+      <div className="flex items-baseline justify-between gap-4 mb-3 flex-wrap">
+        <h1 className="text-4xl font-black tracking-tight">{latest.title}</h1>
+        <ShareButtons
+          text={shareTextForDigest(dateLabel, latest.title, insightHeadings)}
+          url={shareUrl}
+        />
+      </div>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
         {latest.intro}
       </p>

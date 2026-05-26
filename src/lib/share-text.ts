@@ -58,3 +58,28 @@ export function shareTextForRanking(
     .map((it, i) => `${i + 1}. ${it.name} · ${it.score}%`);
   return `${heading}\n\n${lines.join("\n")}\n\nכל הדירוג — בדוק:`;
 }
+
+/**
+ * Share text for a weekly digest issue. Lead with the date eyebrow +
+ * issue title, then 3 insight headings as bullets so the recipient
+ * sees the story shape, not just a link.
+ *
+ * Politician-name markers ({{P:id|Name}}) are stripped from headings
+ * so the share text is plain Hebrew, not raw markup.
+ */
+export function shareTextForDigest(
+  dateLabel: string,
+  title: string,
+  insightHeadings: string[],
+  limit: number = 3,
+): string {
+  const cleanTitle = stripPoliticianMarkers(title);
+  const bullets = insightHeadings
+    .slice(0, limit)
+    .map((h) => `• ${stripPoliticianMarkers(h)}`);
+  return `תובנות השבוע · ${dateLabel}\n${cleanTitle}\n\n${bullets.join("\n")}\n\nהסיכום המלא:`;
+}
+
+function stripPoliticianMarkers(s: string): string {
+  return s.replace(/\{\{P:[^|}]+\|([^}]+)\}\}/g, "$1");
+}

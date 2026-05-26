@@ -8,8 +8,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { DigestRenderer, type DigestSection } from "@/components/DigestRenderer";
 import { buildDigestContext, digestSlug, parseDigestSlug } from "@/lib/digest-helpers";
+import { ShareButtons } from "@/components/ShareButtons";
+import { shareTextForDigest } from "@/lib/share-text";
 
 export const dynamic = "force-dynamic";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 export async function generateMetadata({
   params,
@@ -44,6 +48,13 @@ export default async function DigestIssuePage({
 
   const sections = (digest.sections ?? []) as unknown as DigestSection[];
   const { claimMap, topicMap } = await buildDigestContext(sections);
+  const dateLabel = digest.weekOf.toLocaleDateString("he-IL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const insightHeadings = sections.filter((s) => s.type === "insight").map((s) => s.heading);
+  const shareUrl = `${SITE_URL}/digest/${digestSlug(digest.weekOf)}`;
 
   // Find adjacent published issues for prev/next navigation.
   const [prev, next] = await Promise.all([
@@ -62,9 +73,15 @@ export default async function DigestIssuePage({
   return (
     <div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
-        סיכום שבועי · {digest.weekOf.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+        תובנות השבוע · {dateLabel}
       </div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">{digest.title}</h1>
+      <div className="flex items-baseline justify-between gap-4 mb-3 flex-wrap">
+        <h1 className="text-4xl font-black tracking-tight">{digest.title}</h1>
+        <ShareButtons
+          text={shareTextForDigest(dateLabel, digest.title, insightHeadings)}
+          url={shareUrl}
+        />
+      </div>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
         {digest.intro}
       </p>
