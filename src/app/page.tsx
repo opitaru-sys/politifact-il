@@ -6,11 +6,12 @@ import {
   getMostMentionedPoliticians,
 } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
-import { getBiggestMovers } from "@/lib/cred-history";
+import { getTopTopicsForWindow } from "@/lib/topic-stats";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { InHeadlinesStrip } from "@/components/InHeadlinesStrip";
-import { BiggestMovers } from "@/components/BiggestMovers";
+import { DigestHighlights } from "@/components/DigestHighlights";
+import { TopicHighlights } from "@/components/TopicHighlights";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -44,7 +45,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart, activityMap, mostMentioned, movers] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap, mostMentioned, topTopics] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -76,13 +77,9 @@ export default async function Home({
       return r;
     })(),
     (async () => {
-      console.time("page.getBiggestMovers");
-      // 7-day movers, min sample 10 in both windows. 10 is the standard
-      // threshold for proportional confidence intervals; below that, the
-      // small-sample correction dominates real signal. The card
-      // self-hides if total movers < 4.
-      const r = await getBiggestMovers({ daysBack: 7, minSample: 10, topN: 3 });
-      console.timeEnd("page.getBiggestMovers");
+      console.time("page.getTopTopicsForWindow");
+      const r = await getTopTopicsForWindow(statsWindow.days, 5);
+      console.timeEnd("page.getTopTopicsForWindow");
       return r;
     })(),
   ]);
@@ -103,18 +100,14 @@ export default async function Home({
 
   return (
     <div className="space-y-10">
-      {/* Editorial masthead intro */}
+      {/* Editorial masthead intro. The "תובנות השבוע" entry point used
+          to live as a faint chip in this eyebrow — it's now featured
+          prominently as the DigestHighlights card below and as a
+          first-class nav link, so the masthead can return to a clean
+          date stamp. */}
       <section className="pt-1 pb-2">
-        <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3 flex items-center gap-3 flex-wrap">
-          <span>עודכן · {new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}</span>
-          <span className="opacity-40">·</span>
-          <a
-            href="/digest"
-            className="hover:text-accent-dark transition-colors normal-case tracking-normal text-foreground-muted hover:text-accent"
-            style={{ letterSpacing: "0.05em" }}
-          >
-            השבוע באמינות ←
-          </a>
+        <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3">
+          עודכן · {new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
         </div>
         <h1 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-tight max-w-3xl">
           {/* "אמין" used to be coloured with the verdict-true green, which
@@ -153,12 +146,19 @@ export default async function Home({
         <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
 
-      {/* Biggest movers — credibility delta over the last 7 days, top 3
-          gainers + top 3 losers side by side. Self-hides if there aren't
-          enough eligible politicians (min 10 claims in both anchor
-          windows) to be substantive. Powered by pre-baked
-          CredibilitySnapshot rows so the read is one cheap query. */}
-      <BiggestMovers gainers={movers.gainers} losers={movers.losers} daysBack={7} />
+      {/* DigestHighlights — flagship editorial surface. Renders the
+          latest published digest's title + lead insight headings.
+          BiggestMovers used to live in this slot but was retired
+          for being "boring data" once the journalist-voice digest
+          shipped — the insights ARE the interesting thing. Returns
+          null until a digest is published. */}
+      <DigestHighlights />
+
+      {/* TopicHighlights — top canonical topics in the active window
+          with truth % per topic. Discovery surface for /topics +
+          /topic/[slug]. Replaces the second half of the BiggestMovers
+          slot. */}
+      <TopicHighlights topics={topTopics} windowDays={statsWindow.days} />
 
       {/* "מי בכותרות" strip — top politicians by raw claim count in the
           active window. Solves the "first-time visitor doesn't see the
@@ -169,9 +169,7 @@ export default async function Home({
 
           The compact search input is co-located right below the strip so
           a visitor who doesn't see the politician they're after has a
-          one-click escape hatch. The dedicated "חפשו פוליטיקאי" card
-          was removed in the 2026-05-26 home refactor — it was claiming
-          a whole section for a search input that only needs one line. */}
+          one-click escape hatch. */}
       <div className="space-y-3">
         <InHeadlinesStrip stats={mostMentioned} windowDays={statsWindow.days} />
         <SearchBar politicians={allPoliticians} compact />

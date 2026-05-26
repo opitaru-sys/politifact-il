@@ -16,7 +16,7 @@
  */
 import { prisma } from "./db";
 import { wilsonLowerBound, type PoliticianStatsRow } from "./queries";
-import { rawTopicMatchesSlug } from "./topics";
+import { listCanonicalTopics, rawTopicMatchesSlug } from "./topics";
 
 const PUBLIC_CLAIM_FILTER = { status: "published", editorApproved: true } as const;
 
@@ -89,6 +89,57 @@ export async function getPoliticianStatsForTopic(
  * scale (~3k approved claims total) this never kicks in.
  */
 const SAFETY_CAP = 5000;
+
+/**
+ * Top N canonical topics by claim count in the active window, with
+ * aggregate truth % per topic. Used by the home page's TopicHighlights
+ * strip so visitors can browse into /topic/[slug] from a prominent
+ * surface instead of needing to know the URL.
+ *
+ * Loads the window's claims once and groups in memory; same pattern
+ * as the per-topic stats functions above.
+ */
+export async function getTopTopicsForWindow(
+  windowDays?: number,
+  limit: number = 5,
+): Promise<
+  {
+    slug: string;
+    label: string;
+    claimCount: number;
+    truthPercentage: number;
+    politicianCount: number;
+  }[]
+> {
+  const cutoff = windowDays !== undefined ? new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) : null;
+  const claims = await prisma.claim.findMany({
+    where: {
+      ...PUBLIC_CLAIM_FILTER,
+      ...(cutoff ? { date: { gte: cutoff } } : {}),
+    },
+    select: { verdict: true, topic: true, politicianId: true },
+    take: SAFETY_CAP,
+  });
+
+  const rows = listCanonicalTopics().map(({ slug, label }) => {
+    const matching = claims.filter((c) => rawTopicMatchesSlug(c.topic, slug));
+    const trueC = matching.filter((c) => c.verdict === "true").length;
+    const halfT = matching.filter((c) => c.verdict === "half-true").length;
+    const weighted = trueC + halfT * 0.5;
+    return {
+      slug,
+      label,
+      claimCount: matching.length,
+      truthPercentage: matching.length > 0 ? Math.round((weighted / matching.length) * 100) : 0,
+      politicianCount: new Set(matching.map((c) => c.politicianId)).size,
+    };
+  });
+
+  return rows
+    .filter((r) => r.claimCount > 0)
+    .sort((a, b) => b.claimCount - a.claimCount)
+    .slice(0, limit);
+}
 
 export async function getRecentClaimsForTopic(
   slug: string,
