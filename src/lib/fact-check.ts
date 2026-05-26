@@ -6,6 +6,7 @@ import { NAME_TO_ID, RSS_FEEDS } from "./rss-feeds";
 import { TELEGRAM_SOURCE_NAMES } from "./telegram-sources";
 import { getEnvVar } from "./env";
 import { verifyClaim } from "./verify-claim";
+import { editorialReview } from "./editorial-review";
 import { findClaimQualityIssues } from "./claim-quality";
 
 /**
@@ -633,12 +634,42 @@ export async function processArticle(articleId: string) {
           topic: saved.topic,
           claimDate: article.publishedAt,
         });
+
+        // Third pass: editorial newsworthiness review. Only runs if the
+        // technical verifier approved — there's no point asking the editor
+        // about a claim we're already going to reject. If the editor
+        // rejects, we override approval and prepend "[עורך] " to the
+        // verifier notes so /corrections shows the editorial reason.
+        // Skip via BADAK_DISABLE_EDITOR=1 for cost control during big
+        // backfills.
+        let finalApproved = verification.approved;
+        const notes: string[] = verification.issues.slice();
+        if (verification.approved && process.env.BADAK_DISABLE_EDITOR !== "1") {
+          try {
+            const editorial = await editorialReview({
+              quote: saved.quote,
+              verdict: saved.verdict as "true" | "half-true" | "false",
+              summary: saved.summary,
+              explanation: saved.explanation,
+              politicianName,
+              topic: saved.topic,
+            });
+            if (!editorial.approved) {
+              finalApproved = false;
+              notes.unshift(`[עורך] ${editorial.reason}`);
+            }
+          } catch (err) {
+            console.error(`Editorial review failed for claim ${saved.id}:`, err);
+            // Fail open — keep verifier's decision.
+          }
+        }
+
         await prisma.claim.update({
           where: { id: saved.id },
           data: {
-            editorApproved: verification.approved,
+            editorApproved: finalApproved,
             verifiedAt: new Date(),
-            verifierNotes: verification.issues.length ? verification.issues.join("; ") : null,
+            verifierNotes: notes.length ? notes.join("; ") : null,
           },
         });
       } catch (err) {

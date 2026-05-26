@@ -14,7 +14,7 @@ export interface ClaimQualityInput {
 }
 
 export interface ClaimQualityIssue {
-  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial";
+  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial";
   reason: string;
 }
 
@@ -322,6 +322,38 @@ function eulogyOrMemorial(input: ClaimQualityInput): ClaimQualityIssue | null {
   return null;
 }
 
+// Ceremonial / press-release patterns — the politician's quote is a thanks
+// statement, congratulations, announcement of own routine action, or
+// personal pride moment. Technically may have verifiable content (e.g.
+// "I thank X who passed bill Y" is true if Y was indeed passed) but the
+// quote itself is not a fact-check item — it's PR.
+//
+// Distinguished from `news-narrative` (which catches third-person
+// reporting) — these are FIRST-PERSON ceremonial speech.
+const CEREMONIAL_PATTERNS: { rx: RegExp; reason: string }[] = [
+  {
+    rx: /^[\s"״]*(?:אני|אנו|אנחנו)\s*מודה|^[\s"״]*ברצוני להודות|^[\s"״]*תודה (?:רבה|גדולה|ענקית)|אני מבקש להודות|אבקש להודות|אני שמח להודות/,
+    reason: "פתיחה בתודות/הוקרה — לא טענה ניתנת לבדיקה",
+  },
+  {
+    rx: /^[\s"״]*אני גאה|^[\s"״]*גאה (?:להציג|לבשר|לכבד|לשתף)|^[\s"״]*התרגשתי|^[\s"״]*מרגש (?:לראות|לפגוש)|^[\s"״]*כבוד (?:גדול|הוא לי)|^[\s"״]*זכות (?:גדולה|היא לי)/,
+    reason: "ביטוי גאווה/התרגשות אישית — לא טענה ניתנת לבדיקה",
+  },
+  {
+    rx: /^[\s"״]*אני שמח (?:לבשר|להודיע|לעדכן|לשתף)|אבקש לבשר|אבקש להודיע|^[\s"״]*בשורה (?:משמחת|טובה|חשובה|היסטורית)/,
+    reason: "הודעת PR שגרתית — לא טענה ניתנת לבדיקה",
+  },
+];
+
+function ceremonial(input: ClaimQualityInput): ClaimQualityIssue | null {
+  for (const pat of CEREMONIAL_PATTERNS) {
+    if (pat.rx.test(input.quote)) {
+      return { code: "ceremonial", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
 function opinionInsult(input: ClaimQualityInput): ClaimQualityIssue | null {
   if (/\d{2,}/.test(input.quote) || hasFirstPersonMarker(input.quote)) return null;
   const insult = INSULT_WORDS.find((word) => hebrewWordMatch(input.quote, word));
@@ -338,6 +370,7 @@ export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIs
     selfReferencesPolitician(input),
     opinionInsult(input),
     eulogyOrMemorial(input),
+    ceremonial(input),
   ].filter(Boolean) as ClaimQualityIssue[];
 }
 
