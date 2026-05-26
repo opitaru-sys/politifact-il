@@ -9,6 +9,7 @@ Last reconciled: 2026-05-24.
 
 ## High-impact next
 
+- [ ] **Fragment-detection layer for the editorial agent.** The Barkat "הקרן שהקמתי" claim (2-word noun phrase, no predicate) passed all 4 layers because the verifier could verify the underlying fact (Barkat did found a fund). Quote-length audit found 57 approved claims at 1-3 words; many are legit (e.g. "20,000 ילדים הרוגים") but some are pure fragments ("הקרן שהקמתי", "החוק הזה עבר"). Word-count alone is too crude. Add to editorial-review.ts: "reject if the quote is a noun phrase without a complete clause — like 'the fund I founded' or 'the law that passed' — even if the underlying fact is verifiable." Then sweep existing approved claims for the pattern.
 - [ ] **Neon serverless adapter** (`@prisma/adapter-neon` + `@neondatabase/serverless`) — HTTP instead of TCP, handles cold-starts gracefully. Eliminates the 500-on-first-request-after-suspend issue. ~1 hour.
 - [ ] **More reliable cron than GitHub Actions free tier.** Schedules can be delayed 15-60 min during high system load. Pipeline is idempotent so missed ticks self-heal. Options: Vercel Cron Pro ($20/mo), Upstash QStash, $1/mo VPS with system cron. Lean QStash. ~30 min.
 
