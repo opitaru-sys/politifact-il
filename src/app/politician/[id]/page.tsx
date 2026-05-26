@@ -115,7 +115,9 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
             }}
           >
             <strong className="tracking-wider uppercase ml-1">מדגם קטן.</strong>
-            רק {filteredClaims.length} טענות בתקופה זו. אחוז האמינות לא נחשב אינדיקציה אמינה עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות.
+            רק {filteredClaims.length} טענות בתקופה זו. הציון המוצג כבר מתוקנן מטה אוטומטית לפי גודל המדגם — אבל
+            עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות, המספר עדיין רעשני. הרחיבו את חלון הזמן או הסתכלו על המספרים
+            כהערכה ראשונית בלבד.
           </div>
         )}
 

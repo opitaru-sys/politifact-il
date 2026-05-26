@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getPoliticianById, getPoliticiansWithClaimsLite } from "@/lib/data";
+import { wilsonLowerBound } from "@/lib/queries";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { CompareSelector } from "@/components/CompareSelector";
@@ -32,7 +33,11 @@ interface PoliticianStats {
   trueClaims: number;
   halfTrueClaims: number;
   falseClaims: number;
+  /** Raw weighted truth % — kept for the sub-line ("84% אמת"). */
   truthPct: number;
+  /** Sample-adjusted credibility (Wilson 95% CI lower bound) — the
+   *  headline number, same as everywhere else on the site. */
+  credibilityScore: number;
   recentClaims: { quote: string; verdict: string; date: string; topic: string; id: string }[];
 }
 
@@ -44,7 +49,10 @@ async function loadStats(id: string): Promise<PoliticianStats | null> {
   const halfTrueClaims = claims.filter((c) => c.verdict === "half-true").length;
   const falseClaims = claims.filter((c) => c.verdict === "false").length;
   const total = claims.length;
-  const truthPct = total > 0 ? Math.round(((trueClaims + halfTrueClaims * 0.5) / total) * 100) : 0;
+  const weightedTrue = trueClaims + halfTrueClaims * 0.5;
+  const truthPct = total > 0 ? Math.round((weightedTrue / total) * 100) : 0;
+  const credibilityScore =
+    total > 0 ? Math.round(wilsonLowerBound(weightedTrue, total) * 100) : 0;
   return {
     id: p.id,
     name: p.name,
@@ -56,6 +64,7 @@ async function loadStats(id: string): Promise<PoliticianStats | null> {
     halfTrueClaims,
     falseClaims,
     truthPct,
+    credibilityScore,
     recentClaims: claims.slice(0, 3).map((c) => ({
       id: c.id,
       quote: c.quote,
@@ -82,6 +91,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
       <h1 className="text-4xl font-black mb-3 tracking-tight">השוואת אמינות</h1>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
         בחר שני פוליטיקאים ובחן את התפלגות פסקי הדין שלהם זה לצד זה.
+        הציון המוצג הוא <span className="text-foreground font-bold">ציון אמינות מתוקנן לגודל מדגם</span>
+        — אותו ציון שמשמש לדירוג בטבלת האמינות.
       </p>
 
       <CompareSelector
@@ -138,30 +149,21 @@ function PoliticianColumn({ stats }: { stats: PoliticianStats }) {
               טרם נבדקו טענות של {stats.name} בתקופה זו. נסו פוליטיקאי אחר או בקרו בעמוד הפוליטיקאי.
             </div>
           </>
-        ) : stats.total < 3 ? (
-          <>
-            <div
-              className="text-5xl font-black leading-none tabular-nums opacity-60"
-              style={{ color: scoreColor(stats.truthPct) }}
-            >
-              {stats.truthPct}
-              <span className="text-2xl">%</span>
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-foreground-muted/80 mt-1.5 italic">
-              מדגם קטן · {stats.total} טענות
-            </div>
-          </>
         ) : (
           <>
             <div
-              className="text-5xl font-black leading-none tabular-nums"
-              style={{ color: scoreColor(stats.truthPct) }}
+              className={`text-5xl font-black leading-none tabular-nums ${stats.total < 3 ? "opacity-60" : ""}`}
+              style={{ color: scoreColor(stats.credibilityScore) }}
+              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stats.truthPct}% מתוך ${stats.total} טענות.`}
             >
-              {stats.truthPct}
+              {stats.credibilityScore}
               <span className="text-2xl">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              אמינות · {stats.total} טענות
+              ציון אמינות
+            </div>
+            <div className={`text-[10px] tabular-nums mt-0.5 ${stats.total < 3 ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
+              {stats.truthPct}% אמת · {stats.total} טענות{stats.total < 3 ? " · מדגם קטן" : ""}
             </div>
           </>
         )}
