@@ -55,9 +55,11 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       </div>
       <h1 className="text-4xl font-black mb-3 tracking-tight">טבלת האמינות</h1>
       <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        דירוג של {stats.length} פוליטיקאים לפי אחוז הטענות שנמצאו אמת מתוך הטענות שנבדקו{" "}
+        דירוג של {stats.length} פוליטיקאים{" "}
         <span className="text-foreground font-bold">{windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}</span>.
-        אמינות מחושבת כ-<span className="text-foreground font-bold">(טענות אמת + ½ × חצי אמת) ÷ סה״כ טענות</span>.
+        המספר הגדול הוא <span className="text-foreground font-bold">ציון אמינות מתוקנן לגודל מדגם</span> —
+        פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
+        אחוז האמת הגולמי <span className="text-foreground font-bold">(אמת + ½ × חצי) ÷ סה״כ</span> מוצג כקו תחתון.
         עמודת <span className="text-foreground font-bold">השתתפות</span> מציגה את אחוז ישיבות המליאה ב-90 הימים האחרונים שבהן הח״כ דיבר.
       </p>
 
@@ -118,11 +120,19 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                     </div>
                   </div>
                   <div
-                    className="font-black text-xl tabular-nums leading-none"
-                    style={{ color: scoreColor(stat.truthPercentage) }}
+                    className="text-left"
+                    title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
                   >
-                    {stat.truthPercentage}
-                    <span className="text-sm">%</span>
+                    <div
+                      className="font-black text-xl tabular-nums leading-none"
+                      style={{ color: scoreColor(stat.credibilityScore) }}
+                    >
+                      {stat.credibilityScore}
+                      <span className="text-sm">%</span>
+                    </div>
+                    <div className="text-[10px] tabular-nums text-foreground-muted/80 mt-0.5">
+                      {stat.truthPercentage}% אמת
+                    </div>
                   </div>
                   <div
                     className="hidden sm:block text-sm font-bold tabular-nums text-foreground-muted text-center min-w-[3.5rem]"

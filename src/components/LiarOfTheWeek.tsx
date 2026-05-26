@@ -98,13 +98,17 @@ export function LiarOfTheWeek({
           <div>
             <div
               className="text-5xl font-black leading-none tracking-tight tabular-nums"
-              style={{ color: scoreColor(top.truthPercentage) }}
+              style={{ color: scoreColor(top.credibilityScore) }}
+              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${top.truthPercentage}% מתוך ${top.totalClaims} טענות.`}
             >
-              {top.truthPercentage}
+              {top.credibilityScore}
               <span className="text-2xl">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-2">
-              אמינות · מתוך {top.totalClaims} טענות
+              ציון אמינות · מתוקנן לגודל מדגם
+            </div>
+            <div className="text-[10px] tracking-wider text-foreground-muted/80 mt-0.5 tabular-nums">
+              {top.truthPercentage}% אמת מתוך {top.totalClaims} טענות
             </div>
             {topActivity && (
               <div
@@ -189,12 +193,18 @@ export function LiarOfTheWeek({
               )}
             </div>
           </div>
-          <div
-            className="font-black text-2xl shrink-0 tabular-nums"
-            style={{ color: scoreColor(bottom.truthPercentage) }}
-          >
-            {bottom.truthPercentage}
-            <span className="text-sm">%</span>
+          <div className="text-left shrink-0">
+            <div
+              className="font-black text-2xl tabular-nums leading-none"
+              style={{ color: scoreColor(bottom.credibilityScore) }}
+              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${bottom.truthPercentage}% מתוך ${bottom.totalClaims} טענות.`}
+            >
+              {bottom.credibilityScore}
+              <span className="text-sm">%</span>
+            </div>
+            <div className="text-[9px] text-foreground-muted/70 tabular-nums mt-0.5">
+              {bottom.truthPercentage}% אמת
+            </div>
           </div>
         </a>
       )}

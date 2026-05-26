@@ -85,20 +85,19 @@ export function LeaderboardPreview({
                   <div
                     className="font-black text-base tabular-nums leading-none"
                     style={{
-                      color: scoreColor(stat.truthPercentage),
-                      // Mute the score visually when the sample is small —
-                      // the reader still sees the number, but it's clearly
-                      // marked as preliminary by the opacity + label below.
-                      opacity: lowSample ? 0.55 : 1,
+                      color: scoreColor(stat.credibilityScore),
+                      // Mute visually for small samples — credibility score
+                      // already penalizes them but the italic+muted label
+                      // below makes the uncertainty explicit too.
+                      opacity: lowSample ? 0.65 : 1,
                     }}
+                    title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
                   >
-                    {stat.truthPercentage}
+                    {stat.credibilityScore}
                     <span className="text-xs">%</span>
                   </div>
-                  <div className={`text-[10px] uppercase tracking-wider mt-0.5 ${lowSample ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
-                    {lowSample
-                      ? `מדגם קטן · ${stat.totalClaims}`
-                      : `${stat.totalClaims} טענות`}
+                  <div className={`text-[10px] tabular-nums mt-0.5 ${lowSample ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
+                    {stat.truthPercentage}% אמת · {stat.totalClaims} טענות
                   </div>
                   {/* Plenum participation %, when available. Kept on
                       its own muted line so it doesn't compete with

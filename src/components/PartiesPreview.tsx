@@ -17,6 +17,9 @@ interface PartyStat {
   falseClaims: number;
   total: number;
   truthPercentage: number;
+  /** Wilson 95% CI lower bound — the sample-adjusted credibility number
+   *  shown as the headline and used for sorting. */
+  credibilityScore: number;
 }
 
 function scoreColor(pct: number): string {
@@ -37,13 +40,10 @@ export function PartiesPreview({
   /** Rows to show on the preview. Default 5. */
   limit?: number;
 }) {
-  // Sort top-to-bottom by truth %; ties broken by larger sample.
-  const sorted = [...stats].sort((a, b) => {
-    if (a.truthPercentage !== b.truthPercentage) {
-      return b.truthPercentage - a.truthPercentage;
-    }
-    return b.total - a.total;
-  });
+  // Sort by credibilityScore desc — same Wilson-adjusted ranking we use
+  // everywhere else on the site. A small party at "100% raw" no longer
+  // outranks a larger party at lower raw % but higher confidence.
+  const sorted = [...stats].sort((a, b) => b.credibilityScore - a.credibilityScore);
   const top = sorted.slice(0, limit);
   if (top.length === 0) return null;
 
@@ -91,25 +91,26 @@ export function PartiesPreview({
                   </span>
                   <span className="font-bold text-sm truncate">{stat.party}</span>
                 </div>
-                <div className="flex items-baseline gap-1.5 shrink-0">
+                <div
+                  className="flex items-baseline gap-1.5 shrink-0"
+                  title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.total} טענות.`}
+                >
                   <span
                     className="font-black text-base tabular-nums leading-none"
                     style={{
-                      color: scoreColor(stat.truthPercentage),
-                      opacity: lowSample ? 0.55 : 1,
+                      color: scoreColor(stat.credibilityScore),
+                      opacity: lowSample ? 0.65 : 1,
                     }}
                   >
-                    {stat.truthPercentage}
+                    {stat.credibilityScore}
                     <span className="text-xs">%</span>
                   </span>
                   <span
-                    className={`text-[10px] uppercase tracking-wider ${
-                      lowSample
-                        ? "text-foreground-muted/70 italic"
-                        : "text-foreground-muted"
+                    className={`text-[10px] tabular-nums ${
+                      lowSample ? "text-foreground-muted/70 italic" : "text-foreground-muted"
                     }`}
                   >
-                    {lowSample ? `מדגם · ${stat.total}` : `${stat.total} טענות`}
+                    {stat.truthPercentage}% · {stat.total}
                   </span>
                 </div>
               </div>

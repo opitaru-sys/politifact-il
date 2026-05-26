@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
+import { wilsonLowerBound } from "@/lib/queries";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -47,15 +48,23 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
   const trueClaims = filteredClaims.filter((c) => c.verdict === "true").length;
   const halfTrue = filteredClaims.filter((c) => c.verdict === "half-true").length;
   const falseClaims = filteredClaims.filter((c) => c.verdict === "false").length;
+  const weightedTrue = trueClaims + halfTrue * 0.5;
   const truthPct =
     filteredClaims.length > 0
-      ? Math.round(((trueClaims + halfTrue * 0.5) / filteredClaims.length) * 100)
+      ? Math.round((weightedTrue / filteredClaims.length) * 100)
+      : 0;
+  // Sample-adjusted credibility (Wilson 95% CI lower bound) — same metric
+  // the leaderboard sorts by. Displayed here as the headline so the
+  // profile page matches what visitors saw on the leaderboard.
+  const credibilityScore =
+    filteredClaims.length > 0
+      ? Math.round(wilsonLowerBound(weightedTrue, filteredClaims.length) * 100)
       : 0;
 
   const scoreColor =
-    truthPct < 40
+    credibilityScore < 40
       ? "var(--verdict-false)"
-      : truthPct < 60
+      : credibilityScore < 60
       ? "var(--verdict-half)"
       : "var(--verdict-true)";
   const sampleTooSmall = filteredClaims.length < MIN_CLAIMS_FOR_HERO;
@@ -134,13 +143,16 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
             <div
               className={`text-3xl font-black tabular-nums leading-none ${sampleTooSmall ? "opacity-50" : ""}`}
               style={{ color: scoreColor }}
-              title={sampleTooSmall ? "מדגם קטן מדי לדירוג מהימן" : undefined}
+              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${truthPct}% מתוך ${filteredClaims.length} טענות.${sampleTooSmall ? " מדגם קטן מדי לדירוג מהימן." : ""}`}
             >
-              {truthPct}
+              {credibilityScore}
               <span className="text-lg">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              אמינות
+              ציון אמינות
+            </div>
+            <div className="text-[9px] text-foreground-muted/70 tabular-nums mt-0.5">
+              {truthPct}% אמת
             </div>
           </div>
           <div className="px-3 py-4 text-center border-l border-border">

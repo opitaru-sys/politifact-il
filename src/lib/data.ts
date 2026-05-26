@@ -200,7 +200,12 @@ export async function getPartyStats(
   if (hasReal) {
     return queries.getPartyStats(windowDays);
   }
-  return mock.getPartyStats();
+  // Mock fallback: stub credibilityScore = truthPercentage. Mock data
+  // isn't statistically meaningful so the distinction is moot here.
+  return mock.getPartyStats().map((s) => ({
+    ...s,
+    credibilityScore: s.truthPercentage,
+  }));
 }
 
 export async function getPoliticianById(id: string) {

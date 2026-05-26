@@ -156,8 +156,11 @@ export interface PoliticianStatsRow {
  *
  * Math: standard Wilson lower-bound formula. See
  * https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval
+ *
+ * Exported so the politician profile page can compute it inline from
+ * window-filtered claims (without re-querying via getPoliticianStats).
  */
-function wilsonLowerBound(successes: number, total: number): number {
+export function wilsonLowerBound(successes: number, total: number): number {
   if (total === 0) return 0;
   const z = 1.96; // 95% confidence
   const phat = successes / total;
@@ -232,14 +235,20 @@ export async function getPartyStats(windowDays?: number) {
   }
 
   return Object.entries(partyMap)
-    .map(([party, stats]) => ({
-      party,
-      ...stats,
-      truthPercentage: Math.round(
-        ((stats.trueClaims + stats.halfTrue * 0.5) / stats.total) * 100
-      ),
-    }))
-    .sort((a, b) => a.truthPercentage - b.truthPercentage);
+    .map(([party, stats]) => {
+      const weightedTrue = stats.trueClaims + stats.halfTrue * 0.5;
+      return {
+        party,
+        ...stats,
+        truthPercentage: Math.round((weightedTrue / stats.total) * 100),
+        // Wilson 95% CI lower bound — same sample-size adjustment we apply
+        // to per-politician credibility. A 5-claim party at 100% raw still
+        // gets a low credibilityScore because the sample's too small to
+        // confidently call them credible.
+        credibilityScore: Math.round(wilsonLowerBound(weightedTrue, stats.total) * 100),
+      };
+    })
+    .sort((a, b) => a.credibilityScore - b.credibilityScore);
 }
 
 export async function hasAnyPublishedClaims(): Promise<boolean> {

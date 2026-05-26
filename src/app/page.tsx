@@ -149,12 +149,13 @@ export default async function Home({
             . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
           </div>
           <div className="opacity-90">
-            <strong className="text-foreground">אמינות</strong> = (אמת + ½ × חצי) ÷ סה״כ
+            <strong className="text-foreground">ציון אמינות</strong> = אחוז אמת מתוקנן לגודל מדגם (Wilson 95%)
             <span className="mx-2 opacity-40">·</span>
             <strong className="text-foreground">נוכחות</strong> = % ישיבות מליאה שדיבר בהן ב-90 ימים
           </div>
           <div className="opacity-80 text-[10px]">
-            דירוג מתחשב בגודל המדגם — 3 טענות נכונות פחות אמינות מ-30 טענות נכונות, גם אם שתי הקבוצות ב-100%
+            פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
+            האחוז הגולמי <strong className="text-foreground">(אמת + ½ × חצי) ÷ סה״כ</strong> מוצג כקו תחתון.
           </div>
         </div>
       )}
