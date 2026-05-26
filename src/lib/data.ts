@@ -185,6 +185,11 @@ export async function getPoliticianStats(
         role: s.politician.role ?? null,
         image: s.politician.image ?? null,
       },
+      // Mock data doesn't compute credibilityScore — fall back to raw %
+      // so the mock-only fallback path (no real claims yet) still works.
+      // Production always goes through queries.getPoliticianStats which
+      // returns the proper Wilson lower bound.
+      credibilityScore: s.truthPercentage,
     }));
 }
 

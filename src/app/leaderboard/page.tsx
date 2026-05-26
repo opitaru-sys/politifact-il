@@ -37,16 +37,14 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     getKnessetActivityMap(),
   ]);
 
-  // Highest credibility first; ties broken by more claims (more
-  // sample = more reliable evidence of being on top). Participation
-  // % is shown as an info column but doesn't filter the ranking —
-  // every qualifying MK appears.
-  const stats = [...ascending].sort((a, b) => {
-    if (a.truthPercentage !== b.truthPercentage) {
-      return b.truthPercentage - a.truthPercentage;
-    }
-    return b.totalClaims - a.totalClaims;
-  });
+  // Sort by Wilson lower bound (credibilityScore) instead of raw
+  // truthPercentage. This corrects the small-sample bias — a politician
+  // with 3 claims at 100% no longer outranks a politician with 50
+  // claims at 80%. The raw % stays as the displayed number for
+  // familiarity; only the ordering reflects sample-size adjustment.
+  // Participation % is shown as an info column but doesn't filter the
+  // ranking — every qualifying MK appears.
+  const stats = [...ascending].sort((a, b) => b.credibilityScore - a.credibilityScore);
 
   const windowLabel = windowLabelFn(selected.value);
 

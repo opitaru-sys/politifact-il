@@ -122,7 +122,50 @@ export interface PoliticianStatsRow {
   trueClaims: number;
   halfTrueClaims: number;
   falseClaims: number;
+  /** Headline number: weighted truth rate = (true + 0.5*half) / total, ×100. */
   truthPercentage: number;
+  /**
+   * Wilson score interval LOWER BOUND at 95% confidence — used for ranking.
+   *
+   * Why we don't sort by truthPercentage directly:
+   *   3 claims at 100% (raw 100%) ranks above 50 claims at 80% (raw 80%),
+   *   even though the second politician has a far more reliable record.
+   *   Wilson penalizes small samples — the 3-claim politician's lower
+   *   bound is ~38% (huge uncertainty) while the 50-claim politician's
+   *   is ~73% (tight estimate).
+   *
+   * Result: small-sample politicians need a few more correct calls before
+   * they outrank a long-track-record politician. The displayed % still
+   * shows the raw rate (familiar, expected), but the ORDER on the
+   * leaderboard reflects credibility-with-confidence.
+   *
+   * Stored as a 0-100 number for easy comparison + display alongside %.
+   */
+  credibilityScore: number;
+}
+
+/**
+ * Wilson score interval lower bound at 95% confidence.
+ * Returns a value in [0, 1].
+ *
+ * Inputs:
+ *   successes — weighted true count (true + 0.5 * half-true)
+ *   total — total claim count
+ *
+ * Edge case: when total === 0 returns 0 (can't rank an empty sample).
+ *
+ * Math: standard Wilson lower-bound formula. See
+ * https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval
+ */
+function wilsonLowerBound(successes: number, total: number): number {
+  if (total === 0) return 0;
+  const z = 1.96; // 95% confidence
+  const phat = successes / total;
+  const z2 = z * z;
+  const denom = 1 + z2 / total;
+  const center = phat + z2 / (2 * total);
+  const margin = z * Math.sqrt((phat * (1 - phat) + z2 / (4 * total)) / total);
+  return Math.max(0, (center - margin) / denom);
 }
 
 export async function getPoliticianStats(windowDays?: number): Promise<PoliticianStatsRow[]> {
@@ -135,10 +178,12 @@ export async function getPoliticianStats(windowDays?: number): Promise<Politicia
       const halfTrueClaims = claims.filter((c) => c.verdict === "half-true").length;
       const falseClaims = claims.filter((c) => c.verdict === "false").length;
       const total = claims.length;
+      // Weighted "successes" for both the raw % and the Wilson interval —
+      // half-truths count as 0.5 (matches our existing public formula).
+      const weightedTrue = trueClaims + halfTrueClaims * 0.5;
       const truthPercentage =
-        total > 0
-          ? Math.round(((trueClaims + halfTrueClaims * 0.5) / total) * 100)
-          : 0;
+        total > 0 ? Math.round((weightedTrue / total) * 100) : 0;
+      const credibilityScore = Math.round(wilsonLowerBound(weightedTrue, total) * 100);
 
       return {
         politician: {
@@ -153,20 +198,17 @@ export async function getPoliticianStats(windowDays?: number): Promise<Politicia
         halfTrueClaims,
         falseClaims,
         truthPercentage,
+        credibilityScore,
       };
     })
     .filter((s) => s.totalClaims > 0)
-    // Sort ascending by credibility. Ties stay unordered here — the
-    // display layer (leaderboard / hero) applies the correct tiebreaker
-    // for *its* end of the spectrum:
-    //   Top-of-table / "most credible" → more claims wins (more
-    //     reliable signal of being credible).
-    //   "Last place" hero card → more claims also wins (more reliable
-    //     signal of being at the bottom).
-    // Since these are at opposite ends of the array, no single
-    // secondary sort can satisfy both — see LiarOfTheWeek and the
-    // leaderboard pages where the proper tiebreaker is applied.
-    .sort((a, b) => a.truthPercentage - b.truthPercentage);
+    // Sort ascending by credibility score (Wilson lower bound), not raw %.
+    // This corrects the small-sample bias: a politician with 3 true claims
+    // (raw 100%) ranks BELOW a politician with 50 claims at 80% (raw 80%),
+    // because the latter has a much narrower confidence interval. The
+    // display layer (leaderboard / hero) still shows the raw % for
+    // familiarity — only the ORDER reflects sample-size adjustment.
+    .sort((a, b) => a.credibilityScore - b.credibilityScore);
 }
 
 export async function getPartyStats(windowDays?: number) {

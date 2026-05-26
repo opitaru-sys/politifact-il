@@ -27,16 +27,11 @@ export function LeaderboardPreview({
    *  same accountability dimension the full leaderboard does. */
   activityMap?: Map<string, ActivitySnapshot>;
 }) {
-  // Politicians with enough data to be ranked confidently. Lower-sample
-  // entries still appear but get a less definitive treatment.
-  // Sort for display: highest credibility first; ties broken by more
-  // claims (more sample = more reliable evidence of being on top).
-  const sorted = [...stats].sort((a, b) => {
-    if (a.truthPercentage !== b.truthPercentage) {
-      return b.truthPercentage - a.truthPercentage;
-    }
-    return b.totalClaims - a.totalClaims;
-  });
+  // Sort for display: highest credibility-score first. credibilityScore
+  // is the Wilson lower bound at 95% confidence — it intrinsically
+  // weights for sample size, so a 3-claim politician at "100%" sits
+  // below a 50-claim politician at "80%" (which is what we want).
+  const sorted = [...stats].sort((a, b) => b.credibilityScore - a.credibilityScore);
   const caption = windowDays === 1
     ? "24 השעות האחרונות"
     : `${windowDays ?? 30} ימים אחרונים`;
