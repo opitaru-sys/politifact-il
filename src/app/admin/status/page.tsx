@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { AdminNav } from "@/components/AdminNav";
+import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -202,17 +203,11 @@ function formatExact(d: Date | null): string {
 }
 
 export default async function AdminStatusPage({ searchParams }: PageProps) {
-  const { key } = await searchParams;
-  if (!key || key !== process.env.ADMIN_SECRET) {
-    return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-black mb-2">🔒 דף אדמין</h1>
-        <p className="text-sm text-foreground-muted mb-4">
-          הוסף את <code className="bg-muted px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
-        </p>
-      </div>
-    );
-  }
+  // Legacy `?key=` bookmark support: set cookie + redirect to clean URL,
+  // then require the cookie. Wrong key sends visitor to /admin/login.
+  const sp = await searchParams;
+  await bootstrapLegacyKey(sp, "/admin/status");
+  await requireAdmin();
 
   // Start-of-today in Israel time. All "פעילות יומית" counts below
   // are gated on this cutoff so the card answers "what has the
@@ -342,7 +337,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         תצוגה חיה של עומק התור, זמן הריצה האחרונה, ופירוט לפי מקור. הדף הזה לא מוטמן ומציג מצב נוכחי מהמסד.
       </p>
 
-      <AdminNav active="status" adminKey={key} />
+      <AdminNav active="status" />
 
       {/* Top metric row */}
       <div
@@ -620,7 +615,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         </h2>
         <div className="grid grid-cols-2 gap-3">
           <a
-            href={`/admin/reports?key=${key}`}
+            href={`/admin/reports`}
             className="bg-card border border-border p-4 hover:bg-muted/40 transition-colors"
             style={{ borderRadius: 4 }}
           >

@@ -3,17 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { digestSlug } from "@/lib/digest-helpers";
+import { assertAdmin } from "@/lib/admin-auth";
 
-function assertAdmin(formData: FormData): string {
-  const key = formData.get("key");
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) throw new Error("ADMIN_SECRET not configured");
-  if (typeof key !== "string" || key !== secret) throw new Error("Unauthorized");
-  return key;
-}
+// Auth: cookie-based, via assertAdmin() — set on /admin/login. The
+// cookie travels with form submissions automatically; no more `?key=`
+// or hidden form inputs. See 2026-05-26 security audit (HIGH).
 
 export async function updateDigest(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing digest id");
 
@@ -47,7 +44,7 @@ export async function updateDigest(formData: FormData): Promise<void> {
 }
 
 export async function publishDigest(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing digest id");
 
@@ -63,7 +60,7 @@ export async function publishDigest(formData: FormData): Promise<void> {
 }
 
 export async function unpublishDigest(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing digest id");
 
@@ -78,7 +75,7 @@ export async function unpublishDigest(formData: FormData): Promise<void> {
 }
 
 export async function deleteDigest(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing digest id");
 

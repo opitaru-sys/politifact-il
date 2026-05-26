@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { updateClaim, deleteClaim } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
+import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +22,8 @@ const PAGE_SIZE = 25;
 
 export default async function AdminClaimsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const { key } = params;
-  if (!key || key !== process.env.ADMIN_SECRET) {
-    return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-black mb-2">🔒 דף אדמין</h1>
-        <p className="text-sm text-foreground-muted mb-4">
-          הוסף את <code className="bg-muted px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
-        </p>
-      </div>
-    );
-  }
+  await bootstrapLegacyKey(params, "/admin/claims");
+  await requireAdmin();
 
   // Filters
   const where: {
@@ -73,10 +65,10 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Helper to build URLs preserving other filters.
+  // Helper to build URLs preserving other filters. No longer carries
+  // the admin secret — auth is via httpOnly cookie now.
   function urlWith(overrides: Record<string, string | number | undefined>): string {
     const p = new URLSearchParams();
-    p.set("key", key!);
     if (params.status && params.status !== "all") p.set("status", params.status);
     if (params.verdict && params.verdict !== "all") p.set("verdict", params.verdict);
     if (params.approved) p.set("approved", params.approved);
@@ -85,7 +77,8 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
       if (v === undefined || v === "" || v === "all") p.delete(k);
       else p.set(k, String(v));
     }
-    return `/admin/claims?${p.toString()}`;
+    const qs = p.toString();
+    return qs ? `/admin/claims?${qs}` : `/admin/claims`;
   }
 
   return (
@@ -96,11 +89,10 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
         עריכה ידנית של פסק דין, סטטוס, ואישור עורך. שינויים נכנסים מיד לאחר שמירה.
       </p>
 
-      <AdminNav active="claims" adminKey={key} />
+      <AdminNav active="claims" />
 
       {/* Filters */}
       <form className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 mb-6 bg-card border border-border p-3" style={{ borderRadius: 4 }}>
-        <input type="hidden" name="key" value={key} />
         <FilterSelect
           name="status"
           label="סטטוס"
@@ -176,7 +168,6 @@ export default async function AdminClaimsPage({ searchParams }: PageProps) {
               createdAt: c.createdAt,
               politician: c.politician,
             }}
-            adminKey={key}
             defaultOpen={params.id === c.id}
           />
         ))}
@@ -252,7 +243,7 @@ interface ClaimRowData {
   politician: { id: string; name: string };
 }
 
-function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowData; adminKey: string; defaultOpen?: boolean }) {
+function ClaimRow({ claim, defaultOpen = false }: { claim: ClaimRowData; defaultOpen?: boolean }) {
   const verdictColor =
     claim.verdict === "true"
       ? "var(--verdict-true)"
@@ -288,7 +279,6 @@ function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowDat
       <div className="border-t border-border px-4 py-3 space-y-3 bg-background">
         {/* Update form */}
         <form action={updateClaim} className="space-y-3">
-          <input type="hidden" name="key" value={adminKey} />
           <input type="hidden" name="id" value={claim.id} />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -408,7 +398,6 @@ function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowDat
 
         {/* Delete form (separate to avoid nested forms) */}
         <form action={deleteClaim} className="pt-2 border-t border-border">
-          <input type="hidden" name="key" value={adminKey} />
           <input type="hidden" name="id" value={claim.id} />
           <button
             type="submit"

@@ -2,21 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { assertAdmin } from "@/lib/admin-auth";
 
 /**
  * Server actions for admin claim management.
  *
- * Auth: every action takes the admin secret as a `key` form field and
- * compares to ADMIN_SECRET. Without a session system, this is the
- * simplest correct gate.
+ * Auth: cookie-based, via assertAdmin() from src/lib/admin-auth.ts.
+ * The cookie is set on /admin/login and travels with the form
+ * submission automatically. No more `?key=` in URLs or hidden form
+ * inputs — see 2026-05-26 security audit (HIGH).
  */
-
-function assertAdmin(formData: FormData): void {
-  const key = formData.get("key");
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) throw new Error("ADMIN_SECRET not configured");
-  if (typeof key !== "string" || key !== secret) throw new Error("Unauthorized");
-}
 
 /**
  * Update a claim's editable fields. Only changes fields that are present
@@ -31,7 +26,7 @@ function assertAdmin(formData: FormData): void {
  * we write it; the date is also stamped.
  */
 export async function updateClaim(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing claim id");
@@ -126,7 +121,7 @@ export async function updateClaim(formData: FormData): Promise<void> {
  * relation handling (or via separate calls if cascade isn't on).
  */
 export async function deleteClaim(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing claim id");
@@ -148,7 +143,7 @@ export async function deleteClaim(formData: FormData): Promise<void> {
  * keep appearing in the queue.
  */
 export async function dismissReport(formData: FormData): Promise<void> {
-  assertAdmin(formData);
+  await assertAdmin();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) throw new Error("Missing report id");

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { dismissReport } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
+import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +19,9 @@ function formatTime(d: Date): string {
 }
 
 export default async function AdminReportsPage({ searchParams }: PageProps) {
-  const { key } = await searchParams;
-  if (!key || key !== process.env.ADMIN_SECRET) {
-    return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-black mb-2">🔒 דף אדמין</h1>
-        <p className="text-sm text-foreground-muted mb-4">
-          הוסף את <code className="bg-muted px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
-        </p>
-      </div>
-    );
-  }
+  const sp = await searchParams;
+  await bootstrapLegacyKey(sp, "/admin/reports");
+  await requireAdmin();
 
   const reports = await prisma.report.findMany({
     orderBy: { createdAt: "desc" },
@@ -46,7 +39,7 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
         דיווחים מהקהל על טענות לא מדויקות. השתמש ב<em>סגור</em> אם בדקת ואין מה לתקן, או ב<em>ערוך טענה</em> כדי לעדכן את הטענה עצמה.
       </p>
 
-      <AdminNav active="reports" adminKey={key} />
+      <AdminNav active="reports" />
 
       {reports.length === 0 ? (
         <div className="bg-card border border-border p-8 mt-6 text-center text-foreground-muted" style={{ borderRadius: 4 }}>
@@ -100,7 +93,6 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
               {/* Actions: dismiss (delete report) | edit the underlying claim | open the public page */}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border flex-wrap">
                 <form action={dismissReport}>
-                  <input type="hidden" name="key" value={key} />
                   <input type="hidden" name="id" value={r.id} />
                   <button
                     type="submit"
@@ -112,7 +104,7 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
                   </button>
                 </form>
                 <a
-                  href={`/admin/claims?key=${key}&id=${r.claimId}`}
+                  href={`/admin/claims?id=${r.claimId}`}
                   className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-accent hover:text-accent py-1.5 px-3"
                   style={{ borderRadius: 2 }}
                   title="ערוך את הטענה עצמה (פסק, סטטוס, הסבר)"

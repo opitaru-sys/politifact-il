@@ -3,7 +3,8 @@
  * published), lets the editor tweak the title/intro/sections JSON
  * produced by the generator script, then flip status to "published".
  *
- * Auth: same `?key=ADMIN_SECRET` pattern as /admin/claims.
+ * Auth: cookie-based, set via /admin/login. Server actions validate
+ * the same cookie. See src/lib/admin-auth.ts.
  *
  * The sections editor is a JSON textarea — power-user but adequate for
  * v1. The generator script produces structured drafts; the editor
@@ -15,6 +16,7 @@ import { updateDigest, publishDigest, unpublishDigest, deleteDigest } from "./_a
 import { buildDigestContext, digestSlug } from "@/lib/digest-helpers";
 import { DigestRenderer, type DigestSection } from "@/components/DigestRenderer";
 import { AdminNav } from "@/components/AdminNav";
+import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,17 +25,9 @@ interface PageProps {
 }
 
 export default async function AdminDigestPage({ searchParams }: PageProps) {
-  const { key } = await searchParams;
-  if (!key || key !== process.env.ADMIN_SECRET) {
-    return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-black mb-2">🔒 דף אדמין</h1>
-        <p className="text-sm text-foreground-muted mb-4">
-          הוסף את <code className="bg-muted px-2 py-1 rounded">?key=YOUR_SECRET</code> ל-URL
-        </p>
-      </div>
-    );
-  }
+  const sp = await searchParams;
+  await bootstrapLegacyKey(sp, "/admin/digest");
+  await requireAdmin();
 
   const digests = await prisma.digest.findMany({
     orderBy: { weekOf: "desc" },
@@ -51,7 +45,7 @@ export default async function AdminDigestPage({ searchParams }: PageProps) {
   return (
     <div>
       <div className="mb-4">
-        <AdminNav active="digest" adminKey={key} />
+        <AdminNav active="digest" />
       </div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         אדמין · סיכומים שבועיים
@@ -110,7 +104,6 @@ export default async function AdminDigestPage({ searchParams }: PageProps) {
               </summary>
 
               <form action={updateDigest} className="p-5 space-y-4">
-                <input type="hidden" name="key" value={key} />
                 <input type="hidden" name="id" value={d.id} />
 
                 <div>

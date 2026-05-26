@@ -1,30 +1,30 @@
 /**
- * Shared admin tab bar. Was previously duplicated across status/claims/
- * reports as three local copies; extracted here so adding a new admin
- * page (like /admin/digest) is one entry, not three identical edits.
+ * Shared admin tab bar. Auth now lives in an httpOnly cookie
+ * (see src/lib/admin-auth.ts), so links no longer carry `?key=` —
+ * the cookie travels with every request automatically.
  *
- * Each admin page passes `active` (string id) so the right tab is
- * highlighted, and `adminKey` so the per-tab hrefs carry the secret
- * forward.
+ * The "התנתק" item invokes the logoutAction server action which
+ * clears the cookie and redirects to /admin/login.
  */
 import Link from "next/link";
+import { logoutAction } from "@/app/admin/login/actions";
 
 export type AdminTabId = "status" | "claims" | "reports" | "digest";
 
-const TABS: { id: AdminTabId; label: string; href: (key: string) => string }[] = [
-  { id: "status", label: "סטטוס", href: (k) => `/admin/status?key=${k}` },
-  { id: "claims", label: "עריכת טענות", href: (k) => `/admin/claims?key=${k}` },
-  { id: "reports", label: "דיווחים", href: (k) => `/admin/reports?key=${k}` },
-  { id: "digest", label: "סיכומים", href: (k) => `/admin/digest?key=${k}` },
+const TABS: { id: AdminTabId; label: string; href: string }[] = [
+  { id: "status", label: "סטטוס", href: "/admin/status" },
+  { id: "claims", label: "עריכת טענות", href: "/admin/claims" },
+  { id: "reports", label: "דיווחים", href: "/admin/reports" },
+  { id: "digest", label: "סיכומים", href: "/admin/digest" },
 ];
 
-export function AdminNav({ active, adminKey }: { active: AdminTabId; adminKey: string }) {
+export function AdminNav({ active }: { active: AdminTabId }) {
   return (
     <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase flex-wrap">
       {TABS.map((t) => (
         <Link
           key={t.id}
-          href={t.href(adminKey)}
+          href={t.href}
           className={
             t.id === active
               ? "text-foreground font-bold border-b-2 border-accent pb-1 ml-3"
@@ -34,6 +34,14 @@ export function AdminNav({ active, adminKey }: { active: AdminTabId; adminKey: s
           {t.label} {t.id !== active && "→"}
         </Link>
       ))}
+      <form action={logoutAction} className="ml-auto">
+        <button
+          type="submit"
+          className="text-foreground-muted hover:text-accent font-medium border-b-2 border-transparent pb-1 cursor-pointer"
+        >
+          התנתק ←
+        </button>
+      </form>
     </nav>
   );
 }
