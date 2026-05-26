@@ -8,6 +8,7 @@ import { getEnvVar } from "./env";
 import { verifyClaim } from "./verify-claim";
 import { editorialReview } from "./editorial-review";
 import { findClaimQualityIssues } from "./claim-quality";
+import { currentOfficeholdersBlock } from "./officeholders";
 
 /**
  * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
@@ -154,7 +155,7 @@ function dateContextPreamble(claimDate?: Date | null): string {
 היום: ${iso} (${hebrew}).${claimDateBlock}
 מודל ה-AI שלך מאומן על מידע שעלול לא לכלול אירועים אחרונים. אם הטענה מתייחסת לאירוע שאתה לא מזהה בוודאות מתוך הידע שלך, אל תנחש ואל תייחס אותה לאירוע דומה מהעבר. במקום זה הצהר שאינך יכול לאמת אותה ובחר verdict "half-true" עם confidence נמוך, או החזר בקשה לבדיקה ידנית. עדיף "לא יודע" מאשר תשובה בטוחה לגבי אירוע לא נכון.
 
-`;
+${currentOfficeholdersBlock()}`;
 }
 
 interface ExtractedClaim {

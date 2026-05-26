@@ -34,6 +34,7 @@ yarn-error.log*
 daily-run.log
 drain-queue.log
 verify-run.log
+sweep-*.log
 
 # env files (can opt-in for committing if needed)
 .env
