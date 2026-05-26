@@ -153,6 +153,9 @@ export default async function Home({
             <span className="mx-2 opacity-40">·</span>
             <strong className="text-foreground">נוכחות</strong> = % ישיבות מליאה שדיבר בהן ב-90 ימים
           </div>
+          <div className="opacity-80 text-[10px]">
+            דירוג מתחשב בגודל המדגם — 3 טענות נכונות פחות אמינות מ-30 טענות נכונות, גם אם שתי הקבוצות ב-100%
+          </div>
         </div>
       )}
 
