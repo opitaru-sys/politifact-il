@@ -134,11 +134,11 @@ export default async function RootLayout({
           </div>
         </header>
 
-        {/* AI methodology warning — full text on every viewport. Earlier
-            we had a compact mobile variant but the user wants the full
-            disclaimer visible everywhere because it's a core trust
-            signal, not chrome. Slightly tighter line-height on mobile
-            so it doesn't dominate the first viewport. */}
+        {/* AI methodology warning — compact tagline on mobile (3 lines
+            tall and easy to dismiss visually), full disclaimer on
+            tablet+. The trust signal is still on every viewport; on
+            mobile we trim the secondary clauses so the first-screen
+            doesn't get dominated by chrome. */}
         <div
           className="px-4 sm:px-5 py-2 text-center text-[11px] leading-snug sm:leading-relaxed border-b border-border"
           style={{
@@ -146,10 +146,18 @@ export default async function RootLayout({
             color: "var(--verdict-half)",
           }}
         >
-          <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
-          <span className="opacity-90">
-            אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
-            <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+          {/* Mobile: short form. */}
+          <span className="sm:hidden">
+            <strong className="tracking-wide">הערה:</strong> בדיקות AI עלולות להכיל שגיאות.{" "}
+            <a href="/about#takedown" className="underline font-medium">דווחו על שגיאה</a>.
+          </span>
+          {/* Tablet+: full form. */}
+          <span className="hidden sm:inline">
+            <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
+            <span className="opacity-90">
+              אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
+              <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+            </span>
           </span>
         </div>
 
