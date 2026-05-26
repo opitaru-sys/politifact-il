@@ -105,8 +105,16 @@ export default async function Home({
     <div className="space-y-10">
       {/* Editorial masthead intro */}
       <section className="pt-1 pb-2">
-        <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3">
-          עודכן · {new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+        <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3 flex items-center gap-3 flex-wrap">
+          <span>עודכן · {new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}</span>
+          <span className="opacity-40">·</span>
+          <a
+            href="/digest"
+            className="hover:text-accent-dark transition-colors normal-case tracking-normal text-foreground-muted hover:text-accent"
+            style={{ letterSpacing: "0.05em" }}
+          >
+            השבוע באמינות ←
+          </a>
         </div>
         <h1 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-tight max-w-3xl">
           {/* "אמין" used to be coloured with the verdict-true green, which

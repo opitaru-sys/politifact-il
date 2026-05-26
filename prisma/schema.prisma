@@ -186,6 +186,35 @@ model Article {
   @@index([processed])
 }
 
+/// Weekly digest issue. Pipeline auto-generates a draft each Friday
+/// via scripts/generate-weekly-digest.mts; admin reviews/edits at
+/// /admin/digest and flips status to "published". Public reader sees
+/// the latest published issue at /digest and individual issues at
+/// /digest/[weekOf-YYYY-MM-DD].
+///
+/// `sections` is a JSON array of structured blocks (movers, top
+/// false claim, most-debated topic, headline). Lets the generator
+/// produce data-rich drafts and lets the public renderer style each
+/// section consistently. The admin can edit blocks via a textarea
+/// (advanced) or use the per-section fields once we build them.
+model Digest {
+  id          String   @id @default(cuid())
+  /// Anchor date: the Friday of the week this digest covers. Used
+  /// as the URL slug (YYYY-MM-DD).
+  weekOf      DateTime @unique
+  /// "draft" (generator wrote it, admin hasn't approved) |
+  /// "published" (live at /digest and /digest/[date])
+  status      String   @default("draft")
+  title       String
+  intro       String   // 1-2 sentence framing for the issue
+  sections    Json     // [{ type, heading, body, items?, ... }]
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, weekOf])
+}
+
 /// One row per day. Written at the end of each daily cron run and
 /// surfaced on the admin status page so we can spot regressions
 /// (queue depth blowing up, approval rate dropping, no fresh claims
