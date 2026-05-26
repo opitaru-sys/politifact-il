@@ -70,6 +70,7 @@ function DigestSectionCard({
   claimMap?: Props["claimMap"];
   topicMap?: Props["topicMap"];
 }) {
+  const isInsight = section.type === "insight";
   return (
     <section
       className="bg-card border border-border-strong overflow-hidden"
@@ -79,14 +80,27 @@ function DigestSectionCard({
         <h2 className="font-black text-base tracking-tight">{section.heading}</h2>
       </div>
       <div className="p-5 space-y-4">
-        {section.body && (
+        {section.body && isInsight ? (
+          // Insight bodies are journalist-voice paragraphs. Allow
+          // multi-paragraph splitting so the AI can write more than one
+          // beat when the observation deserves it.
+          <div className="space-y-3 text-[15px] text-foreground leading-[1.7]">
+            {section.body.split(/\n{2,}/).map((para, i) => (
+              <p key={i}>{para.trim()}</p>
+            ))}
+          </div>
+        ) : section.body ? (
           <p className="text-sm text-foreground leading-relaxed">{section.body}</p>
-        )}
+        ) : null}
 
         {section.type === "movers" && section.items && section.items.length > 0 && (
           <MoversList items={section.items} />
         )}
 
+        {/* "claim" section type is no longer emitted by the generator
+            (dropped during the 2026-05-26 reshape: "biggest false claim
+            of the week" was subjective and uninteresting). Kept here
+            for backward compatibility with older digest issues. */}
         {section.type === "claim" && section.claimId && (
           <ClaimRef claimId={section.claimId} claimMap={claimMap} />
         )}

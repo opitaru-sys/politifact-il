@@ -2,32 +2,45 @@
 /**
  * Generate (or refresh) the weekly digest DRAFT.
  *
+ * Pipeline (rewritten 2026-05-26 after the "bare-bones" feedback):
+ *   1. analyzeWeek()    — compute structured patterns
+ *   2. synthesizeDigest() — Gemini turns patterns into journalist-voice
+ *                            insight paragraphs
+ *   3. Assemble sections array (insights + movers visual + topic link)
+ *   4. Upsert as draft (status="draft", admin reviews + publishes)
+ *
  * Anchors at the most recent Friday by default. Pass --week YYYY-MM-DD
  * to target a specific Friday. Idempotent via the Digest.weekOf unique
  * constraint — re-running for the same week updates the draft rather
- * than creating a duplicate.
+ * than creating a duplicate. Refuses to overwrite a published issue.
  *
- * What it computes:
- *   1. Movers — top 3 gainers + top 3 losers (7-day delta)
- *   2. Top "false" claim of the week — highest-confidence שקר verdict
- *   3. Most-debated topic — canonical topic with the most claims this week
- *   4. Headline stats — total claims + politicians active this week
- *
- * Writes a Digest row with status="draft". Admin reviews + edits + flips
- * to "published" via /admin/digest before it appears on /digest.
- *
- * Once the admin workflow proves stable, schedule this in GitHub Actions
- * for early Friday morning UTC.
+ * If the AI synthesis call fails (network, API quota, bad parse), we
+ * fall back to a minimal deterministic draft so the cron never produces
+ * an empty digest row. The fallback is clearly labeled in its intro.
  */
 import { readFileSync } from "fs";
 
-const env = readFileSync(".env.local", "utf8");
-const url = env.match(/^DATABASE_URL=(.*)$/m)?.[1]?.trim();
-if (url) process.env.DATABASE_URL = url;
+function forceLoadEnv(key: string): void {
+  if (process.env[key] && process.env[key]!.length > 5) return;
+  try {
+    const content = readFileSync(".env.local", "utf8");
+    const m = content.match(new RegExp(`^${key}=(.*)$`, "m"));
+    if (m) {
+      let val = m[1].trim();
+      if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+      if (val.length > 5) process.env[key] = val;
+    }
+  } catch {
+    /* file missing */
+  }
+}
+forceLoadEnv("DATABASE_URL");
+forceLoadEnv("GEMINI_API_KEY");
 
 const { PrismaClient } = await import("@prisma/client");
-const { getBiggestMovers } = await import("../src/lib/cred-history");
-const { listCanonicalTopics, rawTopicMatchesSlug } = await import("../src/lib/topics");
+const { analyzeWeek } = await import("../src/lib/digest-analysis");
+const { synthesizeDigest } = await import("../src/lib/digest-synthesis");
+const { topicLabelToSlug } = await import("../src/lib/topics");
 
 const prisma = new PrismaClient();
 
@@ -36,7 +49,7 @@ function getLastFriday(): Date {
   const day = d.getUTCDay(); // 0=Sun, 5=Fri
   const diff = (day - 5 + 7) % 7;
   d.setUTCDate(d.getUTCDate() - diff);
-  d.setUTCHours(12, 0, 0, 0); // noon UTC, avoids DST/timezone fence-post bugs
+  d.setUTCHours(12, 0, 0, 0);
   return d;
 }
 
@@ -54,8 +67,6 @@ function parseWeekOf(): Date {
 
 const APPLY = process.argv.includes("--apply");
 const weekOf = parseWeekOf();
-const weekStart = new Date(weekOf);
-weekStart.setUTCDate(weekStart.getUTCDate() - 7);
 
 const dateLabel = weekOf.toLocaleDateString("he-IL", {
   day: "numeric",
@@ -64,86 +75,77 @@ const dateLabel = weekOf.toLocaleDateString("he-IL", {
 });
 
 console.log(`Generating weekly digest for week ending ${weekOf.toISOString().slice(0, 10)} (${dateLabel})`);
-console.log(`Week range: ${weekStart.toISOString().slice(0, 10)} → ${weekOf.toISOString().slice(0, 10)}\n`);
 
-// ─── Section 1: Movers (7-day) ───────────────────────────────────────
-const movers = await getBiggestMovers({ daysBack: 7, minSample: 10, topN: 3 });
-console.log(`Movers: ${movers.gainers.length} gainers · ${movers.losers.length} losers`);
+// ── Step 1: Analyze ────────────────────────────────────────────────
+console.log(`\nStep 1: analyzing week data...`);
+const analysis = await analyzeWeek(weekOf);
+console.log(`  ${analysis.totalClaims} claims / ${analysis.distinctPoliticians} politicians`);
+console.log(`  truth %: ${analysis.truthPercentage}% (last week: ${analysis.prevWeekTruthPercentage ?? "n/a"})`);
+console.log(`  movers: ${analysis.topGainers.length}↑ / ${analysis.topLosers.length}↓`);
+console.log(`  topic distribution: ${analysis.topicDistribution.slice(0, 5).map((t) => `${t.label}=${t.count}`).join(", ")}`);
+console.log(`  worst topic: ${analysis.worstTopic ? `${analysis.worstTopic.label} ${analysis.worstTopic.truthPercentage}%` : "n/a"}`);
+console.log(`  persistence: ${analysis.persistentLow}/${analysis.totalLowLastWeek} stayed low`);
+console.log(`  first-timers: ${analysis.firstTimePoliticians.length}`);
 
-// ─── Section 2: Top "false" claim of the week ────────────────────────
-const weekClaims = await prisma.claim.findMany({
-  where: {
-    status: "published",
-    editorApproved: true,
-    date: { gte: weekStart, lte: weekOf },
-  },
-  include: { politician: true },
-});
-console.log(`Week's published claims: ${weekClaims.length}`);
-
-const falseOnes = weekClaims
-  .filter((c) => c.verdict === "false")
-  .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-const topFalse = falseOnes[0] ?? null;
-if (topFalse) {
-  console.log(`Top false: "${topFalse.quote.slice(0, 60)}" (${topFalse.politician.name})`);
-}
-
-// ─── Section 3: Most-debated canonical topic ─────────────────────────
-const topicCounts = new Map<string, { slug: string; label: string; count: number }>();
-for (const c of weekClaims) {
-  for (const { slug, label } of listCanonicalTopics()) {
-    if (rawTopicMatchesSlug(c.topic, slug)) {
-      const existing = topicCounts.get(slug);
-      if (existing) existing.count++;
-      else topicCounts.set(slug, { slug, label, count: 1 });
-      break; // count each claim under exactly one canonical topic
-    }
-  }
-}
-const topicRanked = Array.from(topicCounts.values()).sort((a, b) => b.count - a.count);
-const topTopic = topicRanked[0] ?? null;
-console.log(`Top topic: ${topTopic ? `${topTopic.label} (${topTopic.count} claims)` : "none"}`);
-
-// ─── Section 4: Headline stats ───────────────────────────────────────
-const distinctPoliticians = new Set(weekClaims.map((c) => c.politicianId)).size;
-const verdictCounts = {
-  true: weekClaims.filter((c) => c.verdict === "true").length,
-  half: weekClaims.filter((c) => c.verdict === "half-true").length,
-  false: weekClaims.filter((c) => c.verdict === "false").length,
-};
-
-// ─── Build the sections JSON ─────────────────────────────────────────
-interface MoverItem {
-  politicianId: string;
-  politicianName: string;
-  party: string;
-  image: string | null;
-  delta: number;
-  currentScore: number;
-  previousScore: number;
-}
-interface Section {
+// ── Step 2: Synthesize ─────────────────────────────────────────────
+console.log(`\nStep 2: AI synthesis (Gemini journalist-voice)...`);
+type SectionShape = {
   type: string;
   heading: string;
   body: string;
-  items?: MoverItem[];
-  claimId?: string;
+  items?: unknown[];
   topicSlug?: string;
+};
+
+let title: string;
+let intro: string;
+let insightSections: SectionShape[] = [];
+
+try {
+  const synthesized = await synthesizeDigest(analysis);
+  title = synthesized.title;
+  intro = synthesized.intro;
+  insightSections = synthesized.insights.map((ins) => ({
+    type: "insight",
+    heading: ins.heading,
+    body: ins.body,
+  }));
+  console.log(`  ✓ title: ${title}`);
+  console.log(`  ✓ insights: ${synthesized.insights.length}`);
+  for (const i of synthesized.insights) {
+    console.log(`    - ${i.heading}`);
+  }
+} catch (err) {
+  console.error(`  ✗ synthesis failed: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`  falling back to minimal deterministic draft`);
+  title = `סיכום שבועי · ${dateLabel}`;
+  intro =
+    `הפקה אוטומטית של בסיס הנתונים השבועי. שלב הסינתזה של ה-AI נכשל; טיוטה זו דורשת עריכה ידנית לפני פרסום.`;
+  insightSections = [
+    {
+      type: "insight",
+      heading: "השבוע במספרים",
+      body: `${analysis.totalClaims} טענות נבדקו ב-7 הימים האחרונים, של ${analysis.distinctPoliticians} פוליטיקאים. ${analysis.verdictCounts.true} סווגו אמת, ${analysis.verdictCounts.halfTrue} חצי-אמת, ${analysis.verdictCounts.false} שקר. ממוצע אחוז האמת המשוקלל: ${analysis.truthPercentage}%.`,
+    },
+  ];
 }
 
-const sections: Section[] = [];
+// ── Step 3: Assemble sections ──────────────────────────────────────
+// Structure: headline stats card → insight paragraphs → visual movers
+// card → topic link. Editor can reorder/delete via the admin JSON.
+const sections: SectionShape[] = [];
 
 sections.push({
   type: "headline_stats",
   heading: "השבוע במספרים",
-  body: `${weekClaims.length} טענות נבדקו ב-7 הימים האחרונים, של ${distinctPoliticians} פוליטיקאים. ` +
-    `${verdictCounts.true} סווגו אמת, ${verdictCounts.half} חצי-אמת, ${verdictCounts.false} שקר.`,
+  body: `${analysis.totalClaims} טענות · ${analysis.distinctPoliticians} פוליטיקאים · ${analysis.verdictCounts.true} אמת · ${analysis.verdictCounts.halfTrue} חצי · ${analysis.verdictCounts.false} שקר · ${analysis.truthPercentage}% אמת משוקלל.`,
 });
 
-if (movers.gainers.length > 0 || movers.losers.length > 0) {
-  const items: MoverItem[] = [];
-  for (const g of movers.gainers) {
+sections.push(...insightSections);
+
+if (analysis.topGainers.length > 0 || analysis.topLosers.length > 0) {
+  const items: object[] = [];
+  for (const g of analysis.topGainers) {
     items.push({
       politicianId: g.politician.id,
       politicianName: g.politician.name,
@@ -154,7 +156,7 @@ if (movers.gainers.length > 0 || movers.losers.length > 0) {
       previousScore: g.previousScore,
     });
   }
-  for (const l of movers.losers) {
+  for (const l of analysis.topLosers) {
     items.push({
       politicianId: l.politician.id,
       politicianName: l.politician.name,
@@ -168,42 +170,26 @@ if (movers.gainers.length > 0 || movers.losers.length > 0) {
   sections.push({
     type: "movers",
     heading: "מי עלה ומי ירד באמינות",
-    body:
-      `דירוג השינויים של 7 הימים האחרונים. מינימום 10 טענות בכל חלון של 30 הימים שמשמש לחישוב הציון.`,
+    body: `שינויי ציון האמינות (חלון נע של 30 ימים) ב-7 הימים האחרונים. מינימום 10 טענות בכל אנכור כדי להיכלל.`,
     items,
   });
 }
 
-if (topFalse) {
-  sections.push({
-    type: "claim",
-    heading: "הטענה השקרית הבולטת השבוע",
-    body: `"${topFalse.quote}" — ${topFalse.politician.name} (${topFalse.politician.party}). ${topFalse.summary ?? ""}`.trim(),
-    claimId: topFalse.id,
-  });
-}
-
-if (topTopic && topTopic.count >= 3) {
+// Topic link: only if there's a clearly dominant topic (≥20% of week's claims).
+const dominantTopic = analysis.topicDistribution[0];
+if (dominantTopic && dominantTopic.pctOfWeek >= 20) {
+  const slug = topicLabelToSlug(dominantTopic.label) ?? dominantTopic.slug;
   sections.push({
     type: "topic",
-    heading: "הנושא שלא ירד מהכותרות",
-    body: `${topTopic.label} זכה השבוע ל-${topTopic.count} טענות נבדקות — יותר מכל נושא אחר. ראה את כל הפוליטיקאים בנושא.`,
-    topicSlug: topTopic.slug,
+    heading: "הנושא שהוביל את השבוע",
+    body: `${dominantTopic.label} זכה ל-${dominantTopic.count} טענות, ${dominantTopic.pctOfWeek}% מסך הטענות השבוע. עברו לדף הנושא לראות את כל הפוליטיקאים שדיברו עליו.`,
+    topicSlug: slug,
   });
 }
-
-const title = `השבוע באמינות · ${dateLabel}`;
-const intro =
-  `סיכום אוטומטי של מה שקרה השבוע בעולם בדיקת העובדות הפוליטיות: מי עלה ומי ירד באמינות, ` +
-  `מה הייתה הטענה השקרית הבולטת, ומה הנושא שהעסיק את הפוליטיקאים. הסיכום נערך על ידי עורך לפני פרסום.`;
 
 console.log(`\nDraft summary:`);
 console.log(`  title: ${title}`);
-console.log(`  intro: ${intro.slice(0, 80)}...`);
-console.log(`  sections: ${sections.length}`);
-for (const s of sections) {
-  console.log(`    - [${s.type}] ${s.heading}`);
-}
+console.log(`  sections: ${sections.length} (${sections.map((s) => s.type).join(", ")})`);
 
 if (!APPLY) {
   console.log(`\nDry-run. Re-run with --apply to upsert as draft.`);
@@ -211,13 +197,11 @@ if (!APPLY) {
   process.exit(0);
 }
 
-// Upsert: if a digest for this weekOf exists and is still in draft,
-// update it. If it's already published, refuse to overwrite (the admin
-// has shipped this issue; regenerating would silently destroy edits).
+// ── Step 4: Upsert ─────────────────────────────────────────────────
 const existing = await prisma.digest.findUnique({ where: { weekOf } });
 if (existing && existing.status === "published") {
   console.error(`\n✗ A published digest for ${weekOf.toISOString().slice(0, 10)} already exists. Refusing to overwrite.`);
-  console.error(`  If you really want to regenerate, set its status back to "draft" via /admin/digest first.`);
+  console.error(`  Set its status back to "draft" via /admin/digest first if you really want to regenerate.`);
   await prisma.$disconnect();
   process.exit(1);
 }
