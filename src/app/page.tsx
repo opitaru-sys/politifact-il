@@ -85,9 +85,15 @@ export default async function Home({
     })(),
     (async () => {
       console.time("page.getBiggestMovers");
-      // 7-day movers, min sample 15 in both windows. The card renders
-      // null if there aren't enough movers to be substantive.
-      const r = await getBiggestMovers({ daysBack: 7, minSample: 15, topN: 3 });
+      // 7-day movers, min sample 10 in both windows. 10 is the standard
+      // threshold for proportional confidence intervals; below that, the
+      // small-sample correction dominates real signal. Started at 15
+      // (purer) but the dataset was too thin for the card to ever show
+      // — switched to 10 once the timeline chart proved out and we
+      // wanted the home-page card to actually appear. Tighten back up
+      // when the median politician has 20+ claims in their 30-day
+      // window. The card self-hides if total movers < 4.
+      const r = await getBiggestMovers({ daysBack: 7, minSample: 10, topN: 3 });
       console.timeEnd("page.getBiggestMovers");
       return r;
     })(),
