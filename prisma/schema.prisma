@@ -25,6 +25,41 @@ model Politician {
   updatedAt DateTime @updatedAt
   claims    Claim[]
   knessetActivity KnessetActivity?
+  credibilitySnapshots CredibilitySnapshot[]
+}
+
+/// Snapshot of a politician's credibility computed over a rolling window
+/// ending at `asOf`. Rebuilt nightly by scripts/snapshot-credibility.mts
+/// (wired into scripts/daily.mts) and backfilled by
+/// scripts/backfill-cred-snapshots.mts for the 12 months prior to launch.
+///
+/// Why store this instead of computing on-demand:
+///  - The /home BiggestMovers card needs (today - 7d) as a baseline;
+///    computing that from raw claims on every render is wasteful.
+///  - The /politician/[id] timeline chart needs 26-52 data points per
+///    politician — pre-baking is much cheaper than recomputing 52
+///    Wilson intervals per render.
+///  - We can change window math without touching live code paths.
+///
+/// Window choice: 30 days is the default (matches the site's primary
+/// stats window). Other window sizes can coexist as separate rows.
+model CredibilitySnapshot {
+  id               String     @id @default(cuid())
+  politicianId     String
+  politician       Politician @relation(fields: [politicianId], references: [id])
+  asOf             DateTime   // end of the rolling window
+  windowDays       Int        // 30 by default
+  totalClaims      Int        // sample size in the window
+  trueClaims       Int
+  halfTrue         Int
+  falseClaims      Int
+  truthPercentage  Float      // raw % (weighted: (true + 0.5*half) / total * 100)
+  credibilityScore Float      // Wilson 95% lower bound, 0-100
+  createdAt        DateTime   @default(now())
+
+  @@unique([politicianId, asOf, windowDays])
+  @@index([asOf])
+  @@index([politicianId, asOf])
 }
 
 /// Knesset activity snapshot for one MK. One row per Politician, refreshed

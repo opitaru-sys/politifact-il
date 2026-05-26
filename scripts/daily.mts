@@ -127,6 +127,59 @@ try {
   console.error("Knesset activity refresh failed:", err);
 }
 
+// Per-politician credibility snapshot for the day. Powers the
+// /politician/[id] timeline chart and the home-page BiggestMovers
+// card. Cheap (~120 small SQL aggregations), idempotent via
+// (politicianId, asOf, windowDays) unique constraint.
+console.log("\n--- Snapshotting per-politician credibility ---");
+try {
+  const { PrismaClient: PC1 } = await import("@prisma/client");
+  const { wilsonLowerBound } = await import("../src/lib/queries");
+  const p1 = new PC1();
+  const WINDOW_DAYS = 30;
+  const asOf = new Date();
+  asOf.setUTCHours(23, 59, 59, 999);
+  const windowStart = new Date(asOf);
+  windowStart.setDate(windowStart.getDate() - WINDOW_DAYS);
+  const pols = await p1.politician.findMany({ select: { id: true } });
+  let written = 0;
+  for (const pol of pols) {
+    const claims = await p1.claim.findMany({
+      where: {
+        politicianId: pol.id,
+        status: "published",
+        editorApproved: true,
+        date: { gte: windowStart, lte: asOf },
+      },
+      select: { verdict: true },
+    });
+    const total = claims.length;
+    if (total === 0) continue;
+    const trueC = claims.filter((c) => c.verdict === "true").length;
+    const halfT = claims.filter((c) => c.verdict === "half-true").length;
+    const falseC = claims.filter((c) => c.verdict === "false").length;
+    const weighted = trueC + halfT * 0.5;
+    const data = {
+      totalClaims: total,
+      trueClaims: trueC,
+      halfTrue: halfT,
+      falseClaims: falseC,
+      truthPercentage: Math.round((weighted / total) * 100),
+      credibilityScore: Math.round(wilsonLowerBound(weighted, total) * 100),
+    };
+    await p1.credibilitySnapshot.upsert({
+      where: { politicianId_asOf_windowDays: { politicianId: pol.id, asOf, windowDays: WINDOW_DAYS } },
+      create: { politicianId: pol.id, asOf, windowDays: WINDOW_DAYS, ...data },
+      update: data,
+    });
+    written++;
+  }
+  console.log(`Credibility snapshots: ${written}/${pols.length} politicians written`);
+  await p1.$disconnect();
+} catch (err) {
+  console.error("Credibility snapshot write failed:", err);
+}
+
 // Record today's metrics in DailySnapshot so the admin dashboard's
 // history chart has a fresh row. Idempotent — re-runs the same day
 // just update the existing row. Inlined here (rather than importing

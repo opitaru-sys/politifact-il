@@ -7,10 +7,12 @@ import {
   getMostMentionedPoliticians,
 } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
+import { getBiggestMovers } from "@/lib/cred-history";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { PartiesPreview } from "@/components/PartiesPreview";
 import { InHeadlinesStrip } from "@/components/InHeadlinesStrip";
+import { BiggestMovers } from "@/components/BiggestMovers";
 import { SearchBar } from "@/components/SearchBar";
 import { FeedFilters } from "@/components/FeedFilters";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -44,7 +46,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart, activityMap, partyStats, mostMentioned] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap, partyStats, mostMentioned, movers] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -79,6 +81,14 @@ export default async function Home({
       console.time("page.getMostMentionedPoliticians");
       const r = await getMostMentionedPoliticians(statsWindow.days, 8);
       console.timeEnd("page.getMostMentionedPoliticians");
+      return r;
+    })(),
+    (async () => {
+      console.time("page.getBiggestMovers");
+      // 7-day movers, min sample 15 in both windows. The card renders
+      // null if there aren't enough movers to be substantive.
+      const r = await getBiggestMovers({ daysBack: 7, minSample: 15, topN: 3 });
+      console.timeEnd("page.getBiggestMovers");
       return r;
     })(),
   ]);
@@ -140,6 +150,13 @@ export default async function Home({
         <LiarOfTheWeek stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
         <LeaderboardPreview stats={stats} windowDays={statsWindow.days} activityMap={activityMap} />
       </div>
+
+      {/* Biggest movers — credibility delta over the last 7 days, top 3
+          gainers + top 3 losers side by side. Self-hides if there aren't
+          enough eligible politicians (min 15 claims in both anchor
+          windows) to be substantive. Powered by pre-baked
+          CredibilitySnapshot rows so the read is one cheap query. */}
+      <BiggestMovers gainers={movers.gainers} losers={movers.losers} daysBack={7} />
 
       {/* Parties preview — third dimension (aggregated by faction).
           Full width below the hero+leaderboard duo so the 3-color

@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { wilsonLowerBound } from "@/lib/queries";
+import { getPoliticianTimeline } from "@/lib/cred-history";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { KnessetActivityCard } from "@/components/KnessetActivityCard";
+import { CredibilityTimeline } from "@/components/CredibilityTimeline";
 import { resolveWindow, windowLabel } from "@/lib/window";
 import { notFound } from "next/navigation";
 
@@ -30,7 +32,13 @@ interface PageProps {
 export default async function PoliticianPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { window: windowParam } = await searchParams;
-  const data = await getPoliticianById(id);
+  // Fetch politician details and credibility timeline in parallel — both
+  // are independent DB queries. Timeline window is the maximum (12 months);
+  // the chart filters in-memory based on its own 3/6/12 selector.
+  const [data, timelinePoints] = await Promise.all([
+    getPoliticianById(id),
+    getPoliticianTimeline(id, 12),
+  ]);
   if (!data) notFound();
 
   // Filter the politician's claims to the active stats window. The
@@ -206,6 +214,23 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
           </p>
         )}
       </div>
+
+      {/* Credibility timeline — pre-baked CredibilitySnapshot rows
+          (rolling 30-day Wilson, written nightly). Chart filters
+          in-memory based on its 3/6/12-month selector. Hidden gracefully
+          if the politician has no historical snapshots yet. */}
+      {timelinePoints.length > 0 && (
+        <div className="mb-8">
+          <CredibilityTimeline
+            points={timelinePoints.map((p) => ({
+              asOf: p.asOf.toISOString(),
+              totalClaims: p.totalClaims,
+              truthPercentage: p.truthPercentage,
+              credibilityScore: p.credibilityScore,
+            }))}
+          />
+        </div>
+      )}
 
       {/* Knesset activity card — plenum participation %, bill
           sponsorship, current committee/role roster. Rendered inside
