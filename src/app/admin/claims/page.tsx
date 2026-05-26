@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { updateClaim, deleteClaim } from "../_actions";
+import { AdminNav } from "@/components/AdminNav";
 
 export const dynamic = "force-dynamic";
 
@@ -421,27 +422,3 @@ function ClaimRow({ claim, adminKey, defaultOpen = false }: { claim: ClaimRowDat
   );
 }
 
-function AdminNav({ active, adminKey }: { active: "status" | "claims" | "reports"; adminKey: string }) {
-  const items: { id: typeof active; label: string; href: string }[] = [
-    { id: "status", label: "סטטוס", href: `/admin/status?key=${adminKey}` },
-    { id: "claims", label: "עריכת טענות", href: `/admin/claims?key=${adminKey}` },
-    { id: "reports", label: "דיווחים", href: `/admin/reports?key=${adminKey}` },
-  ];
-  return (
-    <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase">
-      {items.map((it) => (
-        <a
-          key={it.id}
-          href={it.href}
-          className={
-            it.id === active
-              ? "text-foreground font-bold border-b-2 border-accent pb-1 ml-3"
-              : "text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1 ml-3"
-          }
-        >
-          {it.label} {it.id !== active && "→"}
-        </a>
-      ))}
-    </nav>
-  );
-}

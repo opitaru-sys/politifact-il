@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db";
 import { updateDigest, publishDigest, unpublishDigest, deleteDigest } from "./_actions";
 import { buildDigestContext, digestSlug } from "@/lib/digest-helpers";
 import { DigestRenderer, type DigestSection } from "@/components/DigestRenderer";
+import { AdminNav } from "@/components/AdminNav";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,9 @@ export default async function AdminDigestPage({ searchParams }: PageProps) {
 
   return (
     <div>
+      <div className="mb-4">
+        <AdminNav active="digest" adminKey={key} />
+      </div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         אדמין · סיכומים שבועיים
       </div>
