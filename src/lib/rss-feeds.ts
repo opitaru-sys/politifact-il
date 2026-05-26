@@ -71,8 +71,15 @@ export const NAME_TO_ID: Record<string, string> = {
   // misattribution between May Golan (Likud) and Yair Golan
   // (הדמוקרטים, added below). Full names only for the Golans.
 
-  // הדמוקרטים — Yair Golan added 2026-05-26 after user flagged the gap.
+  // הדמוקרטים — 4 MKs total. Golan added 2026-05-26. Kariv, Lazimi,
+  // and Rayten were originally in העבודה but moved to הדמוקרטים after
+  // the 2024 merger. Michaeli refused the merger and stays in the
+  // rump Labor faction — her NAME_TO_ID entry stays under העבודה.
   "יאיר גולן": "yair-golan",
+  // Kariv, Lazimi, Rayten entries are already in the יש עתיד-adjacent
+  // section below under their original political home; their party
+  // affiliation is corrected in the DB (politician.party) but the
+  // NAME_TO_ID id remains stable (gilad-kariv etc.).
 
   // ביחד (Bennett 2026 party). Bennett is no longer a sitting MK but
   // remains highly quoted; the politician row existed but had no
@@ -184,4 +191,13 @@ export const NAME_TO_ID: Record<string, string> = {
   "שרון ניר": "sharon-nir",
   "רון כץ": "ron-katz",
   "יאסר חוג'יראת": "yasser-hujirat", "יאסר חג'יראת": "yasser-hujirat",
+
+  // === New MKs added 2026-05-26 after web-research verification ===
+  // יש עתיד: Mati Tzarfati Harkabi (#18 on list), Michal Shir Segman
+  // (Likud → New Hope → Yesh Atid via Saar's merger).
+  "מטי צרפתי הרכבי": "mati-tzarfati-harkabi", "מטי הרכבי": "mati-tzarfati-harkabi",
+  "מיכל שיר סגמן": "michal-shir-segman", "מיכל שיר": "michal-shir-segman",
+  // חד"ש-תע"ל: Samer Ben Saeed (sworn in June 2025 via rotation
+  // agreement, replacing Yosef Atawneh on the Ta'al component).
+  "סמיר בן סעיד": "samer-ben-saeed",
 };
