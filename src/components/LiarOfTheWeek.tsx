@@ -1,8 +1,13 @@
+import Link from "next/link";
 import type { PoliticianStatsRow } from "@/lib/queries";
 import type { ActivitySnapshot } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
 import { getPoliticianTimeline, type TimelinePoint } from "@/lib/cred-history";
 import { PoliticianAvatar } from "./PoliticianAvatar";
+import { ShareButtons } from "./ShareButtons";
+import { shareTextForHero } from "@/lib/share-text";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 function scoreColor(pct: number): string {
   if (pct < 40) return "var(--verdict-false)";
@@ -118,10 +123,12 @@ export async function LiarOfTheWeek({
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      {/* Primary card. Frames the leader as "1st place out of N", not "the most credible". */}
-      <a
-        href={`/politician/${top.politician.id}`}
-        className="group relative bg-card border border-border-strong p-6 flex-1 overflow-hidden hover:bg-muted/40 transition-colors block"
+      {/* Primary card. Frames the leader as "1st place out of N", not
+          "the most credible". Outer wrapper is a <div> (not <a>) so we
+          can nest the ShareButtons + politician-link in a footer
+          without invalid-HTML nested-interactive elements. */}
+      <div
+        className="relative bg-card border border-border-strong p-6 flex-1 overflow-hidden"
         style={{ borderRadius: 4 }}
       >
         {/* Eyebrow: position, not superlative */}
@@ -140,8 +147,11 @@ export async function LiarOfTheWeek({
           {smallPool && <span className="text-foreground-muted/80"> מדגם קטן.</span>}
         </div>
 
-        {/* Politician identity */}
-        <div className="flex items-center gap-4 mb-5">
+        {/* Politician identity — entire row clickable to profile */}
+        <Link
+          href={`/politician/${top.politician.id}`}
+          className="flex items-center gap-4 mb-5 hover:opacity-80 transition-opacity"
+        >
           <PoliticianAvatar
             id={top.politician.id}
             name={top.politician.name}
@@ -156,7 +166,7 @@ export async function LiarOfTheWeek({
               {top.politician.party}
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Score + verdict breakdown on one row — reader sees the math at a glance */}
         <div className="flex items-end justify-between gap-4 border-t border-border pt-5">
@@ -260,10 +270,27 @@ export async function LiarOfTheWeek({
           </div>
         )}
 
-        <div className="mt-4 text-[11px] text-foreground-muted group-hover:text-accent transition-colors">
-          קרא את כל הטענות של {top.politician.name} ←
+        {/* Footer: explicit profile link + ShareButtons. Now that the
+            outer wrapper is a <div>, both interactive elements can sit
+            side-by-side without nested-anchor weirdness. */}
+        <div className="mt-4 pt-4 border-t border-border flex items-center justify-between gap-3">
+          <Link
+            href={`/politician/${top.politician.id}`}
+            className="text-[11px] text-foreground-muted hover:text-accent transition-colors font-bold"
+          >
+            קרא את כל הטענות של {top.politician.name} ←
+          </Link>
+          <ShareButtons
+            text={shareTextForHero(
+              top.politician.name,
+              top.credibilityScore,
+              showBottom ? bottom.politician.name : null,
+              showBottom ? bottom.credibilityScore : null,
+            )}
+            url={SITE_URL}
+          />
         </div>
-      </a>
+      </div>
 
       {/* Secondary card — "last place", neutral framing. Hide if no gap. */}
       {showBottom && (

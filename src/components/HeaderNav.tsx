@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "ראשי" },
   { href: "/leaderboard", label: "טבלה" },
+  { href: "/topics", label: "נושאים" },
   { href: "/parties", label: "מפלגות" },
   { href: "/compare", label: "השוואה" },
   { href: "/about", label: "אודות" },

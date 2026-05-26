@@ -8,7 +8,7 @@ import { ReportButton } from "./ReportButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButtons } from "./ShareButtons";
 import { shareTextForClaim } from "@/lib/share-text";
-import { topicDisplayLabel } from "@/lib/topics";
+import { topicDisplayLabel, topicLabelToSlug, normalizeTopic } from "@/lib/topics";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -136,13 +136,22 @@ export function ClaimCard({ claim }: { claim: ClaimWithPolitician }) {
               <span className="truncate">{claim.factSource}</span>
             </>
           )}
-          <a
-            href={`/?topic=${encodeURIComponent(claim.topic)}`}
-            className="text-foreground-muted hover:text-accent font-medium"
-            title={`סנן לפי נושא: ${claim.topic}`}
-          >
-            · {topicDisplayLabel(claim.topic)}
-          </a>
+          {(() => {
+            // Canonical topic → dedicated /topic/[slug] landing page.
+            // Free-text topic → fall back to the filtered home feed.
+            const canonicalLabel = normalizeTopic(claim.topic);
+            const slug = topicLabelToSlug(canonicalLabel);
+            const href = slug ? `/topic/${slug}` : `/?topic=${encodeURIComponent(claim.topic)}`;
+            return (
+              <a
+                href={href}
+                className="text-foreground-muted hover:text-accent font-medium"
+                title={slug ? `דף נושא: ${canonicalLabel}` : `סנן לפי נושא: ${claim.topic}`}
+              >
+                · {topicDisplayLabel(claim.topic)}
+              </a>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ShareButtons

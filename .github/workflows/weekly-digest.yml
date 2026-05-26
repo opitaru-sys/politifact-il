@@ -1,0 +1,49 @@
+name: Weekly digest draft
+
+# Auto-generates the weekly digest draft every Friday morning. The
+# script writes a `status: "draft"` Digest row — it does NOT publish.
+# The editor reviews + edits at /admin/digest, then clicks "פרסם"
+# manually. So the cron is the "reminder + first 80% of the work"
+# half of the workflow.
+#
+# Schedule: 06:00 IDT every Friday. Same DST trick as daily-ingest:
+# run at 03:00 UTC and 04:00 UTC; the script's upsert-by-weekOf is
+# idempotent so the duplicate run just updates the same draft.
+
+on:
+  schedule:
+    - cron: "0 3 * * 5"
+    - cron: "0 4 * * 5"
+  workflow_dispatch:
+    # Manual trigger for ad-hoc regeneration from the UI.
+
+# Prevent two scheduled runs racing on the same DB row.
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Prisma client (Postgres)
+        run: npm run db:gen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Generate weekly digest draft
+        run: npx tsx scripts/generate-weekly-digest.mts --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

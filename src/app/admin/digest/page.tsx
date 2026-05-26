@@ -12,7 +12,8 @@
  */
 import { prisma } from "@/lib/db";
 import { updateDigest, publishDigest, unpublishDigest, deleteDigest } from "./_actions";
-import { digestSlug } from "@/lib/digest-helpers";
+import { buildDigestContext, digestSlug } from "@/lib/digest-helpers";
+import { DigestRenderer, type DigestSection } from "@/components/DigestRenderer";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,15 @@ export default async function AdminDigestPage({ searchParams }: PageProps) {
   const digests = await prisma.digest.findMany({
     orderBy: { weekOf: "desc" },
   });
+
+  // Build the preview context once for every digest so each <details>
+  // can render a live preview alongside the edit form.
+  const previewContexts = new Map<string, Awaited<ReturnType<typeof buildDigestContext>>>();
+  for (const d of digests) {
+    const sections = (d.sections ?? []) as unknown as DigestSection[];
+    const ctx = await buildDigestContext(sections);
+    previewContexts.set(d.id, ctx);
+  }
 
   return (
     <div>
@@ -192,6 +202,27 @@ export default async function AdminDigestPage({ searchParams }: PageProps) {
                   </a>
                 </div>
               )}
+
+              {/* Inline preview — same renderer the public page uses,
+                  so what you see here is exactly what readers see.
+                  Updates on save. */}
+              <div className="border-t-[1.5px] border-border-strong">
+                <div className="px-5 py-2 text-[10px] uppercase tracking-wider font-bold text-foreground-muted bg-muted/30">
+                  תצוגה מקדימה (מה שהקוראים יראו)
+                </div>
+                <div className="p-5 bg-background">
+                  <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
+                    סיכום שבועי · {d.weekOf.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                  <h3 className="text-2xl font-black mb-3 tracking-tight">{d.title}</h3>
+                  <p className="text-sm text-foreground-muted mb-6 leading-relaxed">{d.intro}</p>
+                  <DigestRenderer
+                    sections={(d.sections ?? []) as unknown as DigestSection[]}
+                    claimMap={previewContexts.get(d.id)?.claimMap}
+                    topicMap={previewContexts.get(d.id)?.topicMap}
+                  />
+                </div>
+              </div>
             </details>
           ))}
         </div>

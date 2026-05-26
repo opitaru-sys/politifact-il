@@ -19,6 +19,7 @@ import {
   getPoliticianStatsForTopic,
   getRecentClaimsForTopic,
 } from "@/lib/topic-stats";
+import { getPoliticianStats } from "@/lib/data";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { ClaimCard } from "@/components/ClaimCard";
@@ -81,9 +82,10 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   const winDays = selected.days;
   const windowLabel = windowLabelFn(selected.value);
 
-  const [allStats, recentClaims] = await Promise.all([
+  const [allStats, recentClaims, overallStats] = await Promise.all([
     getPoliticianStatsForTopic(slug, winDays),
     getRecentClaimsForTopic(slug, winDays, CLAIMS_FEED_LIMIT),
+    getPoliticianStats(winDays),
   ]);
 
   const ranked = allStats.filter((s) => s.totalClaims >= MIN_FOR_RANKING);
@@ -97,6 +99,51 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
 
   const totalClaims = allStats.reduce((s, x) => s + x.totalClaims, 0);
   const totalPoliticians = allStats.length;
+
+  // === Insights ===
+  // Aggregate "true %" on the topic: sum of (true + 0.5*half) across
+  // ALL claims on this topic, divided by total. Treats every claim
+  // equally regardless of which politician said it.
+  const aggregateTrue = allStats.reduce(
+    (s, x) => s + x.trueClaims + x.halfTrueClaims * 0.5,
+    0,
+  );
+  const topicTruthPct = totalClaims > 0 ? Math.round((aggregateTrue / totalClaims) * 100) : null;
+
+  // Site-wide raw % for comparison — same weighted formula.
+  const siteTotal = overallStats.reduce((s, x) => s + x.totalClaims, 0);
+  const siteTrue = overallStats.reduce(
+    (s, x) => s + x.trueClaims + x.halfTrueClaims * 0.5,
+    0,
+  );
+  const siteTruthPct = siteTotal > 0 ? Math.round((siteTrue / siteTotal) * 100) : null;
+  const truthDelta =
+    topicTruthPct !== null && siteTruthPct !== null ? topicTruthPct - siteTruthPct : null;
+
+  // Largest discrepancy: politician whose credibility on this topic
+  // differs most from their overall credibility. Only consider
+  // politicians with enough sample in both. Useful insight: "politician
+  // X is much better/worse on this topic than they are overall."
+  const overallById = new Map(overallStats.map((s) => [s.politician.id, s]));
+  const discrepancies = ranked
+    .map((topicRow) => {
+      const overall = overallById.get(topicRow.politician.id);
+      if (!overall || overall.totalClaims < 5) return null;
+      return {
+        politician: topicRow.politician,
+        topicScore: topicRow.credibilityScore,
+        overallScore: overall.credibilityScore,
+        delta: topicRow.credibilityScore - overall.credibilityScore,
+        sample: topicRow.totalClaims,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+  const biggestStronger = discrepancies.length
+    ? discrepancies.reduce((best, d) => (d.delta > best.delta ? d : best))
+    : null;
+  const biggestWeaker = discrepancies.length
+    ? discrepancies.reduce((best, d) => (d.delta < best.delta ? d : best))
+    : null;
 
   // Serialize for the ClaimCard client component.
   const serializedClaims = recentClaims.map((c) => ({
@@ -158,6 +205,96 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       <div className="mb-6">
         <WindowSelector basePath={`/topic/${slug}`} selectedValue={selected.value} />
       </div>
+
+      {/* Insights band — the "so what" for the topic page. Compares
+          aggregate topic-level credibility to the site average and
+          highlights the biggest topic-vs-overall discrepancy. Self-
+          hides when the topic has too little data to compute either. */}
+      {topicTruthPct !== null && (
+        <div
+          className="bg-card border border-border-strong overflow-hidden mb-8"
+          style={{ borderRadius: 4 }}
+        >
+          <div className="px-5 py-3.5 border-b border-border">
+            <h2 className="font-black text-base tracking-tight">תובנות מהירות</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+            <div className="px-5 py-4">
+              <div className="text-[10px] uppercase tracking-wider font-bold text-foreground-muted mb-1">
+                ממוצע אמינות בנושא {label}
+              </div>
+              <div className="flex items-baseline gap-3 mt-2">
+                <div
+                  className="text-3xl font-black tabular-nums leading-none"
+                  style={{ color: scoreColor(topicTruthPct) }}
+                >
+                  {topicTruthPct}%
+                </div>
+                {truthDelta !== null && Math.abs(truthDelta) >= 2 && (
+                  <div
+                    className="text-[12px] font-bold tabular-nums"
+                    style={{
+                      color: truthDelta > 0 ? "var(--verdict-true)" : "var(--verdict-false)",
+                    }}
+                  >
+                    {truthDelta > 0 ? "↑ +" : "↓ "}{Math.abs(truthDelta)} נק׳ מהממוצע באתר
+                  </div>
+                )}
+                {truthDelta !== null && Math.abs(truthDelta) < 2 && (
+                  <div className="text-[12px] text-foreground-muted">
+                    בקו עם הממוצע באתר ({siteTruthPct}%)
+                  </div>
+                )}
+              </div>
+              <div className="text-[11px] text-foreground-muted mt-2 leading-snug">
+                ממוצע משוקלל של {totalClaims} טענות בנושא {label}.{" "}
+                {truthDelta !== null && Math.abs(truthDelta) >= 2 && (
+                  <>
+                    באתר כולו הממוצע הוא {siteTruthPct}%, כלומר פוליטיקאים{" "}
+                    {truthDelta > 0 ? "אמינים יותר" : "פחות אמינים"} כאשר הם מדברים על {label}.
+                  </>
+                )}
+              </div>
+            </div>
+
+            {(biggestStronger || biggestWeaker) && (
+              <div className="px-5 py-4">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-foreground-muted mb-2">
+                  הבדל בולט מול הציון הכללי
+                </div>
+                {biggestStronger && biggestStronger.delta > 5 && (
+                  <DiscrepancyRow
+                    politician={biggestStronger.politician}
+                    topicScore={biggestStronger.topicScore}
+                    overallScore={biggestStronger.overallScore}
+                    delta={biggestStronger.delta}
+                    sample={biggestStronger.sample}
+                    label={label}
+                    tone="positive"
+                  />
+                )}
+                {biggestWeaker && biggestWeaker.delta < -5 && biggestWeaker.politician.id !== biggestStronger?.politician.id && (
+                  <DiscrepancyRow
+                    politician={biggestWeaker.politician}
+                    topicScore={biggestWeaker.topicScore}
+                    overallScore={biggestWeaker.overallScore}
+                    delta={biggestWeaker.delta}
+                    sample={biggestWeaker.sample}
+                    label={label}
+                    tone="negative"
+                  />
+                )}
+                {(!biggestStronger || Math.abs(biggestStronger.delta) <= 5) &&
+                 (!biggestWeaker || Math.abs(biggestWeaker.delta) <= 5) && (
+                  <div className="text-[11px] text-foreground-muted leading-relaxed">
+                    אין הבדלים משמעותיים: ציוני הפוליטיקאים בנושא זה דומים לציון הכללי שלהם.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {ranked.length === 0 ? (
         <div
@@ -274,6 +411,46 @@ function RankCard({
         ))}
       </ol>
     </div>
+  );
+}
+
+function DiscrepancyRow({
+  politician,
+  topicScore,
+  overallScore,
+  delta,
+  sample,
+  label,
+  tone,
+}: {
+  politician: { id: string; name: string; party: string; image: string | null };
+  topicScore: number;
+  overallScore: number;
+  delta: number;
+  sample: number;
+  label: string;
+  tone: "positive" | "negative";
+}) {
+  const color = tone === "positive" ? "var(--verdict-true)" : "var(--verdict-false)";
+  const sign = delta > 0 ? "+" : "";
+  return (
+    <Link
+      href={`/politician/${politician.id}`}
+      className="flex items-center gap-3 py-2 hover:opacity-80 transition-opacity"
+    >
+      <PoliticianAvatar id={politician.id} name={politician.name} image={politician.image} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className="font-bold text-sm truncate">{politician.name}</div>
+        <div className="text-[11px] text-foreground-muted truncate">
+          על {label}: {topicScore}% · בכלל: {overallScore}% · {sample} טענות
+        </div>
+      </div>
+      <div className="text-left shrink-0">
+        <div className="font-black text-sm tabular-nums leading-none" style={{ color }}>
+          {sign}{delta.toFixed(0)} נק׳
+        </div>
+      </div>
+    </Link>
   );
 }
 
