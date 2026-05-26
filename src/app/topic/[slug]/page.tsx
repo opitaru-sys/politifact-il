@@ -1,0 +1,302 @@
+/**
+ * Topic landing page. One URL per canonical topic
+ * (/topic/security, /topic/economy, /topic/justice, ...).
+ *
+ * Lives between the home page (broad cross-politician view) and the
+ * politician profile (narrow single-politician view) as the third
+ * axis: one topic, all politicians. Answers "who's most/least credible
+ * on the economy?" in one URL Google can rank for.
+ *
+ * Data slice only — no AI inference. Uses the existing canonical-topic
+ * regex library in src/lib/topics.ts; same one powering the
+ * per-politician TopicBreakdown card.
+ */
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { slugToTopicLabel, listCanonicalTopics } from "@/lib/topics";
+import {
+  getPoliticianStatsForTopic,
+  getRecentClaimsForTopic,
+} from "@/lib/topic-stats";
+import { PoliticianAvatar } from "@/components/PoliticianAvatar";
+import { WindowSelector } from "@/components/WindowSelector";
+import { ClaimCard } from "@/components/ClaimCard";
+import { ShareButtons } from "@/components/ShareButtons";
+import { shareTextForRanking } from "@/lib/share-text";
+import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
+import type { Claim, Verdict } from "@/data/mock";
+
+export const dynamic = "force-dynamic";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
+
+/** Tells Next.js which slugs are known at build time. Helps SEO crawl
+ *  and lets Vercel cache the per-slug shells. */
+export async function generateStaticParams() {
+  return listCanonicalTopics().map(({ slug }) => ({ slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const label = slugToTopicLabel(slug);
+  if (!label) return {};
+  return {
+    title: `${label} · אמינות פוליטיקאים | בדוק`,
+    description: `מי הפוליטיקאים הכי אמינים בנושא ${label}? דירוג מתוקנן לגודל מדגם, מבוסס על טענות שנבדקו אוטומטית.`,
+    openGraph: {
+      title: `אמינות פוליטיקאים בנושא ${label}`,
+      description: `דירוג פוליטיקאים ישראליים על נושא ${label}.`,
+      url: `${SITE_URL}/topic/${slug}`,
+    },
+  };
+}
+
+function scoreColor(pct: number): string {
+  if (pct < 40) return "var(--verdict-false)";
+  if (pct < 60) return "var(--verdict-half)";
+  return "var(--verdict-true)";
+}
+
+const MIN_FOR_RANKING = 3;
+const TOP_BOTTOM_COUNT = 5;
+const CLAIMS_FEED_LIMIT = 30;
+
+interface PageProps {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ window?: string }>;
+}
+
+export default async function TopicPage({ params, searchParams }: PageProps) {
+  const { slug } = await params;
+  const { window: windowParam } = await searchParams;
+  const label = slugToTopicLabel(slug);
+  if (!label) notFound();
+
+  const selected = resolveWindow(windowParam);
+  const winDays = selected.days;
+  const windowLabel = windowLabelFn(selected.value);
+
+  const [allStats, recentClaims] = await Promise.all([
+    getPoliticianStatsForTopic(slug, winDays),
+    getRecentClaimsForTopic(slug, winDays, CLAIMS_FEED_LIMIT),
+  ]);
+
+  const ranked = allStats.filter((s) => s.totalClaims >= MIN_FOR_RANKING);
+  const top = ranked.slice(0, TOP_BOTTOM_COUNT);
+  const bottom = [...ranked].reverse().slice(0, TOP_BOTTOM_COUNT);
+
+  // If both lists overlap (small pool), trim the bottom to politicians
+  // not already in top so the reader doesn't see the same name twice.
+  const topIds = new Set(top.map((s) => s.politician.id));
+  const bottomDistinct = bottom.filter((s) => !topIds.has(s.politician.id));
+
+  const totalClaims = allStats.reduce((s, x) => s + x.totalClaims, 0);
+  const totalPoliticians = allStats.length;
+
+  // Serialize for the ClaimCard client component.
+  const serializedClaims = recentClaims.map((c) => ({
+    id: c.id,
+    politicianId: c.politicianId,
+    quote: c.quote,
+    verdict: c.verdict as Verdict,
+    summary: c.summary,
+    explanation: c.explanation,
+    source: c.source,
+    sourceUrl: c.sourceUrl,
+    factSource: c.factSource,
+    factSourceUrl: c.factSourceUrl,
+    editorApproved: c.editorApproved,
+    verifierNotes: c.verifierNotes,
+    date: c.date.toISOString().split("T")[0],
+    topic: c.topic,
+    _politician: {
+      id: c.politician.id,
+      name: c.politician.name,
+      party: c.politician.party,
+      image: c.politician.image,
+    },
+    _commentCount: c._count.comments,
+  })) satisfies (Claim & {
+    _politician?: { id: string; name: string; party: string; image: string | null };
+    _commentCount?: number;
+  })[];
+
+  return (
+    <div>
+      <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
+        נושא · {windowLabel}
+      </div>
+      <div className="flex items-baseline justify-between gap-4 mb-3 flex-wrap">
+        <h1 className="text-4xl font-black tracking-tight">{label}</h1>
+        <ShareButtons
+          text={shareTextForRanking(
+            `${label} · אמינות פוליטיקאים`,
+            top.map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
+            5,
+          )}
+          url={`${SITE_URL}/topic/${slug}`}
+        />
+      </div>
+      <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
+        אמינות פוליטיקאים ישראליים בנושא {label}.{" "}
+        {totalClaims > 0 ? (
+          <>
+            <span className="text-foreground font-bold">{totalClaims} טענות</span>{" "}
+            של <span className="text-foreground font-bold">{totalPoliticians} פוליטיקאים</span> נבדקו{" "}
+            {windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}.
+          </>
+        ) : (
+          <>אין מספיק נתונים בנושא הזה בחלון הזמן שנבחר.</>
+        )}
+      </p>
+
+      <div className="mb-6">
+        <WindowSelector basePath={`/topic/${slug}`} selectedValue={selected.value} />
+      </div>
+
+      {ranked.length === 0 ? (
+        <div
+          className="bg-card border border-border-strong p-6 text-center"
+          style={{ borderRadius: 4 }}
+        >
+          <p className="text-sm text-foreground-muted">
+            אין פוליטיקאים עם {MIN_FOR_RANKING}+ טענות בנושא הזה בחלון הזמן שנבחר.{" "}
+            <a href={`/topic/${slug}?window=90`} className="underline hover:no-underline font-bold">
+              נסו חלון של 3 חודשים ←
+            </a>
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
+          <RankCard
+            title="הכי אמינים בנושא"
+            stats={top}
+            tone="positive"
+          />
+          {bottomDistinct.length > 0 && (
+            <RankCard
+              title="הכי פחות אמינים בנושא"
+              stats={bottomDistinct}
+              tone="negative"
+            />
+          )}
+        </div>
+      )}
+
+      {serializedClaims.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-baseline justify-between mb-5 pb-3 border-b-[1.5px] border-border-strong">
+            <h2 className="font-black text-xl tracking-tight">
+              טענות אחרונות בנושא {label}
+            </h2>
+            <span className="text-[11px] uppercase tracking-wider text-foreground-muted tabular-nums">
+              {serializedClaims.length} טענות
+            </span>
+          </div>
+          <div className="space-y-4">
+            {serializedClaims.map((claim) => (
+              <ClaimCard key={claim.id} claim={claim} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <OtherTopicsNav currentSlug={slug} />
+    </div>
+  );
+}
+
+function RankCard({
+  title,
+  stats,
+  tone,
+}: {
+  title: string;
+  stats: {
+    politician: { id: string; name: string; party: string; image: string | null };
+    totalClaims: number;
+    truthPercentage: number;
+    credibilityScore: number;
+  }[];
+  tone: "positive" | "negative";
+}) {
+  const accentColor = tone === "positive" ? "var(--verdict-true)" : "var(--verdict-false)";
+  return (
+    <div
+      className="bg-card border border-border-strong overflow-hidden"
+      style={{ borderRadius: 4 }}
+    >
+      <div className="px-5 py-3.5 border-b border-border">
+        <div className="text-[10px] uppercase tracking-wider font-bold" style={{ color: accentColor }}>
+          {title}
+        </div>
+      </div>
+      <ol>
+        {stats.map((stat, i) => (
+          <li key={stat.politician.id} className="border-b border-border last:border-b-0">
+            <Link
+              href={`/politician/${stat.politician.id}`}
+              className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/40 transition-colors"
+            >
+              <span className="text-sm font-black text-foreground-muted w-5 tabular-nums">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <PoliticianAvatar
+                id={stat.politician.id}
+                name={stat.politician.name}
+                image={stat.politician.image}
+                size="sm"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm truncate">{stat.politician.name}</div>
+                <div className="text-[11px] text-foreground-muted truncate">{stat.politician.party}</div>
+              </div>
+              <div className="text-left shrink-0">
+                <div
+                  className="font-black text-base tabular-nums leading-none"
+                  style={{ color: scoreColor(stat.credibilityScore) }}
+                  title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
+                >
+                  {stat.credibilityScore}
+                  <span className="text-xs">%</span>
+                </div>
+                <div className="text-[10px] tabular-nums text-foreground-muted mt-0.5">
+                  {stat.totalClaims} טענות
+                </div>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function OtherTopicsNav({ currentSlug }: { currentSlug: string }) {
+  const others = listCanonicalTopics().filter((t) => t.slug !== currentSlug);
+  return (
+    <section className="pt-6 border-t border-border">
+      <div className="text-[11px] uppercase tracking-wider text-foreground-muted font-bold mb-3">
+        עוד נושאים
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {others.map((t) => (
+          <Link
+            key={t.slug}
+            href={`/topic/${t.slug}`}
+            className="text-xs px-3 py-1.5 bg-card border border-border hover:border-foreground-muted hover:bg-muted/40 transition-colors"
+            style={{ borderRadius: 2 }}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+

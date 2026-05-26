@@ -18,7 +18,7 @@
  * array the parent page already loaded — no new DB query.
  */
 import Link from "next/link";
-import { normalizeTopic } from "@/lib/topics";
+import { normalizeTopic, topicLabelToSlug } from "@/lib/topics";
 import { wilsonLowerBound } from "@/lib/queries";
 
 const MIN_PER_TOPIC = 5; // below this, the Wilson bound is too wide to be informative
@@ -111,10 +111,17 @@ export function TopicBreakdown({ politicianId, claims, windowLabel }: Props) {
           const falseWidth = (r.falseClaims / r.total) * 100;
           const halfWidth = (r.halfTrue / r.total) * 100;
           const trueWidth = (r.trueClaims / r.total) * 100;
+          // Canonical topic → /topic/[slug] (compare across politicians).
+          // Free-text topic (no canonical match) → filtered home feed
+          // (this politician's claims, that exact topic string).
+          const slug = topicLabelToSlug(r.topic);
+          const href = slug
+            ? `/topic/${slug}`
+            : `/?politician=${politicianId}&topic=${encodeURIComponent(r.topic)}`;
           return (
             <li key={r.topic} className="border-b border-border last:border-b-0">
               <Link
-                href={`/?politician=${politicianId}&topic=${encodeURIComponent(r.topic)}`}
+                href={href}
                 className="block px-5 py-3 hover:bg-muted/40 transition-colors"
                 title={`${r.trueClaims} אמת · ${r.halfTrue} חצי · ${r.falseClaims} שקר`}
               >
