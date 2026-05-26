@@ -66,6 +66,10 @@ function parseWeekOf(): Date {
 }
 
 const APPLY = process.argv.includes("--apply");
+/** `--force` overwrites an already-published digest. Use sparingly —
+ *  it silently destroys whatever the editor approved. Intended for
+ *  development / prompt-tuning iterations. */
+const FORCE = process.argv.includes("--force");
 const weekOf = parseWeekOf();
 
 const dateLabel = weekOf.toLocaleDateString("he-IL", {
@@ -199,11 +203,16 @@ if (!APPLY) {
 
 // ── Step 4: Upsert ─────────────────────────────────────────────────
 const existing = await prisma.digest.findUnique({ where: { weekOf } });
-if (existing && existing.status === "published") {
+if (existing && existing.status === "published" && !FORCE) {
   console.error(`\n✗ A published digest for ${weekOf.toISOString().slice(0, 10)} already exists. Refusing to overwrite.`);
-  console.error(`  Set its status back to "draft" via /admin/digest first if you really want to regenerate.`);
+  console.error(`  Options:`);
+  console.error(`    1. Set its status back to "draft" via /admin/digest, then re-run.`);
+  console.error(`    2. Re-run with --force to overwrite (silently destroys what the editor approved).`);
   await prisma.$disconnect();
   process.exit(1);
+}
+if (existing && existing.status === "published" && FORCE) {
+  console.warn(`\n⚠ --force given: overwriting published digest for ${weekOf.toISOString().slice(0, 10)}.`);
 }
 
 const upserted = await prisma.digest.upsert({

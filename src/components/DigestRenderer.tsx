@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { PoliticianAvatar } from "./PoliticianAvatar";
 import { VerdictBadge } from "./VerdictBadge";
+import { InsightBody } from "./InsightBody";
 
 interface MoverItem {
   politicianId: string;
@@ -81,14 +82,11 @@ function DigestSectionCard({
       </div>
       <div className="p-5 space-y-4">
         {section.body && isInsight ? (
-          // Insight bodies are journalist-voice paragraphs. Allow
-          // multi-paragraph splitting so the AI can write more than one
-          // beat when the observation deserves it.
-          <div className="space-y-3 text-[15px] text-foreground leading-[1.7]">
-            {section.body.split(/\n{2,}/).map((para, i) => (
-              <p key={i}>{para.trim()}</p>
-            ))}
-          </div>
+          // Insight bodies are journalist-voice paragraphs with optional
+          // {{P:id|name}} markers wrapping politician mentions. The
+          // shared <InsightBody> renderer handles both multi-paragraph
+          // splitting AND politician-name → hyperlink expansion.
+          <InsightBody body={section.body} />
         ) : section.body ? (
           <p className="text-sm text-foreground leading-relaxed">{section.body}</p>
         ) : null}

@@ -20,10 +20,13 @@ import {
   getRecentClaimsForTopic,
 } from "@/lib/topic-stats";
 import { getPoliticianStats } from "@/lib/data";
+import { genderOf, verb, pronoun } from "@/lib/politician-gender";
+import { markPolitician } from "@/lib/insight-markup";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { ClaimCard } from "@/components/ClaimCard";
 import { ShareButtons } from "@/components/ShareButtons";
+import { InsightBody } from "@/components/InsightBody";
 import { shareTextForRanking } from "@/lib/share-text";
 import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
 import type { Claim, Verdict } from "@/data/mock";
@@ -210,12 +213,14 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   }
 
   if (dominantVoice && dominantShare !== null && dominantShare >= 20 && ranked.length >= 2) {
+    const g = genderOf(dominantVoice.politician.id);
+    const nameMark = markPolitician(dominantVoice.politician.id, dominantVoice.politician.name);
     insightParagraphs.push({
       heading: "מי מוביל את השיח",
       body:
-        `${dominantVoice.politician.name} (${dominantVoice.politician.party}) הוא הקול הדומיננטי בנושא ${label} בחלון הזה: ${dominantVoice.totalClaims} טענות, ${dominantShare}% מסך הטענות בנושא. ` +
-        `הציון שלו בנושא הוא ${dominantVoice.credibilityScore}% (${dominantVoice.truthPercentage}% אחוז אמת גולמי). ` +
-        `כשפוליטיקאי בודד מייצר נתח כה משמעותי מהדיון, רמת הדיוק שלו צובעת בפועל את כל הנושא.`,
+        `${nameMark} (${dominantVoice.politician.party}) ${pronoun(g, "subject")} הקול הדומיננטי בנושא ${label} בחלון הזה: ${dominantVoice.totalClaims} טענות, ${dominantShare}% מסך הטענות בנושא. ` +
+        `הציון ${pronoun(g, "possessive")} בנושא ${pronoun(g, "subject")} ${dominantVoice.credibilityScore}% (${dominantVoice.truthPercentage}% אחוז אמת גולמי). ` +
+        `כשפוליטיקאי בודד מייצר נתח כה משמעותי מהדיון, רמת הדיוק ${pronoun(g, "possessive")} צובעת בפועל את כל הנושא.`,
     });
   }
 
@@ -238,11 +243,13 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   }
 
   if (biggestStronger && biggestStronger.delta >= 15) {
+    const g = genderOf(biggestStronger.politician.id);
+    const nameMark = markPolitician(biggestStronger.politician.id, biggestStronger.politician.name);
     insightParagraphs.push({
-      heading: `${biggestStronger.politician.name} בולט לטובה`,
+      heading: `${biggestStronger.politician.name} ${verb(g, "בולט", "בולטת")} לטובה`,
       body:
-        `${biggestStronger.politician.name} (${biggestStronger.politician.party}) מקבל ${biggestStronger.topicScore}% בנושא ${label}, לעומת ${biggestStronger.overallScore}% בלבד בציון הכללי שלו. ` +
-        `פער של ${biggestStronger.delta} נקודות. בנושא הזה הוא מציג סטנדרט שונה משאר התחומים. סביר שזו זירת התמחות שלו, או שהוא נמנע מטענות שאינו יכול לאמת.`,
+        `${nameMark} (${biggestStronger.politician.party}) ${verb(g, "מקבל", "מקבלת")} ${biggestStronger.topicScore}% בנושא ${label}, לעומת ${biggestStronger.overallScore}% בלבד בציון הכללי ${pronoun(g, "possessive")}. ` +
+        `פער של ${biggestStronger.delta} נקודות. בנושא הזה ${pronoun(g, "subject")} ${verb(g, "מציג", "מציגה")} סטנדרט שונה משאר התחומים. סביר שזו זירת התמחות ${pronoun(g, "possessive")}, או ש${pronoun(g, "subject")} ${verb(g, "נמנע", "נמנעת")} מטענות ש${verb(g, "אינו יכול", "אינה יכולה")} לאמת.`,
     });
   }
 
@@ -251,11 +258,13 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
     biggestWeaker.delta <= -15 &&
     biggestWeaker.politician.id !== biggestStronger?.politician.id
   ) {
+    const g = genderOf(biggestWeaker.politician.id);
+    const nameMark = markPolitician(biggestWeaker.politician.id, biggestWeaker.politician.name);
     insightParagraphs.push({
-      heading: `${biggestWeaker.politician.name} בולט לרעה`,
+      heading: `${biggestWeaker.politician.name} ${verb(g, "בולט", "בולטת")} לרעה`,
       body:
-        `${biggestWeaker.politician.name} (${biggestWeaker.politician.party}) מקבל ${biggestWeaker.topicScore}% בנושא ${label}, לעומת ${biggestWeaker.overallScore}% בציון הכללי שלו. ` +
-        `כשהוא נכנס לנושא הזה, רמת האמינות שלו צונחת ב-${Math.abs(biggestWeaker.delta)} נקודות. או שזו זירה שמושכת ממנו הצהרות שאינן עומדות במבחן, או שהוא מסתמך על מקורות פחות מהימנים כשהוא מדבר עליה.`,
+        `${nameMark} (${biggestWeaker.politician.party}) ${verb(g, "מקבל", "מקבלת")} ${biggestWeaker.topicScore}% בנושא ${label}, לעומת ${biggestWeaker.overallScore}% בציון הכללי ${pronoun(g, "possessive")}. ` +
+        `כש${pronoun(g, "subject")} ${verb(g, "נכנס", "נכנסת")} לנושא הזה, רמת האמינות ${pronoun(g, "possessive")} צונחת ב-${Math.abs(biggestWeaker.delta)} נקודות. או שזו זירה שמושכת ${pronoun(g, "from")} הצהרות שאינן עומדות במבחן, או ש${pronoun(g, "subject")} ${verb(g, "מסתמך", "מסתמכת")} על מקורות פחות מהימנים כש${pronoun(g, "subject")} ${verb(g, "מדבר", "מדברת")} עליה.`,
     });
   }
 
@@ -346,7 +355,7 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
             {insightParagraphs.map((p, i) => (
               <section key={i}>
                 <h3 className="font-black text-sm tracking-tight mb-2">{p.heading}</h3>
-                <p className="text-[15px] text-foreground leading-[1.7]">{p.body}</p>
+                <InsightBody body={p.body} />
               </section>
             ))}
           </div>

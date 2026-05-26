@@ -20,6 +20,7 @@
 import Link from "next/link";
 import { normalizeTopic, topicLabelToSlug } from "@/lib/topics";
 import { wilsonLowerBound } from "@/lib/queries";
+import { genderOf, verb, pronoun } from "@/lib/politician-gender";
 
 const MIN_PER_TOPIC = 5; // below this, the Wilson bound is too wide to be informative
 
@@ -101,11 +102,12 @@ export function TopicBreakdown({ politicianId, claims, windowLabel }: Props) {
   const strongest = byScore[0];
   const weakest = byScore[byScore.length - 1];
   const spread = strongest.credibilityScore - weakest.credibilityScore;
+  const g = genderOf(politicianId);
   const insight =
     spread >= 30
-      ? `סטנדרט הדיוק של הפוליטיקאי משתנה דרמטית לפי נושא: ${spread} נקודות הפרש בין הנושא החזק ביותר (${strongest.topic}, ${strongest.credibilityScore}%) לנושא החלש ביותר (${weakest.topic}, ${weakest.credibilityScore}%). פער של גודל כזה מעיד על תחומי התמחות, או על נושאים שבהם הוא מסתמך על מקורות שאינם עומדים במבחן.`
+      ? `סטנדרט הדיוק ${pronoun(g, "possessive")} משתנה דרמטית לפי נושא: ${spread} נקודות הפרש בין הנושא החזק ביותר (${strongest.topic}, ${strongest.credibilityScore}%) לנושא החלש ביותר (${weakest.topic}, ${weakest.credibilityScore}%). פער של גודל כזה ${verb(g, "מעיד", "מעידה")} על תחומי התמחות, או על נושאים שבהם ${pronoun(g, "subject")} ${verb(g, "מסתמך", "מסתמכת")} על מקורות שאינם עומדים במבחן.`
       : spread >= 15
-        ? `סטנדרט הדיוק עקבי יחסית בין נושאים, עם פער של ${spread} נקודות בלבד בין הנושא החזק (${strongest.topic}, ${strongest.credibilityScore}%) לחלש (${weakest.topic}, ${weakest.credibilityScore}%).`
+        ? `סטנדרט הדיוק ${pronoun(g, "possessive")} עקבי יחסית בין נושאים, עם פער של ${spread} נקודות בלבד בין הנושא החזק (${strongest.topic}, ${strongest.credibilityScore}%) לחלש (${weakest.topic}, ${weakest.credibilityScore}%).`
         : null;
 
   return (

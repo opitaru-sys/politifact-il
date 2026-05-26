@@ -16,6 +16,7 @@
  */
 import { GoogleGenAI } from "@google/genai";
 import { getEnvVar } from "./env";
+import { genderOf } from "./politician-gender";
 import type { WeeklyAnalysis } from "./digest-analysis";
 
 function getGemini() {
@@ -53,7 +54,10 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
     year: "numeric",
   });
 
-  // Compact JSON of the analysis — Gemini reads this as context.
+  // Compact JSON of the analysis — Gemini reads this as context. Every
+  // politician entry carries `id` and `gender` so the prompt can
+  // (a) wrap names in the {{P:id|Name}} hyperlink marker and
+  // (b) use the right Hebrew verb / pronoun form.
   const data = {
     week_ending: analysis.weekOf.toISOString().slice(0, 10),
     week_label_hebrew: dateLabel,
@@ -72,7 +76,9 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
     },
     movers_7_day: {
       gainers: analysis.topGainers.map((m) => ({
+        id: m.politician.id,
         name: m.politician.name,
+        gender: genderOf(m.politician.id),
         party: m.politician.party,
         delta_points: Math.round(m.delta * 10) / 10,
         current_score_pct: m.currentScore,
@@ -80,7 +86,9 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
         sample_size: m.currentSample,
       })),
       losers: analysis.topLosers.map((m) => ({
+        id: m.politician.id,
         name: m.politician.name,
+        gender: genderOf(m.politician.id),
         party: m.politician.party,
         delta_points: Math.round(m.delta * 10) / 10,
         current_score_pct: m.currentScore,
@@ -94,7 +102,14 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
       best: analysis.bestTopic,
     },
     volume_vs_accuracy: {
-      top_by_volume: analysis.topByVolume,
+      top_by_volume: analysis.topByVolume.map((p) => ({
+        id: p.politicianId,
+        name: p.politicianName,
+        gender: genderOf(p.politicianId),
+        party: p.party,
+        claim_count: p.claimCount,
+        truth_pct: p.truthPercentage,
+      })),
       top_volume_avg_truth_pct: analysis.topVolumeAvgTruth,
       week_avg_truth_pct: analysis.weekAvgTruth,
     },
@@ -106,7 +121,12 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
           ? Math.round((analysis.persistentLow / analysis.totalLowLastWeek) * 100)
           : null,
     },
-    first_time_politicians: analysis.firstTimePoliticians,
+    first_time_politicians: analysis.firstTimePoliticians.map((p) => ({
+      id: p.id,
+      name: p.name,
+      gender: genderOf(p.id),
+      party: p.party,
+    })),
     sources: analysis.sourceCounts,
   };
 
@@ -127,6 +147,18 @@ function buildPrompt(analysis: WeeklyAnalysis): string {
 - פתיחות גנריות ("בשבוע שעבר אירעו אירועים רבים..."). פתח עם העובדה הקונקרטית.
 - מילים שמרככות בלי סיבה: "לעיתים", "במידה מסוימת", "באופן יחסי".
 - אימוג'ים. הדגשות מיותרות. סימני קריאה.
+
+**שימוש בעברית מגדרית נכון:**
+- כל פוליטיקאי/ת בנתונים מסומן/ת עם שדה \`gender\` ("M" או "F"). השתמש בצורת הפועל/השם/הכינוי המתאימה למגדר.
+- דוגמאות לנשים: "מרב מיכאלי טענה" (לא "טען"), "היא מסתמכת" (לא "מסתמך"), "הציון שלה" (לא "שלו"), "ממנה" (לא "ממנו"), "מקבלת" (לא "מקבל"), "בולטת" (לא "בולט").
+- בכותרת של פסקה שמתחילה בשם של פוליטיקאית, ודא שגם הפועל בכותרת מתואם: "מרב מיכאלי בולטת לרעה" (לא "בולט לרעה").
+
+**קישורים לפוליטיקאים — חובה לעטוף שמות:**
+- בכל פעם שאתה מזכיר שם של פוליטיקאי/ת בגוף הטקסט (\`body\`), עטוף את השם בפורמט: \`{{P:politician_id|שם להצגה}}\`.
+- ה-\`politician_id\` מופיע בשדה \`id\` של כל פוליטיקאי/ת בנתונים. השם הוא בדיוק כפי שהיית רושם אותו בעברית בטקסט.
+- דוגמה: במקום "בנימין נתניהו הציג 59% אמת" כתוב "{{P:netanyahu|בנימין נתניהו}} הציג 59% אמת".
+- אל תעטוף שמות בכותרת (\`heading\`) — שם השדות \`P:id\` הוא רק ל-body.
+- אם הזכרת אותה פוליטיקאית/ה כמה פעמים באותה פסקה, עטוף את כל המופעים.
 
 **הנתונים השבועיים (שבוע שמסתיים ב-${dateLabel}):**
 
@@ -190,17 +222,26 @@ export async function synthesizeDigest(analysis: WeeklyAnalysis): Promise<Synthe
   }
 
   return {
-    title: String(parsed.title).trim(),
-    intro: String(parsed.intro).trim(),
+    title: stripPoliticianMarkers(String(parsed.title).trim()),
+    intro: stripPoliticianMarkers(String(parsed.intro).trim()),
     insights: parsed.insights
       .filter((i): i is { heading: string; body: string } =>
         typeof i?.heading === "string" && typeof i?.body === "string",
       )
       .map((i) => ({
-        heading: i.heading.trim(),
+        // Strip markers from heading — the prompt says don't put them
+        // there but Gemini doesn't always listen, and a raw `{{P:...}}`
+        // in a heading reads as a bug.
+        heading: stripPoliticianMarkers(i.heading.trim()),
         body: stripAITropes(i.body.trim()),
       })),
   };
+}
+
+/** Removes {{P:id|Name}} markers, leaving just the name. Used for
+ *  fields where hyperlinks aren't appropriate (title, headings). */
+function stripPoliticianMarkers(s: string): string {
+  return s.replace(/\{\{P:[^|}]+\|([^}]+)\}\}/g, "$1");
 }
 
 /**
