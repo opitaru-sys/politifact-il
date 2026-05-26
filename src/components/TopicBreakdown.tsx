@@ -94,6 +94,20 @@ export function TopicBreakdown({ politicianId, claims, windowLabel }: Props) {
   // row is just the headline restated.
   if (rows.length < 2) return null;
 
+  // Insight line above the table: best vs. worst topic + spread.
+  // A 30+ point gap is the threshold for it to read as a real story
+  // ("they're a specialist on X, weak on Y") rather than noise.
+  const byScore = [...rows].sort((a, b) => b.credibilityScore - a.credibilityScore);
+  const strongest = byScore[0];
+  const weakest = byScore[byScore.length - 1];
+  const spread = strongest.credibilityScore - weakest.credibilityScore;
+  const insight =
+    spread >= 30
+      ? `סטנדרט הדיוק של הפוליטיקאי משתנה דרמטית לפי נושא: ${spread} נקודות הפרש בין הנושא החזק ביותר (${strongest.topic}, ${strongest.credibilityScore}%) לנושא החלש ביותר (${weakest.topic}, ${weakest.credibilityScore}%). פער של גודל כזה מעיד על תחומי התמחות, או על נושאים שבהם הוא מסתמך על מקורות שאינם עומדים במבחן.`
+      : spread >= 15
+        ? `סטנדרט הדיוק עקבי יחסית בין נושאים, עם פער של ${spread} נקודות בלבד בין הנושא החזק (${strongest.topic}, ${strongest.credibilityScore}%) לחלש (${weakest.topic}, ${weakest.credibilityScore}%).`
+        : null;
+
   return (
     <section
       className="bg-card border border-border-strong overflow-hidden mb-8"
@@ -105,6 +119,11 @@ export function TopicBreakdown({ politicianId, claims, windowLabel }: Props) {
           {windowLabel ? `${windowLabel} · ` : ""}פילוח טענות לפי תחום
         </div>
       </div>
+      {insight && (
+        <div className="px-5 py-4 border-b border-border bg-muted/20">
+          <p className="text-[14px] text-foreground leading-[1.7]">{insight}</p>
+        </div>
+      )}
 
       <ol>
         {rows.map((r) => {

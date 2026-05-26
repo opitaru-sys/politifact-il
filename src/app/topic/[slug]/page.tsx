@@ -120,6 +120,42 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   const truthDelta =
     topicTruthPct !== null && siteTruthPct !== null ? topicTruthPct - siteTruthPct : null;
 
+  // Verdict distribution on topic — used to narrate "shape" of the
+  // week (more outright lies vs more half-truths vs mostly true).
+  const verdictTotals = allStats.reduce(
+    (acc, x) => ({
+      true: acc.true + x.trueClaims,
+      half: acc.half + x.halfTrueClaims,
+      false: acc.false + x.falseClaims,
+    }),
+    { true: 0, half: 0, false: 0 },
+  );
+  const verdictShape = (() => {
+    if (totalClaims === 0) return null;
+    const falsePct = Math.round((verdictTotals.false / totalClaims) * 100);
+    const halfPct = Math.round((verdictTotals.half / totalClaims) * 100);
+    const truePct = Math.round((verdictTotals.true / totalClaims) * 100);
+    return { falsePct, halfPct, truePct };
+  })();
+
+  // Dominant voice on topic — politician with the most claims here.
+  const dominantVoice = ranked.length > 0 ? ranked[0] : null;
+  const dominantShare =
+    dominantVoice && totalClaims > 0
+      ? Math.round((dominantVoice.totalClaims / totalClaims) * 100)
+      : null;
+
+  // Spread of credibility on topic — wide spread = contested terrain;
+  // narrow spread = shared baseline of accuracy (or shared sources).
+  const spread =
+    ranked.length >= 4
+      ? {
+          max: ranked[0].credibilityScore,
+          min: ranked[ranked.length - 1].credibilityScore,
+          range: ranked[0].credibilityScore - ranked[ranked.length - 1].credibilityScore,
+        }
+      : null;
+
   // Largest discrepancy: politician whose credibility on this topic
   // differs most from their overall credibility. Only consider
   // politicians with enough sample in both. Useful insight: "politician
@@ -144,6 +180,93 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   const biggestWeaker = discrepancies.length
     ? discrepancies.reduce((best, d) => (d.delta < best.delta ? d : best))
     : null;
+
+  // Build journalist-voice paragraph list. Each paragraph fires only
+  // when its underlying pattern is genuinely signal — empty topics,
+  // tiny spreads, weak discrepancies all get skipped rather than
+  // padded with bland sentences. Quality > quantity.
+  const insightParagraphs: { heading: string; body: string }[] = [];
+
+  if (topicTruthPct !== null && siteTruthPct !== null) {
+    if (Math.abs(truthDelta ?? 0) >= 5) {
+      const direction = (truthDelta ?? 0) > 0 ? "מעל" : "מתחת";
+      const points = Math.abs(truthDelta ?? 0);
+      insightParagraphs.push({
+        heading: "המקום של הנושא במפת האמינות",
+        body:
+          `ממוצע אחוז האמת המשוקלל בנושא ${label} עומד על ${topicTruthPct}%, ${points} נקודות ${direction} לממוצע האתר (${siteTruthPct}%). ` +
+          ((truthDelta ?? 0) < 0
+            ? `כשהשיח עובר לזירה הזו, רמת הדיוק העובדתי של הפוליטיקאים נשחקת. ${label} הוא נושא שמייצר טענות פחות מדויקות מהממוצע — בין אם בגלל אופי הדיון, הפלגנות, או היעדר נתונים זמינים שניתן לאמת.`
+            : `בנושא הזה הפוליטיקאים מציגים סטנדרט גבוה מהממוצע. סביר שהדיון מבוסס על מקורות זמינים יותר, או שהציבור הקשוב לנושא דורש דיוק רב יותר.`),
+      });
+    } else {
+      insightParagraphs.push({
+        heading: "המקום של הנושא במפת האמינות",
+        body:
+          `אחוז האמת המשוקלל בנושא ${label} הוא ${topicTruthPct}%, סמוך לממוצע האתר של ${siteTruthPct}%. ` +
+          `כשפוליטיקאים מדברים על ${label}, רמת הדיוק שלהם דומה לזו שהם מציגים בשאר התחומים.`,
+      });
+    }
+  }
+
+  if (dominantVoice && dominantShare !== null && dominantShare >= 20 && ranked.length >= 2) {
+    insightParagraphs.push({
+      heading: "מי מוביל את השיח",
+      body:
+        `${dominantVoice.politician.name} (${dominantVoice.politician.party}) הוא הקול הדומיננטי בנושא ${label} בחלון הזה: ${dominantVoice.totalClaims} טענות, ${dominantShare}% מסך הטענות בנושא. ` +
+        `הציון שלו בנושא הוא ${dominantVoice.credibilityScore}% (${dominantVoice.truthPercentage}% אחוז אמת גולמי). ` +
+        `כשפוליטיקאי בודד מייצר נתח כה משמעותי מהדיון, רמת הדיוק שלו צובעת בפועל את כל הנושא.`,
+    });
+  }
+
+  if (verdictShape && totalClaims >= 8) {
+    if (verdictShape.falsePct >= 25 && verdictShape.falsePct > verdictShape.halfPct) {
+      insightParagraphs.push({
+        heading: "צורת השקרים בנושא",
+        body:
+          `${verdictTotals.false} מתוך ${totalClaims} הטענות בנושא ${label} סווגו שקריות (${verdictShape.falsePct}%), לעומת ${verdictTotals.half} בלבד שסווגו חצי-אמת. ` +
+          `כשפוליטיקאים שוגים בנושא ${label}, הם נוטים לטעון דברים שגויים לחלוטין יותר מאשר להטעות באופן חלקי. שגיאה בולטת יותר מהטעיה זהירה.`,
+      });
+    } else if (verdictShape.halfPct >= 30) {
+      insightParagraphs.push({
+        heading: "צורת השקרים בנושא",
+        body:
+          `${verdictTotals.half} מתוך ${totalClaims} הטענות בנושא ${label} סווגו חצי-אמת (${verdictShape.halfPct}%). ` +
+          `הדפוס הזה מצביע על נטייה לכופף את האמת לצרכים פוליטיים יותר מאשר לטעון דברים שגויים לחלוטין. הטעיה זהירה דורשת מיומנות אחרת משקר.`,
+      });
+    }
+  }
+
+  if (biggestStronger && biggestStronger.delta >= 15) {
+    insightParagraphs.push({
+      heading: `${biggestStronger.politician.name} בולט לטובה`,
+      body:
+        `${biggestStronger.politician.name} (${biggestStronger.politician.party}) מקבל ${biggestStronger.topicScore}% בנושא ${label}, לעומת ${biggestStronger.overallScore}% בלבד בציון הכללי שלו. ` +
+        `פער של ${biggestStronger.delta} נקודות. בנושא הזה הוא מציג סטנדרט שונה משאר התחומים. סביר שזו זירת התמחות שלו, או שהוא נמנע מטענות שאינו יכול לאמת.`,
+    });
+  }
+
+  if (
+    biggestWeaker &&
+    biggestWeaker.delta <= -15 &&
+    biggestWeaker.politician.id !== biggestStronger?.politician.id
+  ) {
+    insightParagraphs.push({
+      heading: `${biggestWeaker.politician.name} בולט לרעה`,
+      body:
+        `${biggestWeaker.politician.name} (${biggestWeaker.politician.party}) מקבל ${biggestWeaker.topicScore}% בנושא ${label}, לעומת ${biggestWeaker.overallScore}% בציון הכללי שלו. ` +
+        `כשהוא נכנס לנושא הזה, רמת האמינות שלו צונחת ב-${Math.abs(biggestWeaker.delta)} נקודות. או שזו זירה שמושכת ממנו הצהרות שאינן עומדות במבחן, או שהוא מסתמך על מקורות פחות מהימנים כשהוא מדבר עליה.`,
+    });
+  }
+
+  if (spread && spread.range >= 40) {
+    insightParagraphs.push({
+      heading: "טווח רחב של אמינות",
+      body:
+        `הפוליטיקאים שדנו ב-${label} נעים מ-${spread.min}% ל-${spread.max}% אמינות, פער של ${spread.range} נקודות. ` +
+        `כאשר הפער בין הקול האמין ביותר לבין הפחות אמין כל כך רחב, מדובר בנושא שאין בו "אמת אחת" שכולם נצמדים אליה. בחירת המקור משפיעה על כל מה שמשתמע מהדיון.`,
+    });
+  }
 
   // Serialize for the ClaimCard client component.
   const serializedClaims = recentClaims.map((c) => ({
@@ -206,94 +329,28 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
         <WindowSelector basePath={`/topic/${slug}`} selectedValue={selected.value} />
       </div>
 
-      {/* Insights band — the "so what" for the topic page. Compares
-          aggregate topic-level credibility to the site average and
-          highlights the biggest topic-vs-overall discrepancy. Self-
-          hides when the topic has too little data to compute either. */}
-      {topicTruthPct !== null && (
-        <div
+      {/* Insights band — multi-paragraph journalist-voice analysis,
+          replaces the previous 2-cell summary. Each paragraph only
+          fires when its underlying pattern is genuinely interesting
+          (skipped wholesale when data is thin). Computed deterministically
+          from already-loaded stats — no per-render AI call. */}
+      {insightParagraphs.length > 0 && (
+        <article
           className="bg-card border border-border-strong overflow-hidden mb-8"
           style={{ borderRadius: 4 }}
         >
           <div className="px-5 py-3.5 border-b border-border">
-            <h2 className="font-black text-base tracking-tight">תובנות מהירות</h2>
+            <h2 className="font-black text-base tracking-tight">מה הנתונים מספרים על נושא זה</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
-            <div className="px-5 py-4">
-              <div className="text-[10px] uppercase tracking-wider font-bold text-foreground-muted mb-1">
-                ממוצע אמינות בנושא {label}
-              </div>
-              <div className="flex items-baseline gap-3 mt-2">
-                <div
-                  className="text-3xl font-black tabular-nums leading-none"
-                  style={{ color: scoreColor(topicTruthPct) }}
-                >
-                  {topicTruthPct}%
-                </div>
-                {truthDelta !== null && Math.abs(truthDelta) >= 2 && (
-                  <div
-                    className="text-[12px] font-bold tabular-nums"
-                    style={{
-                      color: truthDelta > 0 ? "var(--verdict-true)" : "var(--verdict-false)",
-                    }}
-                  >
-                    {truthDelta > 0 ? "↑ +" : "↓ "}{Math.abs(truthDelta)} נק׳ מהממוצע באתר
-                  </div>
-                )}
-                {truthDelta !== null && Math.abs(truthDelta) < 2 && (
-                  <div className="text-[12px] text-foreground-muted">
-                    בקו עם הממוצע באתר ({siteTruthPct}%)
-                  </div>
-                )}
-              </div>
-              <div className="text-[11px] text-foreground-muted mt-2 leading-snug">
-                ממוצע משוקלל של {totalClaims} טענות בנושא {label}.{" "}
-                {truthDelta !== null && Math.abs(truthDelta) >= 2 && (
-                  <>
-                    באתר כולו הממוצע הוא {siteTruthPct}%, כלומר פוליטיקאים{" "}
-                    {truthDelta > 0 ? "אמינים יותר" : "פחות אמינים"} כאשר הם מדברים על {label}.
-                  </>
-                )}
-              </div>
-            </div>
-
-            {(biggestStronger || biggestWeaker) && (
-              <div className="px-5 py-4">
-                <div className="text-[10px] uppercase tracking-wider font-bold text-foreground-muted mb-2">
-                  הבדל בולט מול הציון הכללי
-                </div>
-                {biggestStronger && biggestStronger.delta > 5 && (
-                  <DiscrepancyRow
-                    politician={biggestStronger.politician}
-                    topicScore={biggestStronger.topicScore}
-                    overallScore={biggestStronger.overallScore}
-                    delta={biggestStronger.delta}
-                    sample={biggestStronger.sample}
-                    label={label}
-                    tone="positive"
-                  />
-                )}
-                {biggestWeaker && biggestWeaker.delta < -5 && biggestWeaker.politician.id !== biggestStronger?.politician.id && (
-                  <DiscrepancyRow
-                    politician={biggestWeaker.politician}
-                    topicScore={biggestWeaker.topicScore}
-                    overallScore={biggestWeaker.overallScore}
-                    delta={biggestWeaker.delta}
-                    sample={biggestWeaker.sample}
-                    label={label}
-                    tone="negative"
-                  />
-                )}
-                {(!biggestStronger || Math.abs(biggestStronger.delta) <= 5) &&
-                 (!biggestWeaker || Math.abs(biggestWeaker.delta) <= 5) && (
-                  <div className="text-[11px] text-foreground-muted leading-relaxed">
-                    אין הבדלים משמעותיים: ציוני הפוליטיקאים בנושא זה דומים לציון הכללי שלהם.
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="p-6 space-y-6">
+            {insightParagraphs.map((p, i) => (
+              <section key={i}>
+                <h3 className="font-black text-sm tracking-tight mb-2">{p.heading}</h3>
+                <p className="text-[15px] text-foreground leading-[1.7]">{p.body}</p>
+              </section>
+            ))}
           </div>
-        </div>
+        </article>
       )}
 
       {ranked.length === 0 ? (
@@ -411,46 +468,6 @@ function RankCard({
         ))}
       </ol>
     </div>
-  );
-}
-
-function DiscrepancyRow({
-  politician,
-  topicScore,
-  overallScore,
-  delta,
-  sample,
-  label,
-  tone,
-}: {
-  politician: { id: string; name: string; party: string; image: string | null };
-  topicScore: number;
-  overallScore: number;
-  delta: number;
-  sample: number;
-  label: string;
-  tone: "positive" | "negative";
-}) {
-  const color = tone === "positive" ? "var(--verdict-true)" : "var(--verdict-false)";
-  const sign = delta > 0 ? "+" : "";
-  return (
-    <Link
-      href={`/politician/${politician.id}`}
-      className="flex items-center gap-3 py-2 hover:opacity-80 transition-opacity"
-    >
-      <PoliticianAvatar id={politician.id} name={politician.name} image={politician.image} size="sm" />
-      <div className="flex-1 min-w-0">
-        <div className="font-bold text-sm truncate">{politician.name}</div>
-        <div className="text-[11px] text-foreground-muted truncate">
-          על {label}: {topicScore}% · בכלל: {overallScore}% · {sample} טענות
-        </div>
-      </div>
-      <div className="text-left shrink-0">
-        <div className="font-black text-sm tabular-nums leading-none" style={{ color }}>
-          {sign}{delta.toFixed(0)} נק׳
-        </div>
-      </div>
-    </Link>
   );
 }
 
