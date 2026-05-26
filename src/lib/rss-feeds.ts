@@ -63,10 +63,22 @@ export const NAME_TO_ID: Record<string, string> = {
   "ביסמוט": "boaz-bismuth", "בועז ביסמוט": "boaz-bismuth",
   "גמליאל": "gila-gamliel", "גילה גמליאל": "gila-gamliel",
   "אופיר כץ": "ofir-katz",
-  "מאי גולן": "may-golan", "גולן": "may-golan",
+  "מאי גולן": "may-golan",
   "קלנר": "ariel-kallner", "אריאל קלנר": "ariel-kallner",
   "גלנט": "gallant", "יואב גלנט": "gallant",
   "שטרית": "keti-shitrit", "קטי שטרית": "keti-shitrit",
+  // The bare "גולן" shortcut was REMOVED on 2026-05-26 to prevent
+  // misattribution between May Golan (Likud) and Yair Golan
+  // (הדמוקרטים, added below). Full names only for the Golans.
+
+  // הדמוקרטים — Yair Golan added 2026-05-26 after user flagged the gap.
+  "יאיר גולן": "yair-golan",
+
+  // ביחד (Bennett 2026 party). Bennett is no longer a sitting MK but
+  // remains highly quoted; the politician row existed but had no
+  // NAME_TO_ID entry, so all extracted quotes attributed to him were
+  // silently dropped. Both forms below since reporters use both.
+  "בנט": "bennett", "נפתלי בנט": "bennett",
 
   // יש עתיד
   "לפיד": "lapid", "יאיר לפיד": "lapid",
@@ -141,4 +153,35 @@ export const NAME_TO_ID: Record<string, string> = {
 
   // נועם
   "מעוז": "avi-maoz", "אבי מעוז": "avi-maoz",
+
+  // === Variants surfaced by the 2026-05-26 extraction audit ===
+  // The Knesset's official records use full legal names (with middle
+  // names), and several MKs were in the DB but had no NAME_TO_ID
+  // entry at all. ~1,700 historical claims were silently dropped at
+  // the lookup step before this. Each line below maps a longer or
+  // alternative form to an existing politician id.
+
+  // Middle-name variants of politicians who already had a short form:
+  "יצחק שמעון וסרלאוף": "yitzhak-wasserlauf",
+  "מירי מרים רגב": "miri-regev",
+  "אורית מלכה סטרוק": "orit-strook",
+  "צבי ידידיה סוכות": "zvi-sukkot",
+  "שרן מרים השכל": "sharren-haskel",
+  "מיכל מרים וולדיגר": "michal-waldiger", "מיכל וולדיגר": "michal-waldiger",
+  "קטי קטרין שטרית": "keti-shitrit",
+  "בנימין גנץ": "gantz",
+  "פנינה תמנו": "pnina-tamano-shata",
+
+  // Politicians in the DB but completely missing from NAME_TO_ID:
+  "מאיר כהן": "meir-cohen",
+  "מירב בן ארי": "meirav-ben-ari",
+  "יסמין פרידמן": "yasmin-fridman",
+  "עדי עזוז": "adi-azuz",
+  "ואליד אלהואשלה": "waleed-alhwashla", "וליד אלהואשלה": "waleed-alhwashla",
+  "סימון דוידסון": "simon-davidson",
+  "יצחק קרויזר": "yitzhak-kroizer",
+  "נאור שירי": "naor-shiri",
+  "שרון ניר": "sharon-nir",
+  "רון כץ": "ron-katz",
+  "יאסר חוג'יראת": "yasser-hujirat", "יאסר חג'יראת": "yasser-hujirat",
 };
