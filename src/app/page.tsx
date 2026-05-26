@@ -3,14 +3,12 @@ import {
   getPoliticianStats,
   getAllPoliticiansLite,
   getKnessetActivityMap,
-  getPartyStats,
   getMostMentionedPoliticians,
 } from "@/lib/data";
 import { getDataCollectionStart } from "@/lib/queries";
 import { getBiggestMovers } from "@/lib/cred-history";
 import { LiarOfTheWeek } from "@/components/LiarOfTheWeek";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
-import { PartiesPreview } from "@/components/PartiesPreview";
 import { InHeadlinesStrip } from "@/components/InHeadlinesStrip";
 import { BiggestMovers } from "@/components/BiggestMovers";
 import { SearchBar } from "@/components/SearchBar";
@@ -46,7 +44,7 @@ export default async function Home({
   // is now inside `<Suspense>` below so a slow feed query doesn't
   // block the masthead/hero/leaderboard from streaming in.
   console.time("page.parallel-queries");
-  const [stats, allPoliticians, collectionStart, activityMap, partyStats, mostMentioned, movers] = await Promise.all([
+  const [stats, allPoliticians, collectionStart, activityMap, mostMentioned, movers] = await Promise.all([
     (async () => {
       console.time("page.getPoliticianStats");
       const r = await getPoliticianStats(statsWindow.days);
@@ -72,12 +70,6 @@ export default async function Home({
       return r;
     })(),
     (async () => {
-      console.time("page.getPartyStats");
-      const r = await getPartyStats(statsWindow.days);
-      console.timeEnd("page.getPartyStats");
-      return r;
-    })(),
-    (async () => {
       console.time("page.getMostMentionedPoliticians");
       const r = await getMostMentionedPoliticians(statsWindow.days, 8);
       console.timeEnd("page.getMostMentionedPoliticians");
@@ -87,12 +79,8 @@ export default async function Home({
       console.time("page.getBiggestMovers");
       // 7-day movers, min sample 10 in both windows. 10 is the standard
       // threshold for proportional confidence intervals; below that, the
-      // small-sample correction dominates real signal. Started at 15
-      // (purer) but the dataset was too thin for the card to ever show
-      // — switched to 10 once the timeline chart proved out and we
-      // wanted the home-page card to actually appear. Tighten back up
-      // when the median politician has 20+ claims in their 30-day
-      // window. The card self-hides if total movers < 4.
+      // small-sample correction dominates real signal. The card
+      // self-hides if total movers < 4.
       const r = await getBiggestMovers({ daysBack: 7, minSample: 10, topN: 3 });
       console.timeEnd("page.getBiggestMovers");
       return r;
@@ -159,68 +147,44 @@ export default async function Home({
 
       {/* Biggest movers — credibility delta over the last 7 days, top 3
           gainers + top 3 losers side by side. Self-hides if there aren't
-          enough eligible politicians (min 15 claims in both anchor
+          enough eligible politicians (min 10 claims in both anchor
           windows) to be substantive. Powered by pre-baked
           CredibilitySnapshot rows so the read is one cheap query. */}
       <BiggestMovers gainers={movers.gainers} losers={movers.losers} daysBack={7} />
-
-      {/* Parties preview — third dimension (aggregated by faction).
-          Full width below the hero+leaderboard duo so the 3-color
-          verdict bar has room to read at a glance. */}
-      <PartiesPreview stats={partyStats} windowDays={statsWindow.days} />
 
       {/* "מי בכותרות" strip — top politicians by raw claim count in the
           active window. Solves the "first-time visitor doesn't see the
           household names" UX problem. Pure volume sort, no editorial
           curation. Famous politicians naturally dominate because they
           generate the most news coverage. Credibility score travels
-          with each face as a color chip so the methodology stays visible. */}
-      <InHeadlinesStrip stats={mostMentioned} windowDays={statsWindow.days} />
+          with each face as a color chip so the methodology stays visible.
 
-      {/* Discovery zone: prominent search bar for visitors who have a
-          specific politician in mind. Moved up from below the feed
-          (was buried). Pairs with the "מי בכותרות" strip above as a
-          natural "find what you came for" block. */}
-      <section
-        className="bg-card border-[1.5px] border-border-strong p-5 sm:p-6"
-        style={{ borderRadius: 4 }}
-      >
-        <div className="text-[10px] tracking-[0.25em] uppercase font-bold text-accent mb-3">
-          לא מצאתם את מי שחיפשתם?
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
-          חפשו פוליטיקאי
-        </h2>
-        <p className="text-xs text-foreground-muted mb-4 leading-relaxed">
-          הקלידו שם או מפלגה — נתאים מבין {allPoliticians.length} חברי כנסת ואישי ציבור במאגר.
-        </p>
-        <SearchBar politicians={allPoliticians} />
-      </section>
+          The compact search input is co-located right below the strip so
+          a visitor who doesn't see the politician they're after has a
+          one-click escape hatch. The dedicated "חפשו פוליטיקאי" card
+          was removed in the 2026-05-26 home refactor — it was claiming
+          a whole section for a search input that only needs one line. */}
+      <div className="space-y-3">
+        <InHeadlinesStrip stats={mostMentioned} windowDays={statsWindow.days} />
+        <SearchBar politicians={allPoliticians} compact />
+      </div>
 
-      {/* "Data since DATE" + inline legend — one compact micro-caption
-          under the hero+leaderboard duo. Replaces the previous full-
-          width legend card which was eating too much above-the-fold
-          space. The metric labels in the cards above use the same
-          terms (אמינות / נוכחות), so anchoring them here once is
-          enough — no need to repeat in every card. */}
+      {/* One-line legend — was a 4-line block before the home refactor.
+          The full methodology lives at /about; here we just anchor the
+          one term that needs explaining ("ציון אמינות") and the data-
+          coverage caveat. Hover the score anywhere on the site for the
+          formula tooltip. */}
       {collectionStart && (
-        <div className="text-[11px] text-foreground-muted text-center leading-relaxed -mt-3 space-y-1">
-          <div>
-            איסוף הנתונים מתחיל ב-
-            <strong className="text-foreground tabular-nums">
-              {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
-            </strong>
-            . {windowLabel(statsWindow.value)} מבוסס על {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות.
-          </div>
-          <div className="opacity-90">
-            <strong className="text-foreground">ציון אמינות</strong> = אחוז אמת מתוקנן לגודל מדגם (Wilson 95%)
-            <span className="mx-2 opacity-40">·</span>
-            <strong className="text-foreground">נוכחות</strong> = % ישיבות מליאה שדיבר בהן ב-90 ימים
-          </div>
-          <div className="opacity-80 text-[10px]">
-            פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
-            האחוז הגולמי <strong className="text-foreground">(אמת + ½ × חצי) ÷ סה״כ</strong> מוצג כקו תחתון.
-          </div>
+        <div className="text-[11px] text-foreground-muted text-center leading-relaxed">
+          איסוף הנתונים מ-
+          <strong className="text-foreground tabular-nums">
+            {collectionStart.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+          </strong>
+          {" · "}
+          {windowLabel(statsWindow.value)}: {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות
+          <span className="mx-2 opacity-40">·</span>
+          <strong className="text-foreground">ציון אמינות</strong> = Wilson 95% (אמת + ½·חצי).{" "}
+          <a href="/about" className="underline hover:no-underline">איך מחושב? ←</a>
         </div>
       )}
 

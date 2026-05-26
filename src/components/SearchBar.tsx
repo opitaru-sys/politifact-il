@@ -10,7 +10,19 @@ interface SearchPolitician {
   image: string | null;
 }
 
-export function SearchBar({ politicians }: { politicians: SearchPolitician[] }) {
+/**
+ * `compact` strips the surrounding card + eyebrow label and renders just
+ * a slim single-line input. Used on the home page after a homepage
+ * refactor cut the dedicated "חפשו פוליטיקאי" card — search is still
+ * easy to find but doesn't claim a whole section's worth of real estate.
+ */
+export function SearchBar({
+  politicians,
+  compact = false,
+}: {
+  politicians: SearchPolitician[];
+  compact?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,26 +48,39 @@ export function SearchBar({ politicians }: { politicians: SearchPolitician[] }) 
 
   return (
     <div className="relative" ref={containerRef}>
-      <div
-        className="bg-card border border-border-strong px-5 py-4"
-        style={{ borderRadius: 4 }}
-      >
-        <label
-          htmlFor="politician-search"
-          className="block text-[10px] tracking-[0.25em] uppercase font-bold text-foreground-muted mb-2"
-        >
-          חיפוש · פוליטיקאי או מפלגה
-        </label>
+      {compact ? (
         <input
           id="politician-search"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
-          placeholder="הקלד שם פוליטיקאי או מפלגה"
-          className="w-full px-0 py-1.5 bg-transparent border-0 border-b-2 border-border focus:border-accent text-base focus:outline-none transition-colors placeholder:text-foreground-muted/60"
+          placeholder="חפשו פוליטיקאי או מפלגה..."
+          className="w-full px-4 py-2.5 bg-card border-[1.5px] border-border-strong text-sm focus:border-accent focus:outline-none transition-colors placeholder:text-foreground-muted/70"
+          style={{ borderRadius: 4 }}
         />
-      </div>
+      ) : (
+        <div
+          className="bg-card border border-border-strong px-5 py-4"
+          style={{ borderRadius: 4 }}
+        >
+          <label
+            htmlFor="politician-search"
+            className="block text-[10px] tracking-[0.25em] uppercase font-bold text-foreground-muted mb-2"
+          >
+            חיפוש · פוליטיקאי או מפלגה
+          </label>
+          <input
+            id="politician-search"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setFocused(true)}
+            placeholder="הקלד שם פוליטיקאי או מפלגה"
+            className="w-full px-0 py-1.5 bg-transparent border-0 border-b-2 border-border focus:border-accent text-base focus:outline-none transition-colors placeholder:text-foreground-muted/60"
+          />
+        </div>
+      )}
       {showDropdown && filtered.length > 0 && (
         <div
           className="absolute top-full left-0 right-0 mt-1 bg-card border border-border-strong z-10 overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.06)]"
