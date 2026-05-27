@@ -9,12 +9,13 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/admin/login/actions";
 
-export type AdminTabId = "status" | "claims" | "reports" | "digest";
+export type AdminTabId = "status" | "claims" | "reports" | "comments" | "digest";
 
 const TABS: { id: AdminTabId; label: string; href: string }[] = [
   { id: "status", label: "סטטוס", href: "/admin/status" },
   { id: "claims", label: "עריכת טענות", href: "/admin/claims" },
   { id: "reports", label: "דיווחים", href: "/admin/reports" },
+  { id: "comments", label: "תגובות", href: "/admin/comments" },
   { id: "digest", label: "סיכומים", href: "/admin/digest" },
 ];
 

@@ -159,3 +159,26 @@ export async function dismissReport(formData: FormData): Promise<void> {
 // reliably submit on the reports page, likely a Next 16 edge case
 // when a hidden `name="action"` input collided with the form's
 // own `action={...}` prop. A plain route handler dodges the issue.
+
+/**
+ * Permanently delete a comment. Admin-only. Used from /admin/comments
+ * to remove spam, abuse, or off-topic noise. The underlying claim is
+ * untouched.
+ */
+export async function deleteComment(formData: FormData): Promise<void> {
+  await assertAdmin();
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) throw new Error("Missing comment id");
+
+  // We need the claimId to revalidate the public claim page.
+  const existing = await prisma.comment.findUnique({
+    where: { id },
+    select: { claimId: true },
+  });
+
+  await prisma.comment.delete({ where: { id } });
+
+  revalidatePath("/admin/comments");
+  if (existing?.claimId) revalidatePath(`/claim/${existing.claimId}`);
+}
