@@ -668,6 +668,7 @@ export async function processArticle(articleId: string) {
               explanation: saved.explanation,
               politicianName,
               topic: saved.topic,
+              claimDate: article.publishedAt,
             });
             if (!editorial.approved) {
               finalApproved = false;

@@ -76,6 +76,7 @@ for (let i = 0; i < claims.length; i += BATCH_SIZE) {
         explanation: c.explanation,
         politicianName: c.politician.name,
         topic: c.topic,
+        claimDate: c.date,
       });
       return { claim: c, result: r };
     }),
