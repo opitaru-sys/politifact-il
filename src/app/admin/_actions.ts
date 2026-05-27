@@ -153,84 +153,9 @@ export async function dismissReport(formData: FormData): Promise<void> {
   revalidatePath("/admin/status");
 }
 
-/**
- * Apply an AI-recommended action to a report's underlying claim, then
- * dismiss the report. Called from /admin/reports when the admin clicks
- * the green "apply" button next to a recommendation.
- *
- * The recommendation itself is generated server-side at page render
- * time (see report-recommendation.ts). We re-receive the action +
- * parameters via the form so the admin can edit them before applying.
- */
-export async function applyReportRecommendation(formData: FormData): Promise<void> {
-  await assertAdmin();
-
-  const reportId = formData.get("reportId");
-  const claimId = formData.get("claimId");
-  const action = formData.get("action");
-  if (typeof reportId !== "string" || !reportId) throw new Error("Missing report id");
-  if (typeof claimId !== "string" || !claimId) throw new Error("Missing claim id");
-  if (typeof action !== "string") throw new Error("Missing action");
-
-  const correctionNote =
-    typeof formData.get("correctionNote") === "string"
-      ? String(formData.get("correctionNote")).trim()
-      : "";
-
-  if (action === "hide") {
-    if (!correctionNote) throw new Error("Hide action requires correctionNote");
-    await prisma.claim.update({
-      where: { id: claimId },
-      data: {
-        editorApproved: false,
-        correctionNote,
-        correctedAt: new Date(),
-      },
-    });
-  } else if (action === "change_verdict") {
-    const newVerdict = formData.get("newVerdict");
-    if (
-      typeof newVerdict !== "string" ||
-      !["true", "half-true", "false"].includes(newVerdict)
-    ) {
-      throw new Error("change_verdict requires a valid newVerdict");
-    }
-    if (!correctionNote) throw new Error("Verdict change requires correctionNote");
-    await prisma.claim.update({
-      where: { id: claimId },
-      data: {
-        verdict: newVerdict,
-        correctionNote,
-        correctedAt: new Date(),
-      },
-    });
-  } else if (action === "edit_explanation") {
-    const newExplanation = formData.get("newExplanation");
-    if (typeof newExplanation !== "string" || !newExplanation.trim()) {
-      throw new Error("edit_explanation requires newExplanation");
-    }
-    if (!correctionNote) throw new Error("Explanation edit requires correctionNote");
-    await prisma.claim.update({
-      where: { id: claimId },
-      data: {
-        explanation: newExplanation.trim(),
-        correctionNote,
-        correctedAt: new Date(),
-      },
-    });
-  } else if (action === "dismiss") {
-    // No claim change — just delete the report.
-  } else {
-    throw new Error(`Unknown action: ${action}`);
-  }
-
-  // Whatever the action, the report itself is resolved — remove it
-  // from the queue.
-  await prisma.report.delete({ where: { id: reportId } });
-
-  revalidatePath("/admin/reports");
-  revalidatePath("/admin/status");
-  revalidatePath(`/claim/${claimId}`);
-  revalidatePath("/corrections");
-  revalidatePath("/");
-}
+// Applying a report's AI recommendation lives at POST
+// /api/admin/reports/apply (src/app/api/admin/reports/apply/route.ts).
+// It used to be a server action here but server actions wouldn't
+// reliably submit on the reports page, likely a Next 16 edge case
+// when a hidden `name="action"` input collided with the form's
+// own `action={...}` prop. A plain route handler dodges the issue.

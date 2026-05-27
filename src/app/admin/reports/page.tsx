@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
-import { applyReportRecommendation, dismissReport } from "../_actions";
+import { dismissReport } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
+import { ApplyRecommendationButton } from "@/components/ApplyRecommendationButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 import {
   actionLabel,
@@ -188,29 +189,18 @@ function ReportCard({
           </div>
         )}
 
-        {/* Apply form — submits everything the action needs as hidden inputs.
-            The admin can hit "ערוך טענה" instead to override. */}
+        {/* Apply button — POSTs to /api/admin/reports/apply via a client
+            component, then router.refresh()s so the resolved report
+            disappears from the list. */}
         {rec.confidence > 0 && (
-          <form action={applyReportRecommendation} className="mt-3">
-            <input type="hidden" name="reportId" value={r.id} />
-            <input type="hidden" name="claimId" value={r.claimId} />
-            <input type="hidden" name="action" value={rec.action} />
-            {rec.action === "change_verdict" && rec.newVerdict && (
-              <input type="hidden" name="newVerdict" value={rec.newVerdict} />
-            )}
-            {rec.action === "edit_explanation" && rec.newExplanation && (
-              <input type="hidden" name="newExplanation" value={rec.newExplanation} />
-            )}
-            <input type="hidden" name="correctionNote" value={rec.correctionNote} />
-            <button
-              type="submit"
-              className="text-[11px] font-bold uppercase tracking-wider bg-green-700 text-white py-1.5 px-3 hover:opacity-90"
-              style={{ borderRadius: 2 }}
-              title="החל את ההמלצה (משנה את הטענה + סוגר את הדיווח)"
-            >
-              ✓ החל המלצה
-            </button>
-          </form>
+          <ApplyRecommendationButton
+            reportId={r.id}
+            claimId={r.claimId}
+            action={rec.action}
+            newVerdict={rec.newVerdict}
+            newExplanation={rec.newExplanation}
+            correctionNote={rec.correctionNote}
+          />
         )}
       </div>
 
