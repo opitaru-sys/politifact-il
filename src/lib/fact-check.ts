@@ -9,6 +9,7 @@ import { verifyClaim } from "./verify-claim";
 import { editorialReview } from "./editorial-review";
 import { findClaimQualityIssues } from "./claim-quality";
 import { currentOfficeholdersBlock } from "./officeholders";
+import { applyDowngrade, DOWNGRADE_TAG } from "./institutional-intent";
 
 /**
  * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
@@ -665,6 +666,30 @@ export async function processArticle(articleId: string) {
           claimDate: article.publishedAt,
         });
 
+        // Institutional-intent downgrade: if the verifier emitted the
+        // [downgrade-to-half-true] tag in issues, rewrite the verdict
+        // and explanation in-place rather than rejecting. The claim
+        // stays live (editorApproved=true) but the verdict reflects
+        // that we only verified the declaration, not the outcome.
+        // See src/lib/institutional-intent.ts.
+        let postVerdict = saved.verdict;
+        let postExplanation = saved.explanation;
+        const downgradeRequested = verification.issues.some((i) =>
+          i.includes(DOWNGRADE_TAG),
+        );
+        if (downgradeRequested && saved.verdict === "true") {
+          const downgrade = applyDowngrade({
+            verdict: saved.verdict,
+            explanation: saved.explanation,
+            notes: verification.issues,
+          });
+          postVerdict = downgrade.verdict;
+          postExplanation = downgrade.explanation;
+          // Override: treat verifier as approving (we're keeping the claim,
+          // just at a more conservative verdict).
+          verification.approved = true;
+        }
+
         // Third pass: editorial newsworthiness review. Only runs if the
         // technical verifier approved — there's no point asking the editor
         // about a claim we're already going to reject. If the editor
@@ -701,6 +726,10 @@ export async function processArticle(articleId: string) {
             editorApproved: finalApproved,
             verifiedAt: new Date(),
             verifierNotes: notes.length ? notes.join("; ") : null,
+            // Only write verdict + explanation back if the downgrade
+            // changed them. Saves a column-write on the happy path.
+            ...(postVerdict !== saved.verdict && { verdict: postVerdict }),
+            ...(postExplanation !== saved.explanation && { explanation: postExplanation }),
           },
         });
       } catch (err) {
