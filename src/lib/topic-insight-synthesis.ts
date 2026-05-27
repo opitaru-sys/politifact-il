@@ -14,14 +14,13 @@ import { genderOf } from "./politician-gender";
 import { repairPoliticianMarkers } from "./insight-markup";
 import { getPoliticianStatsForTopic } from "./topic-stats";
 import { getPoliticianStats } from "./data";
+import { MODEL_FLASH as MODEL } from "./gemini-models";
 
 function getGemini() {
   const apiKey = getEnvVar("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY not found");
   return new GoogleGenAI({ apiKey });
 }
-
-const MODEL = "gemini-2.5-flash";
 
 export async function synthesizeTopicInsight(slug: string, label: string): Promise<string> {
   // Use a 60-day window for the weekly cadence so we have enough
