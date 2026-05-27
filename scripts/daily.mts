@@ -96,13 +96,17 @@ const rssBacklogClaims = await processUnprocessedArticles({
 });
 console.log(`RSS backlog created ${rssBacklogClaims.length} new claims`);
 
-console.log("\n--- Processing Knesset backlog (low budget) ---");
+console.log("\n--- Processing Knesset backlog (ungrounded, cheap) ---");
 // Knesset transcripts are valuable, but they are the main backlog source.
-// Keep them on a tiny daily budget so they drain slowly without blocking
-// fresh public news.
+// Each plenum session produces 10-30 per-speaker articles in one burst,
+// and the old cap of 5/day left ~7+/day stuck for days. Bumped to 30
+// after observing chronic 12-article backlog (2026-05-27). Knesset already
+// runs ungrounded so each article costs ~$0.006 (extraction + verifier +
+// editor, no Google Search). 30/day ≈ $0.18/day, negligible vs the
+// freshness lane. Override with BADAK_KNESSET_DAILY_LIMIT if needed.
 const previousDisableGrounding = process.env.BADAK_DISABLE_GROUNDING;
 process.env.BADAK_DISABLE_GROUNDING = process.env.BADAK_KNESSET_DISABLE_GROUNDING ?? "1";
-const knessetLimit = Number(process.env.BADAK_KNESSET_DAILY_LIMIT ?? 5);
+const knessetLimit = Number(process.env.BADAK_KNESSET_DAILY_LIMIT ?? 30);
 const knessetClaims = await processKnessetBacklog(knessetLimit);
 if (previousDisableGrounding === undefined) delete process.env.BADAK_DISABLE_GROUNDING;
 else process.env.BADAK_DISABLE_GROUNDING = previousDisableGrounding;
