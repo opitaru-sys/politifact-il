@@ -280,7 +280,11 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
         LIMIT 10
       `;
     })(),
+    // Only show claims that are actually published — skip ones the
+    // editor rejected, the verifier blocked, or that are still mid-pipeline.
+    // The feed should mirror what readers see, not the raw extraction log.
     prisma.claim.findMany({
+      where: { editorApproved: true, status: "published" },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { politician: { select: { name: true } } },
