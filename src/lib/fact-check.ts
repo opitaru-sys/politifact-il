@@ -10,6 +10,7 @@ import { editorialReview } from "./editorial-review";
 import { findClaimQualityIssues } from "./claim-quality";
 import { currentOfficeholdersBlock } from "./officeholders";
 import { applyDowngrade, DOWNGRADE_TAG } from "./institutional-intent";
+import { MODEL_FLASH as MODEL } from "./gemini-models";
 
 /**
  * Normalize a Hebrew quote for fuzzy-matching: strip vowels, punctuation,
@@ -76,8 +77,6 @@ function getGemini() {
   if (!apiKey) throw new Error("GEMINI_API_KEY not found in env or .env.local");
   return new GoogleGenAI({ apiKey });
 }
-
-const MODEL = "gemini-2.5-flash";
 
 /**
  * Parses a JSON response from Gemini, robust to the common ways LLMs
