@@ -1,12 +1,23 @@
 import Parser from "rss-parser";
 import { prisma } from "./db";
 import { RSS_FEEDS, type FeedSource } from "./rss-feeds";
+import { fetchArticleBody } from "./article-body";
 import {
   TELEGRAM_SOURCES,
   type TelegramSource,
   telegramPostUrl,
   telegramSourceLabel,
 } from "./telegram-sources";
+
+/**
+ * If the RSS snippet is shorter than this, ingest fetches the full
+ * article body via URL. Below this length, extraction usually returns
+ * zero claims because the AI has only a teaser to work with. Set with
+ * room — a snippet at 800 chars is usually 3-4 sentences, plenty for
+ * the AI to find a quote if there is one. Going larger wastes more
+ * fetch calls on articles that wouldn't benefit.
+ */
+const RSS_SNIPPET_MIN_CHARS = 800;
 
 /**
  * URLs that match any of these patterns are dropped at ingest time
@@ -69,12 +80,27 @@ export async function fetchFeed(feed: FeedSource) {
       const existing = await prisma.article.findUnique({ where: { url } });
       if (existing) continue;
 
+      // If the RSS snippet is too short for the AI to find quotes in,
+      // fetch the full article body. Most Israeli RSS feeds only
+      // include a 100-500 char teaser; without this step ~70% of
+      // ingested articles produce zero claims (they "process" but
+      // contribute nothing) and the queue stays full forever. The
+      // helper returns null on any failure (HTTP error, block, timeout),
+      // in which case we fall back to the snippet we already have.
+      let finalContent = content;
+      if (finalContent.length < RSS_SNIPPET_MIN_CHARS) {
+        const body = await fetchArticleBody(url);
+        if (body && body.length > finalContent.length) {
+          finalContent = body;
+        }
+      }
+
       const article = await prisma.article.create({
         data: {
           title,
           url,
           source: feed.name,
-          content: content.substring(0, 5000),
+          content: finalContent.substring(0, 5000),
           publishedAt: item.pubDate ? new Date(item.pubDate) : null,
           processed: false,
         },

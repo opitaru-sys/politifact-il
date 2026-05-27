@@ -69,34 +69,7 @@ async function isDuplicate(politicianId: string, quote: string): Promise<boolean
   return false;
 }
 
-async function fetchArticleContent(url: string): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Badak-FactChecker/1.0" },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const html = await res.text();
-    // Strip HTML tags, scripts, styles — extract text content
-    const text = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/\s+/g, " ")
-      .trim();
-    return text.substring(0, 8000);
-  } catch {
-    return null;
-  }
-}
+import { fetchArticleBody } from "./article-body";
 
 function getGemini() {
   const apiKey = getEnvVar("GEMINI_API_KEY");
@@ -567,8 +540,13 @@ export async function processArticle(articleId: string) {
   }
 
   let content = article.content || "";
-  if (content.length < 200) {
-    const fullContent = await fetchArticleContent(article.url);
+  // Lazy fallback: if the article snuck through ingest with a short
+  // snippet (e.g. older row from before the ingest-time body-fetch
+  // landed), grab the body now and persist it so reprocessing
+  // wouldn't pay the cost again. Threshold matches the ingest-time
+  // RSS_SNIPPET_MIN_CHARS so behavior is consistent.
+  if (content.length < 800) {
+    const fullContent = await fetchArticleBody(article.url);
     if (fullContent && fullContent.length > content.length) {
       content = fullContent;
       await prisma.article.update({
