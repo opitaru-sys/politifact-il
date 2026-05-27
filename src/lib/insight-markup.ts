@@ -64,3 +64,44 @@ export function tokenizeInsight(body: string): InsightToken[] {
   }
   return tokens;
 }
+
+/**
+ * Defensive post-processor: repairs malformed politician markers that
+ * the AI sometimes produces despite the prompt asking for the canonical
+ * `{{P:id|name}}` form. Two shapes get fixed:
+ *
+ *  - `{{P:סמיר בן סעיד}}`  (Hebrew name where id should be, no pipe)
+ *      → `{{P:samer-ben-saeed|סמיר בן סעיד}}`  if name found in map
+ *      → `סמיר בן סעיד` (stripped to plain text)  if not
+ *  - `{{P:netanyahu}}`     (id-only, no pipe)
+ *      → `{{P:netanyahu|בנימין נתניהו}}`        if id found in id→name
+ *      → `netanyahu` (stripped to plain text)   if not
+ *
+ * Why we strip on miss rather than leaving the broken marker: a raw
+ * `{{P:...}}` showing up in published prose reads as a bug to readers.
+ * Plain text is the safer fallback.
+ *
+ * Pass both maps (name→id and id→name) so we can handle either
+ * malformed shape. Build them once from the same data the prompt
+ * received, then forget about the AI's mistakes.
+ */
+export function repairPoliticianMarkers(
+  body: string,
+  nameToId: Map<string, string>,
+  idToName: Map<string, string>,
+): string {
+  // Match anything that looks like {{P:...}} where the inner part has
+  // no pipe — i.e. the malformed shape. Skip well-formed markers.
+  return body.replace(/\{\{P:([^|}]+)\}\}/g, (_match, inner: string) => {
+    const trimmed = inner.trim();
+    // Try id-first (cheap exact lookup)
+    const nameFromId = idToName.get(trimmed);
+    if (nameFromId) return `{{P:${trimmed}|${nameFromId}}}`;
+    // Try name-first lookup
+    const idFromName = nameToId.get(trimmed);
+    if (idFromName) return `{{P:${idFromName}|${trimmed}}}`;
+    // Last resort: drop the marker, keep the inner text. Better than
+    // showing readers a raw {{P:...}}.
+    return trimmed;
+  });
+}

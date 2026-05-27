@@ -17,6 +17,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { getEnvVar } from "./env";
 import { genderOf } from "./politician-gender";
+import { repairPoliticianMarkers } from "./insight-markup";
 import type { WeeklyAnalysis } from "./digest-analysis";
 
 function getGemini() {
@@ -221,6 +222,26 @@ export async function synthesizeDigest(analysis: WeeklyAnalysis): Promise<Synthe
     throw new Error("Synthesis returned malformed digest");
   }
 
+  // Build name↔id lookup maps from the analysis politicians so we can
+  // repair malformed `{{P:name}}` markers the AI sometimes emits.
+  const nameToId = new Map<string, string>();
+  const idToName = new Map<string, string>();
+  const collectPolitician = (p: { id: string; name: string } | { politician?: { id: string; name: string } }) => {
+    if ("politician" in p && p.politician) {
+      nameToId.set(p.politician.name, p.politician.id);
+      idToName.set(p.politician.id, p.politician.name);
+    } else if ("id" in p && "name" in p) {
+      nameToId.set(p.name, p.id);
+      idToName.set(p.id, p.name);
+    }
+  };
+  for (const m of [...analysis.topGainers, ...analysis.topLosers]) collectPolitician(m);
+  for (const p of analysis.topByVolume) {
+    nameToId.set(p.politicianName, p.politicianId);
+    idToName.set(p.politicianId, p.politicianName);
+  }
+  for (const p of analysis.firstTimePoliticians) collectPolitician(p);
+
   return {
     title: stripPoliticianMarkers(String(parsed.title).trim()),
     intro: stripPoliticianMarkers(String(parsed.intro).trim()),
@@ -233,7 +254,8 @@ export async function synthesizeDigest(analysis: WeeklyAnalysis): Promise<Synthe
         // there but Gemini doesn't always listen, and a raw `{{P:...}}`
         // in a heading reads as a bug.
         heading: stripPoliticianMarkers(i.heading.trim()),
-        body: stripAITropes(i.body.trim()),
+        // Repair malformed markers in body before applying trope cleanup.
+        body: stripAITropes(repairPoliticianMarkers(i.body.trim(), nameToId, idToName)),
       })),
   };
 }

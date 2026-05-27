@@ -11,6 +11,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { getEnvVar } from "./env";
 import { genderOf } from "./politician-gender";
+import { repairPoliticianMarkers } from "./insight-markup";
 import { getPoliticianStatsForTopic } from "./topic-stats";
 import { getPoliticianStats } from "./data";
 
@@ -145,9 +146,21 @@ ${JSON.stringify(data, null, 2)}
   const raw = (response.text ?? "").trim();
   if (!raw) throw new Error(`Empty synthesis response for topic ${slug}`);
 
+  // Repair malformed politician markers — the AI sometimes emits
+  // `{{P:Hebrew name}}` (no pipe) instead of `{{P:id|name}}`. Build
+  // both lookup maps from the same data we passed in the prompt so
+  // the repair has authoritative ground truth.
+  const nameToId = new Map<string, string>();
+  const idToName = new Map<string, string>();
+  for (const p of [...topByVolume, ...discrepancies]) {
+    nameToId.set(p.name, p.id);
+    idToName.set(p.id, p.name);
+  }
+  const repaired = repairPoliticianMarkers(raw, nameToId, idToName);
+
   // Light cleanup: zap em-dashes that slipped through, drop common
   // opener crutches.
-  return raw
+  return repaired
     .replace(/\s*[—–]\s*/g, ". ")
     .replace(/^ראוי לציין (?:ש|כי)\s*/gm, "")
     .replace(/^יש לשים לב (?:ש|כי)\s*/gm, "")
