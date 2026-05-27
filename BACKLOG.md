@@ -5,6 +5,7 @@ Last reconciled: 2026-05-24.
 
 ## Now / blocking
 
+- [ ] **Re-run `apply-editorial-review.mts --apply` tomorrow (after 2026-05-28 06:00 UTC).** The 2026-05-27 sweep with new criteria #9 (retroactive) + #10 (characterization) hit Gemini's 10K/day quota partway through — only ~456 of 3478 claims were actually evaluated, the rest fail-opened (stayed approved, correct). Quota resets ~18h after the hit. The script is idempotent — claims already rejected by [עורך] are skipped, so re-running just finishes the remaining ~3000.
 - [ ] **Set Google Cloud budget alert** at ₪100-200/month. Without this, a runaway script could be expensive before you notice.
 
 ## High-impact next
