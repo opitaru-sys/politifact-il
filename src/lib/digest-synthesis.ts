@@ -19,14 +19,13 @@ import { getEnvVar } from "./env";
 import { genderOf } from "./politician-gender";
 import { repairPoliticianMarkers } from "./insight-markup";
 import type { WeeklyAnalysis } from "./digest-analysis";
+import { MODEL_FLASH as MODEL } from "./gemini-models";
 
 function getGemini() {
   const apiKey = getEnvVar("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY not found");
   return new GoogleGenAI({ apiKey });
 }
-
-const MODEL = "gemini-2.5-flash";
 
 export interface SynthesizedInsight {
   heading: string;
