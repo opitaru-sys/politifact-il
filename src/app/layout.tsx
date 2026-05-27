@@ -149,14 +149,14 @@ export default async function RootLayout({
           {/* Mobile: short form. */}
           <span className="sm:hidden">
             <strong className="tracking-wide">הערה:</strong> בדיקות AI עלולות להכיל שגיאות.{" "}
-            <a href="/about#takedown" className="underline font-medium">דווחו על שגיאה</a>.
+            <a href="/corrections" className="underline font-medium">דווחו על שגיאה</a>.
           </span>
           {/* Tablet+: full form. */}
           <span className="hidden sm:inline">
             <strong className="tracking-wide">הערה:</strong> בדיקות העובדות מבוצעות באמצעות בינה מלאכותית ועלולות להכיל שגיאות.{" "}
             <span className="opacity-90">
               אין להסתמך על תוכן זה כעובדה מאומתת. נמצאה שגיאה? דווחו בכפתור שבכל טענה, או פנו ב-
-              <a href="/about#takedown" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
+              <a href="/corrections" className="underline hover:no-underline font-medium">תיקונים והסרות</a>.
             </span>
           </span>
         </div>
