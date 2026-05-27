@@ -14,7 +14,7 @@ export interface ClaimQualityInput {
 }
 
 export interface ClaimQualityIssue {
-  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial";
+  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial" | "metaphor-idiom";
   reason: string;
 }
 
@@ -364,6 +364,58 @@ function opinionInsult(input: ClaimQualityInput): ClaimQualityIssue | null {
   };
 }
 
+// Never-literal Hebrew political idioms. The extractor + fact-check
+// prompts both ask the AI to skip metaphors, and the audit on
+// 2026-05-27 found zero "metaphor marked false" cases in the corpus.
+// This list is belt-and-suspenders: catches the handful of common
+// political idioms that would be embarrassing if they ever slipped
+// through, where the fact-checker might attempt literal verification.
+//
+// Each pattern must be specific enough to never collide with a literal
+// usage. "חמור לבן" in Israeli political discourse is always Messianic
+// analogy, never an actual donkey. "ירה לעצמו ברגל" is always
+// figurative self-harm, never an actual shooting incident (those would
+// be reported as "ירה ברגלו" / "פצוע ברגלו" / actual incident framing).
+const METAPHOR_IDIOMS: { rx: RegExp; reason: string }[] = [
+  {
+    rx: /(?:רכוב|רכובה|רוכב|רוכבת|הגיע|הגיעה|בא|באה) על חמור לבן|חמור לבן (?:של|כדי|שיציל|שיביא)/,
+    reason: 'ביטוי "חמור לבן" — דימוי משיחי-פוליטי, לא תיאור עובדתי',
+  },
+  {
+    rx: /(?:יורה|יורים|ירה|ירתה|יורות) לעצמ(?:ו|ה|ם|ן) ברגל/,
+    reason: 'ביטוי "יורה לעצמו ברגל" — דימוי לפגיעה עצמית, לא פעולה',
+  },
+  {
+    rx: /(?:חופר|חופרת|חופרים|כורה|כורים|כרה|כרתה) (?:את )?(?:הקבר ש(?:לו|לה|להם)|קבר(?:ו|ה)|בור לעצמ(?:ו|ה|ם))/,
+    reason: 'ביטוי "חופר את קברו" — דימוי, לא פעולה',
+  },
+  {
+    rx: /(?:פתח|פתחה|פותח|פותחת|נפתחה) (?:את )?תיבת פנדורה/,
+    reason: '"תיבת פנדורה" — דימוי, לא אירוע',
+  },
+  {
+    rx: /בית (?:ה)?קלפים|כבית קלפים|מתמוטט (?:לו )?כבית/,
+    reason: '"בית קלפים" — דימוי לקריסה, לא תיאור מבנה',
+  },
+  {
+    rx: /זרע(?:ה|ו|תי|נו)? (?:את ה)?(?:סער|רוח)/,
+    reason: 'ביטוי "זרע רוח/סער" — דימוי תנ"כי, לא פעולה',
+  },
+  {
+    rx: /שופ(?:ך|כת|כים) שמן (?:על|אל) ה?מדורה/,
+    reason: 'ביטוי "שופך שמן על המדורה" — דימוי להחרפה, לא פעולה',
+  },
+];
+
+function metaphorIdiom(input: ClaimQualityInput): ClaimQualityIssue | null {
+  for (const pat of METAPHOR_IDIOMS) {
+    if (pat.rx.test(input.quote)) {
+      return { code: "metaphor-idiom", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
 export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIssue[] {
   return [
     newsNarrative(input),
@@ -371,6 +423,7 @@ export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIs
     opinionInsult(input),
     eulogyOrMemorial(input),
     ceremonial(input),
+    metaphorIdiom(input),
   ].filter(Boolean) as ClaimQualityIssue[];
 }
 

@@ -620,6 +620,21 @@ export async function processArticle(articleId: string) {
       // time expressions ("we are now", "this week") against when the
       // quote was actually said, not against today.
       const factCheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+
+      // Race-condition guard: isDuplicate() ran ~10s ago (before the
+      // grounded fact-check call). If another article processing the
+      // same quote won the race in the meantime, we'd now insert a
+      // duplicate row with a possibly-different verdict (model isn't
+      // deterministic across runs). Re-check immediately before insert
+      // and skip if a near-dup appeared. Shrinks the race window from
+      // ~10 seconds to a few ms.
+      if (await isDuplicate(politicianId, claim.quote)) {
+        console.log(
+          `Race-skip: ${politicianName} quote was inserted by a concurrent article during fact-check; dropping this copy.`,
+        );
+        return null;
+      }
+
       const saved = await prisma.claim.create({
         data: {
           politicianId,
@@ -703,7 +718,8 @@ export async function processArticle(articleId: string) {
     },
   });
 
-  return results;
+  // Filter out null entries from race-skips (see the dedup guard above).
+  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 /**
