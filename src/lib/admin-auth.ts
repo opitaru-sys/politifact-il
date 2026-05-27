@@ -73,14 +73,22 @@ export async function setAdminCookie(): Promise<void> {
     // and the secure flag would prevent the cookie being set there at all.
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    path: "/admin",
+    // Path "/" not "/admin" so the cookie is sent to admin-only API routes
+    // under /api/admin/* (e.g. /api/admin/reports/apply). The earlier
+    // "/admin" path scope blocked those endpoints from authenticating
+    // and they returned 401 even when the admin was logged in. Cookie
+    // remains httpOnly + sameSite=strict + secure-in-prod, so widening
+    // the path has no real security impact — it's just sent on more
+    // requests where the server ignores it.
+    path: "/",
     maxAge: COOKIE_MAX_AGE,
   });
 }
 
 export async function clearAdminCookie(): Promise<void> {
   const store = await cookies();
-  store.delete(COOKIE_NAME);
+  // Delete at path "/" to match setAdminCookie's scope above.
+  store.delete({ name: COOKIE_NAME, path: "/" });
 }
 
 /**
