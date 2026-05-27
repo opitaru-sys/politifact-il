@@ -5,8 +5,14 @@
  *
  * The "התנתק" item invokes the logoutAction server action which
  * clears the cookie and redirects to /admin/login.
+ *
+ * Queue counts (reports + comments) are fetched here and shown in
+ * parentheses next to the tab label so the admin can see workload at
+ * a glance without clicking. Two cheap COUNT() queries per render —
+ * acceptable for an admin-only page.
  */
 import Link from "next/link";
+import { prisma } from "@/lib/db";
 import { logoutAction } from "@/app/admin/login/actions";
 
 export type AdminTabId = "status" | "claims" | "reports" | "comments" | "digest";
@@ -19,22 +25,43 @@ const TABS: { id: AdminTabId; label: string; href: string }[] = [
   { id: "digest", label: "סיכומים", href: "/admin/digest" },
 ];
 
-export function AdminNav({ active }: { active: AdminTabId }) {
+export async function AdminNav({ active }: { active: AdminTabId }) {
+  // Open queues. Reports drop to 0 as the editor dismisses/applies them
+  // (the row is deleted), so this IS the unread count. Comments don't
+  // have a read/unread state today, so this is total — switch to "since
+  // last admin visit" if/when that becomes a real signal.
+  const [reportsCount, commentsCount] = await Promise.all([
+    prisma.report.count(),
+    prisma.comment.count(),
+  ]);
+
+  const counts: Partial<Record<AdminTabId, number>> = {
+    reports: reportsCount,
+    comments: commentsCount,
+  };
+
   return (
     <nav className="flex items-center gap-1 text-[11px] tracking-wider uppercase flex-wrap">
-      {TABS.map((t) => (
-        <Link
-          key={t.id}
-          href={t.href}
-          className={
-            t.id === active
-              ? "text-foreground font-bold border-b-2 border-accent pb-1 ml-3"
-              : "text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1 ml-3"
-          }
-        >
-          {t.label} {t.id !== active && "→"}
-        </Link>
-      ))}
+      {TABS.map((t) => {
+        const count = counts[t.id];
+        return (
+          <Link
+            key={t.id}
+            href={t.href}
+            className={
+              t.id === active
+                ? "text-foreground font-bold border-b-2 border-accent pb-1 ml-3"
+                : "text-foreground-muted hover:text-foreground font-medium border-b-2 border-transparent pb-1 ml-3"
+            }
+          >
+            {t.label}
+            {typeof count === "number" && (
+              <span className="text-foreground-muted font-normal mr-1">({count})</span>
+            )}
+            {t.id !== active && " →"}
+          </Link>
+        );
+      })}
       <form action={logoutAction} className="ml-auto">
         <button
           type="submit"
