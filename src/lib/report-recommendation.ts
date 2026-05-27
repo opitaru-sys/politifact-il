@@ -12,14 +12,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { getEnvVar } from "./env";
 import { currentOfficeholdersBlock } from "./officeholders";
+import { MODEL_LITE as MODEL } from "./gemini-models";
 
 function getGemini() {
   const apiKey = getEnvVar("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY not found");
   return new GoogleGenAI({ apiKey });
 }
-
-const MODEL = "gemini-2.5-flash";
 
 export type ReportAction =
   /** Hide the claim entirely; verifier was wrong or content is unfit. */
