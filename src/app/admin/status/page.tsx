@@ -312,6 +312,15 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
   // 1-6h ago" instead of just a total. Makes "why is there a queue" concrete.
   const queueAge = bucketQueueByAge(unprocessedArticlesForAge);
 
+  // Split the queue by lane so the drain buttons can show each lane's
+  // depth. The fact-check.ts processors gate on source: Knesset articles
+  // (source containing "כנסת") go through processKnessetBacklog, everything
+  // else through processFreshNewsArticles. Mirror that here.
+  const knessetCount = unprocessedArticlesForAge.filter((a) =>
+    a.source.includes("כנסת"),
+  ).length;
+  const freshCount = unprocessedArticlesForAge.length - knessetCount;
+
   const sourceRows: SourceStats[] = sourceRowsRaw.map((r) => {
     let lastFetched: Date | null = null;
     if (r.lastFetched !== null && r.lastFetched !== undefined) {
@@ -373,7 +382,7 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
           wants to clear the queue right now. Cookie-auth on the
           /api/admin/drain endpoint; see DrainQueueButton for the flow. */}
       <div className="mt-4 flex items-center justify-end gap-3">
-        <DrainQueueButton queueDepth={unprocessedTotal} />
+        <DrainQueueButton freshCount={freshCount} knessetCount={knessetCount} />
       </div>
 
       {/* Pipeline schedule — when each automated workflow runs next.
