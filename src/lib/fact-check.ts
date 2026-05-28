@@ -299,6 +299,20 @@ export async function extractClaims(
  *  source URL and end up double-counting in the politician's Wilson score. */
 const MAX_CLAIMS_PER_ARTICLE = 3;
 
+/**
+ * Detects placeholder fact-check output — either the prompt-instructed
+ * "couldn't verify a current event" string, or the catch-block residue
+ * from older code paths. Used in `processArticle` to skip such claims
+ * before they hit the DB.
+ *
+ * Both phrasings (טעונה / נדרשת בדיקה ידנית) cover the prompt template
+ * and the historical catch-block return. Matched on either summary or
+ * explanation; either alone is enough to mark the claim as unverified
+ * and unfit for public display.
+ */
+const PLACEHOLDER_EXPLANATION_RE =
+  /(?:נדרשת|טעונה|דרושה)\s+בדיקה\s+ידנית|לא ניתן לבדוק טענה זו באופן אוטומטי|ההסבר חסר/;
+
 export async function factCheckClaim(
   claim: ExtractedClaim,
   options?: { claimDate?: Date | null },
@@ -468,15 +482,22 @@ export async function factCheckClaim(
       confidence: typeof p.confidence === "number" ? p.confidence : 0.5,
     };
   } catch (err) {
-    console.error("Fact-check failed for", claim.quote.slice(0, 50), err instanceof Error ? err.message : err);
-    return {
-      verdict: "half-true",
-      summary: "טענה זו טעונה בדיקה ידנית.",
-      explanation: "לא ניתן לבדוק טענה זו באופן אוטומטי. נדרשת בדיקה ידנית.",
-      factSource: null,
-      factSourceUrl: null,
-      confidence: 0,
-    };
+    // Re-throw — previously this returned a "half-true" placeholder with
+    // explanation = "נדרשת בדיקה ידנית" so the row could still be saved
+    // and re-processed later. But the verifier sometimes fails open
+    // (e.g. during a Gemini quota outage when both fact-check AND
+    // verifier hit quota together), and a placeholder claim with
+    // verdict=half-true would then be published with no real fact-check
+    // behind it. Throwing here forces processArticle to skip the claim
+    // entirely instead of saving a fake one. The article still gets
+    // marked processed=true so the queue drains; the claim simply
+    // doesn't enter the corpus until a future re-extraction.
+    console.error(
+      "Fact-check failed for",
+      claim.quote.slice(0, 50),
+      err instanceof Error ? err.message : err,
+    );
+    throw err;
   }
 }
 
@@ -621,7 +642,42 @@ export async function processArticle(articleId: string) {
       // Pass the article's publishedAt so the model interprets relative
       // time expressions ("we are now", "this week") against when the
       // quote was actually said, not against today.
-      const factCheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+      let factCheck;
+      try {
+        factCheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+      } catch (err) {
+        // factCheckClaim throws on API failure (quota, timeout, parse).
+        // Previously it returned a "נדרשת בדיקה ידנית" placeholder which
+        // the verifier was supposed to reject — but during a Gemini
+        // quota outage the verifier ALSO fails open, so placeholder
+        // claims were leaking to the public feed with verdict=half-true.
+        // Skip the claim entirely instead. The article is still marked
+        // processed (downstream code) so the queue drains; the quote
+        // can be re-extracted later from the same article.
+        console.error(
+          `Skipping ${politicianName} claim — fact-check failed:`,
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      }
+
+      // Defensive guard for the prompt-instructed placeholder case: the
+      // fact-check prompt itself tells the model to write "נדרשת בדיקה
+      // ידנית" with confidence=0.2 when it can't verify a current event
+      // (see line ~379 of the prompt). The verifier usually rejects
+      // these via criterion #5 ("explanation entirely vague"), but the
+      // verifier sometimes fails open. Belt + suspenders: if the
+      // returned explanation or summary contains the placeholder
+      // language, treat it like a fact-check failure and skip.
+      if (
+        PLACEHOLDER_EXPLANATION_RE.test(factCheck.explanation) ||
+        PLACEHOLDER_EXPLANATION_RE.test(factCheck.summary)
+      ) {
+        console.error(
+          `Skipping ${politicianName} claim — fact-check returned placeholder text (low confidence ${factCheck.confidence}).`,
+        );
+        return null;
+      }
 
       // Race-condition guard: isDuplicate() ran ~10s ago (before the
       // grounded fact-check call). If another article processing the
