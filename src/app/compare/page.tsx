@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "השוואה | בדוק",
-  description: "השוואה צד-לצד של אמינות שני פוליטיקאים על בסיס הטענות שנבדקו.",
+  description: "השוואה צד-לצד של דיוק עובדתי בין שני פוליטיקאים על בסיס הטענות שנבדקו.",
 };
 
 function scoreColor(pct: number): string {
@@ -88,11 +88,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
   return (
     <div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3">השוואה</div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">השוואת אמינות</h1>
+      <h1 className="text-4xl font-black mb-3 tracking-tight">השוואת דיוק</h1>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
         בחר שני פוליטיקאים ובחן את התפלגות פסקי הדין שלהם זה לצד זה.
-        הציון המוצג הוא <span className="text-foreground font-bold">ציון אמינות מתוקנן לגודל מדגם</span>
-        — אותו ציון שמשמש לדירוג בטבלת האמינות.
+        הציון המוצג הוא <span className="text-foreground font-bold">ציון דיוק עובדתי מתוקנן לגודל מדגם</span>
+        — אותו ציון שמשמש לדירוג בטבלת הדיוק.
       </p>
 
       <CompareSelector
@@ -160,7 +160,7 @@ function PoliticianColumn({ stats }: { stats: PoliticianStats }) {
               <span className="text-2xl">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              ציון אמינות
+              ציון דיוק עובדתי
             </div>
             <div className={`text-[10px] tabular-nums mt-0.5 ${stats.total < 3 ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
               {stats.truthPct}% אמת · {stats.total} טענות{stats.total < 3 ? " · מדגם קטן" : ""}

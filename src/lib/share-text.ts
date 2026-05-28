@@ -36,12 +36,12 @@ export function shareTextForHero(
   bottomName: string | null,
   bottomScore: number | null,
 ): string {
-  const top = `🏆 במקום הראשון: ${topName} · ציון אמינות ${topScore}%`;
+  const top = `🏆 במקום הראשון: ${topName} · ציון דיוק עובדתי ${topScore}%`;
   const bottom =
     bottomName !== null && bottomScore !== null
       ? `\n📉 במקום האחרון: ${bottomName} · ${bottomScore}%`
       : "";
-  return `${top}${bottom}\n\nטבלת האמינות של פוליטיקאים ישראליים — בדוק:`;
+  return `${top}${bottom}\n\nטבלת הדיוק של פוליטיקאים ישראליים — בדוק:`;
 }
 
 /**

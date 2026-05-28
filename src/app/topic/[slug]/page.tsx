@@ -51,10 +51,10 @@ export async function generateMetadata({
   const label = slugToTopicLabel(slug);
   if (!label) return {};
   return {
-    title: `${label} · אמינות פוליטיקאים | בדוק`,
-    description: `מי הפוליטיקאים הכי אמינים בנושא ${label}? דירוג מתוקנן לגודל מדגם, מבוסס על טענות שנבדקו אוטומטית.`,
+    title: `${label} · דיוק פוליטיקאים | בדוק`,
+    description: `מי הפוליטיקאים הכי מדויקים בנושא ${label}? דירוג מתוקנן לגודל מדגם, מבוסס על טענות שנבדקו אוטומטית.`,
     openGraph: {
-      title: `אמינות פוליטיקאים בנושא ${label}`,
+      title: `דיוק פוליטיקאים בנושא ${label}`,
       description: `דירוג פוליטיקאים ישראליים על נושא ${label}.`,
       url: `${SITE_URL}/topic/${slug}`,
     },
@@ -206,7 +206,7 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       const direction = (truthDelta ?? 0) > 0 ? "מעל" : "מתחת";
       const points = Math.abs(truthDelta ?? 0);
       insightParagraphs.push({
-        heading: "המקום של הנושא במפת האמינות",
+        heading: "המקום של הנושא במפת הדיוק",
         body:
           `ממוצע אחוז האמת המשוקלל בנושא ${label} עומד על ${topicTruthPct}%, ${points} נקודות ${direction} לממוצע האתר (${siteTruthPct}%). ` +
           ((truthDelta ?? 0) < 0
@@ -215,7 +215,7 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       });
     } else {
       insightParagraphs.push({
-        heading: "המקום של הנושא במפת האמינות",
+        heading: "המקום של הנושא במפת הדיוק",
         body:
           `אחוז האמת המשוקלל בנושא ${label} הוא ${topicTruthPct}%, סמוך לממוצע האתר של ${siteTruthPct}%. ` +
           `כשפוליטיקאים מדברים על ${label}, רמת הדיוק שלהם דומה לזו שהם מציגים בשאר התחומים.`,
@@ -275,16 +275,16 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       heading: `${biggestWeaker.politician.name} ${verb(g, "בולט", "בולטת")} לרעה`,
       body:
         `${nameMark} (${biggestWeaker.politician.party}) ${verb(g, "מקבל", "מקבלת")} ${biggestWeaker.topicScore}% בנושא ${label}, לעומת ${biggestWeaker.overallScore}% בציון הכללי ${pronoun(g, "possessive")}. ` +
-        `כש${pronoun(g, "subject")} ${verb(g, "נכנס", "נכנסת")} לנושא הזה, רמת האמינות ${pronoun(g, "possessive")} צונחת ב-${Math.abs(biggestWeaker.delta)} נקודות. או שזו זירה שמושכת ${pronoun(g, "from")} הצהרות שאינן עומדות במבחן, או ש${pronoun(g, "subject")} ${verb(g, "מסתמך", "מסתמכת")} על מקורות פחות מהימנים כש${pronoun(g, "subject")} ${verb(g, "מדבר", "מדברת")} עליה.`,
+        `כש${pronoun(g, "subject")} ${verb(g, "נכנס", "נכנסת")} לנושא הזה, רמת הדיוק ${pronoun(g, "possessive")} צונחת ב-${Math.abs(biggestWeaker.delta)} נקודות. או שזו זירה שמושכת ${pronoun(g, "from")} הצהרות שאינן עומדות במבחן, או ש${pronoun(g, "subject")} ${verb(g, "מסתמך", "מסתמכת")} על מקורות פחות מהימנים כש${pronoun(g, "subject")} ${verb(g, "מדבר", "מדברת")} עליה.`,
     });
   }
 
   if (spread && spread.range >= 40) {
     insightParagraphs.push({
-      heading: "טווח רחב של אמינות",
+      heading: "טווח רחב של דיוק",
       body:
-        `הפוליטיקאים שדנו ב-${label} נעים מ-${spread.min}% ל-${spread.max}% אמינות, פער של ${spread.range} נקודות. ` +
-        `כאשר הפער בין הקול האמין ביותר לבין הפחות אמין כל כך רחב, מדובר בנושא שאין בו "אמת אחת" שכולם נצמדים אליה. בחירת המקור משפיעה על כל מה שמשתמע מהדיון.`,
+        `הפוליטיקאים שדנו ב-${label} נעים מ-${spread.min}% ל-${spread.max}% דיוק, פער של ${spread.range} נקודות. ` +
+        `כאשר הפער בין הקול המדויק ביותר לבין הפחות מדויק כל כך רחב, מדובר בנושא שאין בו "אמת אחת" שכולם נצמדים אליה. בחירת המקור משפיעה על כל מה שמשתמע מהדיון.`,
     });
   }
 
@@ -325,7 +325,7 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
         <h1 className="text-4xl font-black tracking-tight">{label}</h1>
         <ShareButtons
           text={shareTextForRanking(
-            `${label} · אמינות פוליטיקאים`,
+            `${label} · דיוק פוליטיקאים`,
             top.map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
             5,
           )}
@@ -333,7 +333,7 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
         />
       </div>
       <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        אמינות פוליטיקאים ישראליים בנושא {label}.{" "}
+        דיוק עובדתי של פוליטיקאים ישראליים בנושא {label}.{" "}
         {totalClaims > 0 ? (
           <>
             <span className="text-foreground font-bold">{totalClaims} טענות</span>{" "}
@@ -407,13 +407,13 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
           <RankCard
-            title="הכי אמינים בנושא"
+            title="הכי מדויקים בנושא"
             stats={top}
             tone="positive"
           />
           {bottomDistinct.length > 0 && (
             <RankCard
-              title="הכי פחות אמינים בנושא"
+              title="הכי פחות מדויקים בנושא"
               stats={bottomDistinct}
               tone="negative"
             />

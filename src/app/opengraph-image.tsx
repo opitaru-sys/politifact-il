@@ -119,7 +119,7 @@ export default async function OpenGraphImage() {
               lineHeight: 1.2,
             }}
           >
-            {rtlHe("מי הפוליטיקאי הכי אמין?")}
+            {rtlHe("מי הפוליטיקאי הכי מדויק?")}
           </div>
         </div>
 

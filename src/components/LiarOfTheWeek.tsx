@@ -180,7 +180,7 @@ export async function LiarOfTheWeek({
               <span className="text-2xl">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-2">
-              ציון אמינות · מתוקנן לגודל מדגם
+              ציון דיוק עובדתי · מתוקנן לגודל מדגם
             </div>
             <div className="text-[10px] tracking-wider text-foreground-muted/80 mt-0.5 tabular-nums">
               {top.truthPercentage}% אמת מתוך {top.totalClaims} טענות
@@ -262,10 +262,10 @@ export async function LiarOfTheWeek({
             </div>
             <div className="text-[10px] text-foreground-muted/70 leading-tight text-left max-w-[140px]">
               {Math.abs(topDelta) <= 2
-                ? "יציבות באמינות"
+                ? "יציבות בדיוק"
                 : topDelta > 0
-                ? "שיפור באמינות בחודש האחרון"
-                : "ירידה באמינות בחודש האחרון"}
+                ? "שיפור בדיוק בחודש האחרון"
+                : "ירידה בדיוק בחודש האחרון"}
             </div>
           </div>
         )}

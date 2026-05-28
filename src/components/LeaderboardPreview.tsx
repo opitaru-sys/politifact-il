@@ -50,7 +50,7 @@ export function LeaderboardPreview({
     >
       <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-black text-base tracking-tight">טבלת האמינות</h2>
+          <h2 className="font-black text-base tracking-tight">טבלת הדיוק</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             {caption}
           </div>
@@ -58,7 +58,7 @@ export function LeaderboardPreview({
         <div className="flex items-center gap-3 shrink-0">
           <ShareButtons
             text={shareTextForRanking(
-              `טבלת האמינות · ${caption}`,
+              `טבלת הדיוק · ${caption}`,
               sorted.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
               5,
             )}

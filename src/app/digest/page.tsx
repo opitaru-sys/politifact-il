@@ -1,6 +1,6 @@
 /**
  * Latest published weekly digest. The home page links here as
- * "השבוע באמינות". Past issues are listed at the bottom and live at
+ * "השבוע בעובדות". Past issues are listed at the bottom and live at
  * their own URLs (/digest/[weekOf]).
  *
  * If no digest has been published yet, shows a "coming soon" stub
@@ -22,7 +22,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 export const metadata: Metadata = {
   title: "תובנות השבוע | בדוק",
   description:
-    "סיכום שבועי של מה שקרה בעולם בדיקת העובדות הפוליטיות בישראל: תובנות מהותיות על מגמות אמינות, נושאים בולטים ודפוסי דיוק בקרב פוליטיקאים.",
+    "סיכום שבועי של מה שקרה בעולם בדיקת העובדות הפוליטיות בישראל: תובנות מהותיות על מגמות דיוק, נושאים בולטים ודפוסי דיוק בקרב פוליטיקאים.",
 };
 
 const ARCHIVE_LIMIT = 12;
@@ -48,7 +48,7 @@ export default async function DigestPage() {
         <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
           בקרוב
         </div>
-        <h1 className="text-4xl font-black mb-4 tracking-tight">השבוע באמינות</h1>
+        <h1 className="text-4xl font-black mb-4 tracking-tight">השבוע בעובדות</h1>
         <p className="text-sm text-foreground-muted max-w-2xl leading-relaxed mb-6">
           הסיכום השבועי האוטומטי טרם פורסם. הוא יעלה כאן ברגע שהעורך יאשר את הטיוטה הראשונה.
         </p>

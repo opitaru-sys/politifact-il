@@ -35,17 +35,42 @@ export const metadata: Metadata = {
  * corrections per page (newest first) for a v1; pagination/filter
  * can come later if the list grows.
  */
-export default async function CorrectionsPage() {
+interface PageProps {
+  searchParams: Promise<{ politician?: string }>;
+}
+
+export default async function CorrectionsPage({ searchParams }: PageProps) {
+  // Optional ?politician=<id> filter — used by the "לרשימה המלאה" link
+  // on profile pages so a visitor curious about one politician can see
+  // exactly which of their statements were filtered, instead of having
+  // to scroll a global feed for the relevant rows.
+  const sp = await searchParams;
+  const politicianFilter = sp.politician?.trim() || null;
+
+  const where = {
+    correctionNote: { not: null },
+    ...(politicianFilter ? { politicianId: politicianFilter } : {}),
+  };
+
   const corrections = await prisma.claim.findMany({
-    where: { correctionNote: { not: null } },
+    where,
     orderBy: [{ correctedAt: "desc" }, { updatedAt: "desc" }],
     take: 200,
     include: { politician: { select: { id: true, name: true, party: true, image: true } } },
   });
 
-  const total = await prisma.claim.count({
-    where: { correctionNote: { not: null } },
-  });
+  const total = await prisma.claim.count({ where });
+
+  // When filtering, look up the politician name once so the heading
+  // can say "פוליטיקאי X" instead of just showing the id.
+  const filteredPoliticianName = politicianFilter
+    ? corrections[0]?.politician.name ??
+      (await prisma.politician.findUnique({
+        where: { id: politicianFilter },
+        select: { name: true },
+      }))?.name ??
+      politicianFilter
+    : null;
 
   return (
     <div>
@@ -57,8 +82,27 @@ export default async function CorrectionsPage() {
         כל טענה שהופיעה באתר ולאחר מכן הוסרה או תוקנה מתועדת כאן.
         זוהי מחויבותנו הציבורית: לא לטאטא טעויות מתחת לשטיח אלא לתעד אותן.
       </p>
+      {filteredPoliticianName && (
+        <div
+          className="mb-4 px-4 py-3 bg-card border border-border text-sm flex items-center justify-between gap-4"
+          style={{ borderRadius: 4 }}
+        >
+          <span>
+            מסונן לפי{" "}
+            <strong>{filteredPoliticianName}</strong> · {total} תיקונים
+          </span>
+          <Link
+            href="/corrections"
+            className="text-[12px] underline hover:text-accent shrink-0"
+          >
+            הצג הכל ←
+          </Link>
+        </div>
+      )}
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
-        סך הכל {total} תיקונים. מציג את {Math.min(corrections.length, total)} האחרונים.
+        {filteredPoliticianName
+          ? `מציג את ${Math.min(corrections.length, total)} מתוך ${total} עבור פוליטיקאי זה.`
+          : `סך הכל ${total} תיקונים. מציג את ${Math.min(corrections.length, total)} האחרונים.`}
       </p>
 
       {total === 0 ? (

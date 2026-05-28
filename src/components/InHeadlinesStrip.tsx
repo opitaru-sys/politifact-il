@@ -68,7 +68,7 @@ export function InHeadlinesStrip({
             key={stat.politician.id}
             href={`/politician/${stat.politician.id}`}
             className="group flex flex-col items-center text-center px-3 py-4 hover:bg-muted/40 transition-colors"
-            title={`${stat.politician.name} (${stat.politician.party}) · ${stat.totalClaims} טענות · ציון אמינות ${stat.credibilityScore}%`}
+            title={`${stat.politician.name} (${stat.politician.party}) · ${stat.totalClaims} טענות · ציון דיוק עובדתי ${stat.credibilityScore}%`}
           >
             <PoliticianAvatar
               id={stat.politician.id}

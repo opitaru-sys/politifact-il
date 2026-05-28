@@ -45,7 +45,7 @@ export function BiggestMovers({ gainers, losers, daysBack = 7 }: Props) {
   // Build share text. The biggest mover (either gainer or loser) leads.
   const topGain = gainers[0];
   const topLoss = losers[0];
-  const shareLines: string[] = [`השינוי הגדול באמינות · ${caption}`];
+  const shareLines: string[] = [`השינוי הגדול בדיוק · ${caption}`];
   if (topGain) shareLines.push(`↑ ${topGain.politician.name} +${topGain.delta.toFixed(1)}`);
   if (topLoss) shareLines.push(`↓ ${topLoss.politician.name} ${topLoss.delta.toFixed(1)}`);
   const shareText = shareLines.join("\n");
@@ -57,7 +57,7 @@ export function BiggestMovers({ gainers, losers, daysBack = 7 }: Props) {
     >
       <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-black text-base tracking-tight">השינוי הגדול באמינות</h2>
+          <h2 className="font-black text-base tracking-tight">השינוי הגדול בדיוק</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             {caption} · מבוסס על חלון נע של 30 ימים
           </div>

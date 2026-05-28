@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
-import { wilsonLowerBound } from "@/lib/queries";
+import { wilsonLowerBound, getFilteredClaimCount } from "@/lib/queries";
 import { getPoliticianTimeline } from "@/lib/cred-history";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
@@ -33,12 +33,15 @@ interface PageProps {
 export default async function PoliticianPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { window: windowParam } = await searchParams;
-  // Fetch politician details and credibility timeline in parallel — both
-  // are independent DB queries. Timeline window is the maximum (12 months);
-  // the chart filters in-memory based on its own 3/6/12 selector.
-  const [data, timelinePoints] = await Promise.all([
+  // Fetch politician details, credibility timeline, AND the count of
+  // claims we filtered out for this politician — all independent DB
+  // queries. The filtered count powers the "what isn't counted" note
+  // below the stats grid, which addresses recurring user feedback of
+  // "how can this politician be high-ranked when they say vile things?"
+  const [data, timelinePoints, filteredCount] = await Promise.all([
     getPoliticianById(id),
     getPoliticianTimeline(id, 12),
+    getFilteredClaimCount(id),
   ]);
   if (!data) notFound();
 
@@ -160,7 +163,7 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
               <span className="text-lg">%</span>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              ציון אמינות
+              ציון דיוק עובדתי
             </div>
             <div className="text-[9px] text-foreground-muted/70 tabular-nums mt-0.5">
               {truthPct}% אמת
@@ -214,6 +217,42 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
             )}
           </p>
         )}
+
+        {/* "What is NOT counted in the score" disclosure block.
+            Directly answers the recurring user complaint: "how can
+            this politician (corrupt / vile / inciter) be ranked so
+            high?" Answer: the score only measures the factual
+            accuracy of statements we could check. Rhetorical, ceremonial,
+            and non-factual statements never enter the score.
+
+            Shows a concrete number (filteredCount) per politician so
+            visitors see this isn't theoretical — actual statements were
+            filtered. Links to /corrections for the full list. */}
+        <div
+          className="mt-5 border-t border-border pt-4"
+        >
+          <div className="text-[11px] uppercase tracking-wider text-foreground-muted font-bold mb-2">
+            לא נספר במדד
+          </div>
+          <p className="text-[12px] leading-relaxed text-foreground-muted">
+            הציון מודד <strong className="text-foreground">דיוק עובדתי</strong> של טענות שניתנות לבדיקה — לא יושרה,
+            מוסריות, שחיתות, הסתה או איכות פוליטית. דעות, קללות, ברכות,
+            סיסמאות ושיחות פרטיות שאי אפשר לאמת נסננו ולא משפיעים על הציון.
+          </p>
+          {filteredCount > 0 && (
+            <p className="text-[12px] mt-2 text-foreground-muted">
+              עבור {data.name} סוננו{" "}
+              <strong className="text-foreground tabular-nums">{filteredCount}</strong>{" "}
+              {filteredCount === 1 ? "אמירה" : "אמירות"} מסיבות אלו.{" "}
+              <a
+                href={`/corrections?politician=${id}`}
+                className="underline hover:text-accent"
+              >
+                לרשימה המלאה ←
+              </a>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Credibility timeline — pre-baked CredibilitySnapshot rows

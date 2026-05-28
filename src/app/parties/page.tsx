@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "השוואת מפלגות | בדוק",
-  description: "איזו מפלגה הכי אמינה? דירוג מפלגות ישראליות לפי אחוז טענות שנמצאו אמת",
+  description: "איזו מפלגה הכי מדויקת? דירוג מפלגות ישראליות לפי אחוז טענות שנמצאו אמת",
 };
 
 function scoreColor(pct: number): string {
@@ -26,8 +26,8 @@ export default async function PartiesPage() {
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">השוואה · 30 ימים אחרונים</div>
       <h1 className="text-4xl font-black mb-3 tracking-tight">דירוג מפלגות</h1>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
-        איזו מפלגה הכי אמינה? דירוג לפי{" "}
-        <span className="text-foreground font-bold">ציון אמינות מתוקנן לגודל מדגם</span>{" "}
+        איזו מפלגה הכי מדויקת? דירוג לפי{" "}
+        <span className="text-foreground font-bold">ציון דיוק עובדתי מתוקנן לגודל מדגם</span>{" "}
         ב-30 הימים האחרונים. מפלגה קטנה עם 5 טענות נכונות מקבלת ציון נמוך יותר ממפלגה גדולה עם 50 טענות נכונות.
         {" "}עמודת <span className="text-foreground font-bold">נוכחות</span> מציגה ממוצע השתתפות פעילה של ח״כי המפלגה בישיבות המליאה ב-90 הימים האחרונים.
       </p>
@@ -64,7 +64,7 @@ export default async function PartiesPage() {
                       <span className="text-base">%</span>
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-foreground-muted">
-                      ציון אמינות
+                      ציון דיוק עובדתי
                     </span>
                   </div>
                   {(() => {

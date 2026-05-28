@@ -12,8 +12,8 @@ import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "טבלת האמינות | בדוק",
-  description: "דירוג פוליטיקאים ישראליים לפי אחוז הטענות שנמצאו אמת",
+  title: "טבלת הדיוק | בדוק",
+  description: "דירוג פוליטיקאים ישראליים לפי דיוק עובדתי של טענותיהם",
 };
 
 function scoreColor(pct: number): string {
@@ -53,14 +53,17 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         דירוג · {windowLabel}
       </div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">טבלת האמינות</h1>
-      <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        דירוג של {stats.length} פוליטיקאים{" "}
-        <span className="text-foreground font-bold">{windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}</span>.
-        המספר הגדול הוא <span className="text-foreground font-bold">ציון אמינות מתוקנן לגודל מדגם</span> —
-        פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
+      <h1 className="text-4xl font-black mb-3 tracking-tight">טבלת הדיוק</h1>
+      <p className="text-sm text-foreground-muted mb-3 max-w-2xl leading-relaxed">
+        דירוג של {stats.length} פוליטיקאים לפי <strong className="text-foreground">דיוק עובדתי</strong> של הטענות שלהם
+        {" "}<span className="text-foreground font-bold">{windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}</span>.
+        המספר הגדול הוא ציון מתוקנן לגודל מדגם — פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
         אחוז האמת הגולמי <span className="text-foreground font-bold">(אמת + ½ × חצי) ÷ סה״כ</span> מוצג כקו תחתון.
         עמודת <span className="text-foreground font-bold">השתתפות</span> מציגה את אחוז ישיבות המליאה ב-90 הימים האחרונים שבהן הח״כ דיבר.
+      </p>
+      <p className="text-[11px] text-foreground-muted mb-6 max-w-2xl leading-relaxed">
+        הציון מודד <strong>דיוק עובדתי</strong> בלבד — לא יושרה, מוסריות, שחיתות, הסתה או איכות פוליטית.
+        דעות, קללות, ברכות וסיסמאות סוננו ולא נספרו.
       </p>
 
       {/* Window selector — shared component, same options on the home
@@ -88,7 +91,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         <div className="grid grid-cols-[2rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto_auto_auto] gap-x-4 px-5 py-2.5 border-b-[1.5px] border-border-strong text-[10px] font-bold text-foreground-muted uppercase tracking-[0.18em]">
           <span>#</span>
           <span>פוליטיקאי</span>
-          <span>אמינות</span>
+          <span>דיוק</span>
           <span className="hidden sm:inline">השתתפות</span>
           <span className="hidden sm:inline">טענות</span>
         </div>

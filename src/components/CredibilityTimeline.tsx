@@ -68,7 +68,7 @@ export function CredibilityTimeline({ points, minSample = 5 }: Props) {
         className="bg-card border border-border-strong p-6 text-center text-foreground-muted text-sm"
         style={{ borderRadius: 4 }}
       >
-        טרם נצברו מספיק נתונים להצגת מגמת אמינות.
+        טרם נצברו מספיק נתונים להצגת מגמת דיוק.
       </div>
     );
   }
@@ -80,7 +80,7 @@ export function CredibilityTimeline({ points, minSample = 5 }: Props) {
     >
       <div className="px-5 py-3.5 border-b border-border flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="font-black text-base tracking-tight">ציון אמינות לאורך זמן</h2>
+          <h2 className="font-black text-base tracking-tight">ציון דיוק עובדתי לאורך זמן</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             חלון נע · 30 ימים · עדכון יומי
           </div>

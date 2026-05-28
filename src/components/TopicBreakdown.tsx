@@ -116,7 +116,7 @@ export function TopicBreakdown({ politicianId, claims, windowLabel }: Props) {
       style={{ borderRadius: 4 }}
     >
       <div className="px-5 py-3.5 border-b border-border">
-        <h2 className="font-black text-base tracking-tight">אמינות לפי נושא</h2>
+        <h2 className="font-black text-base tracking-tight">דיוק לפי נושא</h2>
         <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
           {windowLabel ? `${windowLabel} · ` : ""}פילוח טענות לפי תחום
         </div>

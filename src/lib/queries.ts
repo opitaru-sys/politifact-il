@@ -110,6 +110,34 @@ export async function getPoliticianById(id: string) {
   });
 }
 
+/**
+ * Count of claims for this politician that were extracted and saved but
+ * then filtered out of the public score — verifier rejection, editor
+ * rejection, or post-hoc sweep / triage. Used on the profile page to
+ * answer the "how can this awful politician be at the top?" question
+ * with a concrete number: "X statements not counted because they weren't
+ * fact-checkable / were rhetorical / were ceremonial / etc."
+ *
+ * Counts ONLY claims that made it into the Claim table. Extraction-time
+ * regex rejections (eulogies, news-narrative quotes, etc.) never enter
+ * the DB and are NOT in this count. The number is therefore a floor on
+ * the real "filtered" total, not the ceiling — which is fine, the goal
+ * is concrete evidence, not exhaustive accounting.
+ *
+ * Status filter intentionally includes both "published" (then un-approved
+ * later) and "draft" (verifier rejected before publication), because the
+ * user-facing question is "did this statement count?" — for both, the
+ * answer is no.
+ */
+export async function getFilteredClaimCount(politicianId: string): Promise<number> {
+  return prisma.claim.count({
+    where: {
+      politicianId,
+      editorApproved: false,
+    },
+  });
+}
+
 export interface PoliticianStatsRow {
   politician: {
     id: string;

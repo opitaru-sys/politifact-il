@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "כל הנושאים | בדוק",
   description:
-    "אמינות פוליטיקאים ישראליים לפי נושא: ביטחון, כלכלה, משפט, חינוך, בריאות ועוד. דירוג מתוקנן לגודל מדגם.",
+    "דיוק עובדתי של פוליטיקאים ישראליים לפי נושא: ביטחון, כלכלה, משפט, חינוך, בריאות ועוד. דירוג מתוקנן לגודל מדגם.",
 };
 
 interface PageProps {
@@ -82,8 +82,8 @@ export default async function TopicsIndexPage({ searchParams }: PageProps) {
       </div>
       <h1 className="text-4xl font-black mb-3 tracking-tight">כל הנושאים</h1>
       <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        אמינות פוליטיקאים לפי תחום. כל נושא הוא דף עם דירוג עצמאי, טענות אחרונות,
-        והפוליטיקאים הכי אמינים ופחות אמינים בו. ההתאמה לקטגוריה מבוססת מילות מפתח —
+        דיוק פוליטיקאים לפי תחום. כל נושא הוא דף עם דירוג עצמאי, טענות אחרונות,
+        והפוליטיקאים הכי מדויקים ופחות מדויקים בו. ההתאמה לקטגוריה מבוססת מילות מפתח —
         טענה אחת יכולה להופיע רק תחת קטגוריה אחת.
       </p>
 

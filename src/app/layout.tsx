@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   keywords: ["בדיקת עובדות", "פוליטיקה ישראלית", "פוליטיקאים", "אמת ושקר", "fact check"],
   authors: [{ name: "Omri Pitaru", url: "https://www.linkedin.com/in/omripitaru/" }],
   openGraph: {
-    title: "בדוק | מי הפוליטיקאי הכי אמין?",
+    title: "בדוק | מי הפוליטיקאי הכי מדויק?",
     description: DESCRIPTION,
     locale: "he_IL",
     type: "website",

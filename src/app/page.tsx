@@ -122,7 +122,7 @@ export default async function Home({
               textUnderlineOffset: "8px",
             }}
           >
-            אמין
+            מדויק
           </span>{" "}
           בפוליטיקה
           <span className="text-accent">.</span>
@@ -177,7 +177,7 @@ export default async function Home({
 
       {/* One-line legend — was a 4-line block before the home refactor.
           The full methodology lives at /about; here we just anchor the
-          one term that needs explaining ("ציון אמינות") and the data-
+          one term that needs explaining ("ציון דיוק עובדתי") and the data-
           coverage caveat. Hover the score anywhere on the site for the
           formula tooltip. */}
       {collectionStart && (
@@ -189,7 +189,7 @@ export default async function Home({
           {" · "}
           {windowLabel(statsWindow.value)}: {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות
           <span className="mx-2 opacity-40">·</span>
-          <strong className="text-foreground">ציון אמינות</strong> = Wilson 95% (אמת + ½·חצי).{" "}
+          <strong className="text-foreground">ציון דיוק עובדתי</strong> = Wilson 95% (אמת + ½·חצי).{" "}
           <a href="/about" className="underline hover:no-underline">איך מחושב? ←</a>
         </div>
       )}
