@@ -245,11 +245,13 @@ export async function extractClaims(
 
 זהה את שם הפוליטיקאי (שם מלא בעברית), סווג את הנושא, ואם אין טענות העונות לקריטריונים — החזר [].
 
+**כמות:** העדף לחלץ פחות טענות אך משמעותיות יותר מאשר הרבה טענות קטנות. מקסימום 3 טענות לכתבה אחת. אם הנאום או הכתבה מכילים יותר מ-3 טענות עובדתיות מובחנות, בחר את שלוש המהותיות ביותר (אלה שמכילות נתון מספרי, אירוע ספציפי, או טענה ניתנת לאימות חיצוני) ודלג על האחרות. נאומים ארוכים שמתחלקים ל-5-7 ציטוטים קצרים מנפחים את כמות הטענות של הפוליטיקאי באופן מלאכותי.
+
 כותרת: ${articleTitle}
 תוכן: ${articleContent}
 מקור: ${articleSource}
 
-החזר מערך JSON של טענות. אם אין טענות העונות לקריטריונים — החזר מערך ריק [].`;
+החזר מערך JSON של טענות (עד 3). אם אין טענות העונות לקריטריונים — החזר מערך ריק [].`;
 
   try {
     const response = await getGemini().models.generateContent({
@@ -275,12 +277,27 @@ export async function extractClaims(
       },
     });
     const text = response.text ?? "";
-    return parseJsonLoose<ExtractedClaim[]>(text);
+    const parsed = parseJsonLoose<ExtractedClaim[]>(text);
+    // Hard cap at MAX_CLAIMS_PER_ARTICLE. Even with the prompt asking for
+    // fewer-but-better claims, the AI sometimes returns 5+. Capping here
+    // prevents long speeches from inflating one politician's volume
+    // (which dilutes their Wilson score and floods their profile page).
+    // The prompt above prefers the most substantive claims, so the first
+    // N returned are usually the strongest. See the 2026-05-27 sweep
+    // (scripts/_consolidate-over-extracted.mts) that hid 1,610 historical
+    // over-extractions across the corpus.
+    return parsed.slice(0, MAX_CLAIMS_PER_ARTICLE);
   } catch (err) {
     console.error("Failed to parse claims extraction response:", err);
     return [];
   }
 }
+
+/** Hard limit on how many claims a single article can contribute. Combined
+ *  with the prompt's "prefer fewer substantive claims" instruction, this
+ *  prevents one speech from producing 7+ rows that all share the same
+ *  source URL and end up double-counting in the politician's Wilson score. */
+const MAX_CLAIMS_PER_ARTICLE = 3;
 
 export async function factCheckClaim(
   claim: ExtractedClaim,
