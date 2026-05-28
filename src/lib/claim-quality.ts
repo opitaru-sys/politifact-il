@@ -14,7 +14,7 @@ export interface ClaimQualityInput {
 }
 
 export interface ClaimQualityIssue {
-  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial" | "metaphor-idiom";
+  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial" | "metaphor-idiom" | "private-conversation" | "knesset-procedural";
   reason: string;
 }
 
@@ -435,6 +435,87 @@ function metaphorIdiom(input: ClaimQualityInput): ClaimQualityIssue | null {
   return null;
 }
 
+// Private-conversation patterns — politician reports what someone told them
+// in private as the primary claim. Unverifiable (no third party can confirm
+// what was said in a private meeting / phone call). Added 2026-05-28 after
+// Codex audit flagged 5 claims of this shape.
+//
+// Anchored to the START of the quote on purpose: if "אמר לי" appears
+// mid-sentence as supporting detail, the primary claim is something else
+// and we don't want to reject it. The opening verb is what tells us the
+// whole claim is "X told me Y in private".
+const PRIVATE_CONVERSATION_PATTERNS: { rx: RegExp; reason: string }[] = [
+  {
+    // \b is ASCII-only and silently doesn't match between Hebrew chars
+    // (see the warning at the top of this file). Use explicit boundary
+    // chars instead: end-of-string OR space OR punctuation.
+    rx: /^[\s"״]*(?:נאמר|נמסר|הוסבר|הובהר|נמסרו)\s+לי(?:\s|$|[,.])/,
+    reason: 'מתחיל ב"נאמר/נמסר לי" — ציטוט פרטי שאי אפשר לאמת',
+  },
+  {
+    rx: /^[\s"״]*(?:התקשר|התקשרה|התקשרו|פנה|פנתה|פנו)\s+אליי?(?:\s|$|[,.])/,
+    reason: 'מתחיל בתיאור שיחה פרטית ("התקשר אליי" / "פנה אליי")',
+  },
+  {
+    rx: /^[\s"״]*(?:אמר|אמרה|אמרו|סיפר|סיפרה|סיפרו|הסביר|הסבירה|טען|טענה|הבטיח|הבטיחה)\s+לי(?:\s|$|[,.])/,
+    reason: "מתחיל בציטוט אדם אחר באמירה אליי — אי אפשר לאמת חיצונית",
+  },
+  {
+    rx: /^[\s"״]*(?:בפגישה|בשיחה|בשיחת טלפון|בפגישה אישית|בפגישת ארבע עיניים)\s+(?:ש?(?:קיימתי|ניהלתי|היו לי|שלי|שלנו|פרטית))/,
+    reason: "מתחיל בתיאור פגישה/שיחה פרטית — לא ניתן לאימות חיצוני",
+  },
+];
+
+function privateConversation(input: ClaimQualityInput): ClaimQualityIssue | null {
+  for (const pat of PRIVATE_CONVERSATION_PATTERNS) {
+    if (pat.rx.test(input.quote)) {
+      return { code: "private-conversation", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
+// Knesset plenum procedural fragments — vote tallies, chair calls,
+// confirmations. Specific to source="כנסת · מליאה" because phrases like
+// "אני קובע ש..." can legitimately appear elsewhere. Added 2026-05-28
+// after Codex audit found ~29 of these leaking into the public set.
+//
+// Deliberately narrow — only catch fragments that are UNAMBIGUOUSLY
+// procedural. Substantive claims like "210,000 ישראלים פונו" must still
+// pass.
+const KNESSET_PROCEDURAL_PATTERNS: { rx: RegExp; reason: string }[] = [
+  {
+    // Vote tallies: "בעד - 16 חברי כנסת, אין מתנגדים, נמנע אחד"
+    rx: /^[\s"״]*(?:בעד|נגד|נמנעים?)\s*[-—:–]\s*(?:\d|אין\b)/,
+    reason: "תוצאות הצבעה — לא טענה ניתנת לבדיקה",
+  },
+  {
+    // Vote tally opener: "12 בעד, אין מתנגדים"
+    rx: /^[\s"״]*\d+\s+(?:בעד|נגד|נמנעים?)(?:\s|$|[,.])/,
+    reason: "תוצאות הצבעה — לא טענה ניתנת לבדיקה",
+  },
+  {
+    // Procedural openers
+    rx: /^[\s"״]*(?:הצבעה מס(?:פר|׳)?|נעבור (?:ל|אל\s+)?הצבעה|מי בעד\??|מי נגד\??|אני קובע (?:ש?ה?(?:צעת ה?חוק|החוק|הסעיף|התיקון))|נצביע על|הישיבה ננעלה|הישיבה מתחילה|הישיבה מתחדשת)/,
+    reason: "אמירת יושב ראש פרוצדורלית — לא טענה",
+  },
+  {
+    // Short procedural confirmations
+    rx: /^[\s"״]*(?:החוק הזה עבר|הצעת החוק אושרה|הצעת החוק נדחתה|אושר ברוב|נדחה ברוב|תודה רבה|בבקשה)[.\s"״]*$/,
+    reason: "אישור/דחייה פרוצדורלי קצר — לא טענה",
+  },
+];
+
+function knessetProcedural(input: ClaimQualityInput): ClaimQualityIssue | null {
+  if (input.source !== "כנסת · מליאה") return null;
+  for (const pat of KNESSET_PROCEDURAL_PATTERNS) {
+    if (pat.rx.test(input.quote)) {
+      return { code: "knesset-procedural", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
 export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIssue[] {
   return [
     newsNarrative(input),
@@ -443,6 +524,8 @@ export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIs
     eulogyOrMemorial(input),
     ceremonial(input),
     metaphorIdiom(input),
+    privateConversation(input),
+    knessetProcedural(input),
   ].filter(Boolean) as ClaimQualityIssue[];
 }
 

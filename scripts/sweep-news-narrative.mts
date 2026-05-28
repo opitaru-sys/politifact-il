@@ -70,7 +70,7 @@ async function main() {
   console.log(`Scanning ${claims.length} approved+published claims...\n`);
 
   const flagged: { claim: Claim; reason: string }[] = [];
-  const stats = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+  const stats = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0 };
 
   for (const claim of claims) {
     const issues: ClaimQualityIssue[] = claimQuality.findClaimQualityIssues({
@@ -85,6 +85,9 @@ async function main() {
     if (issues.some((issue) => issue.code === "opinion-insult")) stats.C++;
     if (issues.some((issue) => issue.code === "eulogy-memorial")) stats.D++;
     if (issues.some((issue) => issue.code === "ceremonial")) stats.E++;
+    if (issues.some((issue) => issue.code === "metaphor-idiom")) stats.F++;
+    if (issues.some((issue) => issue.code === "private-conversation")) stats.G++;
+    if (issues.some((issue) => issue.code === "knesset-procedural")) stats.H++;
 
     flagged.push({ claim, reason: issues.map((issue) => issue.reason).join("; ") });
   }
@@ -95,6 +98,9 @@ async function main() {
   console.log(`  Pattern C (hyperbolic insult):    ${stats.C}`);
   console.log(`  Pattern D (eulogy / memorial):    ${stats.D}`);
   console.log(`  Pattern E (ceremonial / PR):      ${stats.E}`);
+  console.log(`  Pattern F (metaphor / idiom):     ${stats.F}`);
+  console.log(`  Pattern G (private conversation): ${stats.G}`);
+  console.log(`  Pattern H (knesset procedural):   ${stats.H}`);
   console.log(`  (counters may overlap when a row hits multiple patterns)\n`);
 
   for (const { claim, reason } of flagged.slice(0, 40)) {
