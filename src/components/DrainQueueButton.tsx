@@ -43,8 +43,24 @@ export function DrainQueueButton({ freshCount, knessetCount }: Props) {
       if (!resp.ok) {
         throw new Error(data?.error ?? `שגיאה (${resp.status})`);
       }
-      setResult(`הופקו ${data.processed} טענות`);
-      setState("done");
+      // Show "drained N from queue · published M claims" so the admin
+      // can distinguish "no claims extracted but queue moved" (normal)
+      // from "no claims extracted AND queue didn't move" (broken).
+      const drained = typeof data.drained === "number" ? data.drained : null;
+      const queueAfter = typeof data.queueAfter === "number" ? data.queueAfter : null;
+      const parts: string[] = [];
+      if (drained !== null) parts.push(`ירד מהתור: ${drained}`);
+      parts.push(`פורסמו: ${data.processed}`);
+      if (queueAfter !== null) parts.push(`נשארו: ${queueAfter}`);
+      setResult(parts.join(" · "));
+      // Detected-stuck warning takes precedence over the success message
+      // so the admin notices.
+      if (data.stuckWarning) {
+        setResult(`${data.stuckWarning} (${parts.join(", ")})`);
+        setState("error");
+      } else {
+        setState("done");
+      }
       router.refresh();
     } catch (err) {
       setResult(err instanceof Error ? err.message : String(err));
