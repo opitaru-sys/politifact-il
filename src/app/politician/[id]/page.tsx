@@ -12,8 +12,11 @@ import { CredibilityTimeline } from "@/components/CredibilityTimeline";
 import { TopicBreakdown } from "@/components/TopicBreakdown";
 import { resolveWindow, windowLabel } from "@/lib/window";
 import { notFound } from "next/navigation";
+import { safeJsonLd } from "@/lib/jsonld";
 
 export const dynamic = "force-dynamic";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -83,8 +86,24 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
   const totalAllTime = data.claims.length;
   const showAllTimeNote = totalAllTime > filteredClaims.length;
 
+  // Person structured data — helps Google attach this profile to the
+  // politician as an entity. affiliation carries the party.
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: data.name,
+    url: `${SITE_URL}/politician/${id}`,
+    ...(data.role ? { jobTitle: data.role } : {}),
+    affiliation: { "@type": "Organization", name: data.party },
+    ...(data.image && data.image.startsWith("http") ? { image: data.image } : {}),
+  };
+
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd) }}
+      />
       <div
         className="bg-card border border-border-strong p-7 mb-8"
         style={{ borderRadius: 4 }}

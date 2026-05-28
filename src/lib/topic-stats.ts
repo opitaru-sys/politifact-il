@@ -15,6 +15,7 @@
  * index it; backfill via a one-off script.
  */
 import { prisma } from "./db";
+import { cachedRead } from "./cache";
 import { wilsonLowerBound, type PoliticianStatsRow } from "./queries";
 import { listCanonicalTopics, rawTopicMatchesSlug } from "./topics";
 
@@ -24,7 +25,7 @@ const PUBLIC_CLAIM_FILTER = { status: "published", editorApproved: true } as con
  * Per-politician stats for one topic. Same shape as `getPoliticianStats`
  * so the same row components can render it.
  */
-export async function getPoliticianStatsForTopic(
+async function computePoliticianStatsForTopic(
   slug: string,
   windowDays?: number,
 ): Promise<PoliticianStatsRow[]> {
@@ -74,6 +75,17 @@ export async function getPoliticianStatsForTopic(
 }
 
 /**
+ * Cached wrapper. Loads every politician with claims and filters in memory
+ * by topic regex — heavy, and called by both the topic page and its OG
+ * image. Date-free return. 5-min TTL.
+ */
+export const getPoliticianStatsForTopic = cachedRead(
+  computePoliticianStatsForTopic,
+  ["topic-politician-stats"],
+  { revalidate: 300, tags: ["claims"] },
+);
+
+/**
  * Recent claims for one topic. Returns claims + politician + comment
  * count, same shape as `queries.getRecentClaims`.
  *
@@ -99,7 +111,7 @@ const SAFETY_CAP = 5000;
  * Loads the window's claims once and groups in memory; same pattern
  * as the per-topic stats functions above.
  */
-export async function getTopTopicsForWindow(
+async function computeTopTopicsForWindow(
   windowDays?: number,
   limit: number = 5,
 ): Promise<
@@ -140,6 +152,12 @@ export async function getTopTopicsForWindow(
     .sort((a, b) => b.claimCount - a.claimCount)
     .slice(0, limit);
 }
+
+export const getTopTopicsForWindow = cachedRead(
+  computeTopTopicsForWindow,
+  ["top-topics"],
+  { revalidate: 300, tags: ["claims"] },
+);
 
 export async function getRecentClaimsForTopic(
   slug: string,

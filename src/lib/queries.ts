@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { cachedRead } from "./cache";
 
 /**
  * Filter applied to every public-facing claim query.
@@ -199,7 +200,7 @@ export function wilsonLowerBound(successes: number, total: number): number {
   return Math.max(0, (center - margin) / denom);
 }
 
-export async function getPoliticianStats(windowDays?: number): Promise<PoliticianStatsRow[]> {
+async function computePoliticianStats(windowDays?: number): Promise<PoliticianStatsRow[]> {
   const politicians = await getAllPoliticians(windowDays);
 
   return politicians
@@ -242,7 +243,22 @@ export async function getPoliticianStats(windowDays?: number): Promise<Politicia
     .sort((a, b) => a.credibilityScore - b.credibilityScore);
 }
 
-export async function getPartyStats(windowDays?: number) {
+/**
+ * Cached wrapper. Heaviest read on the site — loads every politician with
+ * their windowed claims and aggregates. Home (stats + most-mentioned) and
+ * the leaderboard all funnel through here with the same windowDays, so
+ * caching collapses 2-3 full loads per render into one. Date-free return
+ * → cache serialization is lossless. Pipeline writes appear after the TTL
+ * (the pipeline runs as a separate process and can't call revalidateTag);
+ * the "last updated" stamp (uncached) stays live.
+ */
+export const getPoliticianStats = cachedRead(
+  computePoliticianStats,
+  ["politician-stats"],
+  { revalidate: 300, tags: ["claims"] },
+);
+
+async function computePartyStats(windowDays?: number) {
   const politicians = await getAllPoliticians(windowDays);
 
   const partyMap: Record<
@@ -279,10 +295,28 @@ export async function getPartyStats(windowDays?: number) {
     .sort((a, b) => a.credibilityScore - b.credibilityScore);
 }
 
-export async function hasAnyPublishedClaims(): Promise<boolean> {
+export const getPartyStats = cachedRead(
+  computePartyStats,
+  ["party-stats"],
+  { revalidate: 300, tags: ["claims"] },
+);
+
+async function computeHasAnyPublishedClaims(): Promise<boolean> {
   const count = await prisma.claim.count({ where: PUBLIC_CLAIM_FILTER });
   return count > 0;
 }
+
+/**
+ * Cached gate — data.ts calls this before nearly every read (5+ times on
+ * the home render). Boolean result, trivially serializable. Longer TTL:
+ * "do any published claims exist" flips false→true exactly once in the
+ * site's life and never back.
+ */
+export const hasAnyPublishedClaims = cachedRead(
+  computeHasAnyPublishedClaims,
+  ["has-any-published-claims"],
+  { revalidate: 600, tags: ["claims"] },
+);
 
 /** Politicians who exist in the DB but have NO claims in the window. */
 export async function getUnrankedPoliticians(windowDays?: number) {

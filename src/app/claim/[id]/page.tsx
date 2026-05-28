@@ -144,6 +144,23 @@ export default async function ClaimPage({ params }: PageProps) {
     },
   };
 
+  // BreadcrumbList mirrors the on-page breadcrumb (home / politician /
+  // claim) so Google can render the trail in the SERP snippet.
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "דף הבית", item: SITE_URL },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: c.politician.name,
+        item: `${SITE_URL}/politician/${c.politician.id}`,
+      },
+      { "@type": "ListItem", position: 3, name: "טענה", item: `${SITE_URL}/claim/${c.id}` },
+    ],
+  };
+
   return (
     <article dir="rtl">
       {/* JSON-LD for Google ClaimReview. Rendered inline as a script tag so it
@@ -151,6 +168,10 @@ export default async function ClaimPage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonForScript(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonForScript(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb / eyebrow */}

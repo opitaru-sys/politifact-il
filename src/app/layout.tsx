@@ -8,6 +8,7 @@ import { HeaderNav } from "@/components/HeaderNav";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PostHogPageView } from "@/components/PostHogPageView";
 import { getLastUpdate } from "@/lib/queries";
+import { safeJsonLd } from "@/lib/jsonld";
 
 const rubik = Rubik({
   subsets: ["hebrew", "latin"],
@@ -42,6 +43,35 @@ const SITE_URL = (() => {
   }
   return "https://bduk.co.il";
 })();
+
+// Site-wide structured data. Organization + WebSite give Google an entity
+// to attach the brand, founder, and social profiles to (knowledge panel).
+// No SearchAction sitelinks box — search is an autocomplete that jumps
+// straight to a politician profile, there's no /search results URL to
+// point the box at.
+const SITE_JSONLD = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "בדוק",
+    alternateName: "Baduk",
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon`,
+    description: DESCRIPTION,
+    founder: { "@type": "Person", name: "Omri Pitaru", url: "https://www.linkedin.com/in/omripitaru/" },
+    sameAs: ["https://x.com/opitaru", "https://www.linkedin.com/in/omripitaru/"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "בדוק",
+    alternateName: "Baduk",
+    url: SITE_URL,
+    inLanguage: "he-IL",
+    description: DESCRIPTION,
+    publisher: { "@type": "Organization", name: "בדוק", url: SITE_URL },
+  },
+];
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -94,6 +124,11 @@ export default async function RootLayout({
   return (
     <html lang="he" dir="rtl" className={rubik.variable}>
       <body className="min-h-screen bg-background text-foreground">
+        {/* Site-wide Organization + WebSite structured data. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(SITE_JSONLD) }}
+        />
         {/* PostHog wraps everything so any client component can use
             `usePostHog()` for custom events later. PageView is in its
             own Suspense boundary because useSearchParams suspends
