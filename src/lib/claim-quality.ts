@@ -343,6 +343,25 @@ const CEREMONIAL_PATTERNS: { rx: RegExp; reason: string }[] = [
     rx: /^[\s"״]*אני שמח (?:לבשר|להודיע|לעדכן|לשתף)|אבקש לבשר|אבקש להודיע|^[\s"״]*בשורה (?:משמחת|טובה|חשובה|היסטורית)/,
     reason: "הודעת PR שגרתית — לא טענה ניתנת לבדיקה",
   },
+  {
+    // Diplomatic mutual-praise — self-reported private conversation where the
+    // politician expresses appreciation/gratitude/respect for another leader.
+    // Added 2026-05-28 after a Netanyahu claim "הבעתי בפני הנשיא טראמפ את
+    // הערכתי העמוקה..." was approved as TRUE — the verifier confirmed the
+    // underlying operations existed, but the actual claim (Netanyahu thanked
+    // Trump in private) is unverifiable and has zero public-accountability
+    // value. Editor criterion #12 territory.
+    //
+    // Matches first-person "expressed [appreciation/gratitude/honor/respect/
+    // praise/solidarity]" patterns. Does NOT include תמיכה/התנגדות (support/
+    // opposition) because those are policy positions.
+    // The intermediate `[^"״.]{0,50}?` allows the addressee phrase between
+    // the verb and the noun ("בפני הנשיא טראמפ את", "לראש האו״ם", "כלפי
+    // משפחות החטופים את"). Capped at 50 chars and gated on no-period/quote
+    // so we don't spill across sentence boundaries inside a longer quote.
+    rx: /^[\s"״]*(?:אני\s+)?(?:הבעתי|הבענו|מביע|מביעה|מביעים|אביע|נביע|ברצוני להביע|אבקש להביע)\s[^"״.]{0,50}?(?:הערכ|תודה|תודת|הוקר|כבוד(?:י)?|שבח|הזדהו|התפעלות|התרגשות|התפעלותי|התרגשותי|הערצ)/,
+    reason: "ביטוי דיפלומטי-טקסי של הערכה/תודה/הוקרה — לא טענה ניתנת לבדיקה",
+  },
 ];
 
 function ceremonial(input: ClaimQualityInput): ClaimQualityIssue | null {
