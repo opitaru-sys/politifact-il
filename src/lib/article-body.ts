@@ -47,6 +47,16 @@ export async function fetchArticleBody(url: string): Promise<string | null> {
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
+      // Strip NULL bytes and other unprintable control chars. Postgres
+      // rejects \x00 in TEXT columns with error 22021 ("invalid byte
+      // sequence for encoding UTF8"). Some Israeli news sites embed
+      // these in their HTML (especially when the response was gzipped
+      // and re-encoded, or contains binary tracker pixel data). Without
+      // this filter the entire Knesset queue stays stuck — every
+      // article fails its `processed=true` update with a 22021 and
+      // gets re-queued forever. Keep \t \n \r; strip everything else
+      // in the C0 control range.
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
       .replace(/\s+/g, " ")
       .trim();
     return text.substring(0, 8000);
