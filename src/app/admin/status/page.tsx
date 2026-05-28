@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { AdminNav } from "@/components/AdminNav";
+import { DrainQueueButton } from "@/components/DrainQueueButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -366,6 +367,13 @@ export default async function AdminStatusPage({ searchParams }: PageProps) {
           value={formatRelative(lastClaim?.createdAt ?? null)}
           subtext={formatExact(lastClaim?.createdAt ?? null)}
         />
+      </div>
+
+      {/* Manual drain — when the cron schedule is too slow and the admin
+          wants to clear the queue right now. Cookie-auth on the
+          /api/admin/drain endpoint; see DrainQueueButton for the flow. */}
+      <div className="mt-4 flex items-center justify-end gap-3">
+        <DrainQueueButton queueDepth={unprocessedTotal} />
       </div>
 
       {/* Pipeline schedule — when each automated workflow runs next.
