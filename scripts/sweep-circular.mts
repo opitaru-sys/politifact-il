@@ -32,7 +32,9 @@ function forceLoadEnv(key: string): void {
 forceLoadEnv("DATABASE_URL");
 
 const { PrismaClient } = await import("@prisma/client");
-const { isCircularVerification } = await import("../src/lib/fact-check");
+const { isCircularVerification, isSelfSourcedUnverifiable } = await import(
+  "../src/lib/fact-check"
+);
 const prisma = new PrismaClient();
 
 const APPLY = process.argv.includes("--apply");
@@ -43,7 +45,7 @@ const NOTE =
   "הפסק מאמת רק שהפוליטיקאי אמר זאת, לא את נכונות התוכן (אימות מעגלי). דרושה הכרעה אנושית.";
 
 const claims = await prisma.claim.findMany({
-  where: { status: "published", editorApproved: true, verdict: "true" },
+  where: { status: "published", editorApproved: true, verdict: { in: ["true", "half-true"] } },
   select: {
     id: true,
     verdict: true,
@@ -54,18 +56,21 @@ const claims = await prisma.claim.findMany({
   },
 });
 
-const hits = claims.filter((c) =>
-  isCircularVerification({
+const hits = claims.filter((c) => {
+  const r = {
     verdict: c.verdict,
     confidence: c.confidence ?? 0,
     explanation: c.explanation ?? "",
     summary: c.summary ?? "",
-  }),
-);
+  };
+  // Circular "true" verdicts + self-sourced/unverifiable verdicts (any verdict):
+  // both are "we only confirmed he said it" failures the public shouldn't see.
+  return isCircularVerification(r) || isSelfSourcedUnverifiable(r);
+});
 
 if (!APPLY) {
-  console.log(`Published "true" claims: ${claims.length}`);
-  console.log(`Circular (verdict justified by the saying, not the content): ${hits.length}`);
+  console.log(`Published true/half-true claims: ${claims.length}`);
+  console.log(`Circular or self-sourced (only confirmed he said it, not the content): ${hits.length}`);
   for (const c of hits.slice(0, 20)) {
     console.log(`  - ${c.politician.name}: ${(c.summary || c.explanation || "").slice(0, 95)}`);
   }

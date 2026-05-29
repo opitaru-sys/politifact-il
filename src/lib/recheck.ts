@@ -56,8 +56,12 @@ export async function recheckClaimById(claimId: string): Promise<RecheckResult> 
 
   // Lazy-import the heavy fact-check module so it isn't pulled into the
   // module graph of callers that never re-check.
-  const { factCheckClaim, isConfidentlyVerified, isCircularVerification } =
-    await import("@/lib/fact-check");
+  const {
+    factCheckClaim,
+    isConfidentlyVerified,
+    isCircularVerification,
+    isSelfSourcedUnverifiable,
+  } = await import("@/lib/fact-check");
 
   const result = await factCheckClaim(
     {
@@ -74,8 +78,9 @@ export async function recheckClaimById(claimId: string): Promise<RecheckResult> 
 
   const wasPublic = claim.editorApproved && claim.status === "published";
   const circular = isCircularVerification(result);
+  const selfSourced = isSelfSourcedUnverifiable(result);
 
-  if (isConfidentlyVerified(result) && !circular) {
+  if (isConfidentlyVerified(result) && !circular && !selfSourced) {
     const changed = result.verdict !== claim.verdict;
     let correctionNote: string | null = null;
     if (wasPublic && changed) {
@@ -116,6 +121,8 @@ export async function recheckClaimById(claimId: string): Promise<RecheckResult> 
       verifiedAt: new Date(),
       verifierNotes: circular
         ? "הפסק מאמת רק שהפוליטיקאי אמר זאת, לא את נכונות התוכן (אימות מעגלי). דרושה הכרעה אנושית."
+        : selfSourced
+        ? "התוכן אינו ניתן לאימות עצמאי (מקורו בדברי הפוליטיקאי / הצהרת כוונה). דרושה הכרעה אנושית."
         : "בדיקה חוזרת לא אימתה את הטענה. דרושה הכרעה אנושית.",
     },
   });

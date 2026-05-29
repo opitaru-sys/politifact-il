@@ -195,6 +195,25 @@ export function isCircularVerification(r: VerdictShape): boolean {
   return CIRCULAR_VERIFY_RE.test(r.summary) || CIRCULAR_VERIFY_RE.test(r.explanation);
 }
 
+// The fact-check itself concluding the substance can't be INDEPENDENTLY
+// verified — a self-report, a statement of intent, or an operational claim only
+// the politician asserts ("we control 60% of Gaza", "my directive is 70%").
+// After the prompt change the model flags these in its own words ("לא אומת
+// באופן עצמאי", "הצהרת כוונה", "אינה ניתנת לאימות"). Unlike isCircularVerification
+// (the "אכן הצהיר" tell on verdict="true"), this catches the CONFIDENT half-true
+// variant too — a half-true that admits it couldn't verify the content is still
+// worthless to publish, and a re-check kept re-publishing it because the
+// unverified guard only fires at confidence <= 0.5. Excludes "false" (a real
+// finding). Patterns validated against the live corpus (25 published half-trues).
+const SELF_SOURCED_RE =
+  /אימות עצמאי|הצהרת כוונה|אומת שנאמר|לא אומת.{0,8}עצמאי|אינה ניתנת לאימות/;
+
+/** True when the verdict admits the content wasn't independently verifiable. */
+export function isSelfSourcedUnverifiable(r: VerdictShape): boolean {
+  if (r.verdict === "false") return false;
+  return SELF_SOURCED_RE.test(r.summary) || SELF_SOURCED_RE.test(r.explanation);
+}
+
 // Per-run budget for grounded re-checks (cost control). Reset at the start of
 // processUnprocessedArticles. Default 2/run keeps daily re-checks well under
 // ~30 across the cron cadence. Override via BADAK_RECHECK_PER_RUN.
@@ -835,6 +854,16 @@ export async function processArticle(articleId: string) {
         withholdForReview = true;
         reviewNote =
           "הפסק מאמת רק שהפוליטיקאי אמר זאת, לא את נכונות התוכן (אימות מעגלי) — דורש בדיקה אנושית";
+      }
+
+      // Self-sourced guard: the fact-check admits the content can't be verified
+      // independently (statement of intent / self-report). Worthless to publish
+      // at ANY verdict — catches the confident half-true that the circular and
+      // unverified guards both miss. Withhold.
+      if (!withholdForReview && isSelfSourcedUnverifiable(factCheck)) {
+        withholdForReview = true;
+        reviewNote =
+          "התוכן אינו ניתן לאימות עצמאי (מקורו בדברי הפוליטיקאי / הצהרת כוונה) — דורש בדיקה אנושית";
       }
 
       // Race-condition guard: isDuplicate() ran ~10s ago (before the
