@@ -1,0 +1,40 @@
+name: Post weekly digest to Telegram (manual)
+
+# Posts the latest PUBLISHED weekly digest to the @bduk_il Telegram channel
+# (cover card + title + lead insights + link). Manual trigger only — run it
+# from the Actions tab after you publish a digest at /admin/digest. No cron,
+# so it never double-posts.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-digest
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Prisma client (Postgres)
+        run: npm run db:gen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Post latest published digest
+        run: npx tsx scripts/post-digest-to-telegram.mts --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
