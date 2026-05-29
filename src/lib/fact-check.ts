@@ -146,6 +146,47 @@ interface FactCheckResult {
   confidence: number;
 }
 
+// Signature of a fact-check that didn't actually confirm the event/data and
+// hedged to "half-true" — the missed "Operation Roaring Lion" failure mode.
+// Low confidence + "couldn't find" wording. (Opinion non-claims, flagged with
+// confidence 0 + "no factual content", are a different problem handled by the
+// verifier, NOT re-checked — re-checking them is futile.)
+const COULDNT_VERIFY_RE =
+  /לא נמצא|אין אזכור|לא ניתן לאמת|נדרשת בדיקה|לא הצלחתי לאמת|לא קיים מידע|לא אומת|לא נמצאו/;
+const OPINION_MARKER_RE = /אינו מכיל טענה עובדתית|אין בו תוכן עובדתי/;
+
+interface VerdictShape {
+  verdict: string;
+  confidence: number;
+  explanation: string;
+  summary: string;
+}
+
+/** True if the fact-check couldn't confirm the event and hedged to half-true. */
+export function isUnverifiedResult(r: VerdictShape): boolean {
+  if (r.verdict !== "half-true") return false;
+  if (OPINION_MARKER_RE.test(r.summary) || OPINION_MARKER_RE.test(r.explanation)) return false;
+  if (r.confidence > 0.5) return false;
+  return COULDNT_VERIFY_RE.test(r.explanation) || COULDNT_VERIFY_RE.test(r.summary);
+}
+
+/** A re-check we trust enough to publish: confident and not itself a hedge. */
+export function isConfidentlyVerified(r: VerdictShape): boolean {
+  return r.confidence >= 0.6 && !isUnverifiedResult(r);
+}
+
+// Per-run budget for grounded re-checks (cost control). Reset at the start of
+// processUnprocessedArticles. Default 2/run keeps daily re-checks well under
+// ~30 across the cron cadence. Override via BADAK_RECHECK_PER_RUN.
+let recheckBudget = Number(process.env.BADAK_RECHECK_PER_RUN ?? 2);
+function takeRecheckBudget(): boolean {
+  if (recheckBudget > 0) {
+    recheckBudget -= 1;
+    return true;
+  }
+  return false;
+}
+
 export async function extractClaims(
   articleTitle: string,
   articleContent: string,
@@ -679,6 +720,35 @@ export async function processArticle(articleId: string) {
         return null;
       }
 
+      // Unverified-event guard: if the fact-check couldn't actually confirm
+      // the event (low confidence + "couldn't find" wording — the missed
+      // "Operation Roaring Lion" signature), re-check once with a fresh
+      // grounded call (grounded search is nondeterministic and often succeeds
+      // the second time). If the re-check confirms it, use that result. If it
+      // still can't confirm, withhold the claim for human review instead of
+      // publishing a misleading "half-true".
+      let withholdForReview = false;
+      let reviewNote: string | null = null;
+      if (isUnverifiedResult(factCheck)) {
+        if (takeRecheckBudget()) {
+          try {
+            const recheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+            if (isConfidentlyVerified(recheck)) {
+              factCheck = recheck;
+            } else {
+              withholdForReview = true;
+              reviewNote = "לא אומת אוטומטית גם לאחר בדיקה חוזרת — דורש בדיקה אנושית";
+            }
+          } catch {
+            withholdForReview = true;
+            reviewNote = "בדיקה חוזרת נכשלה — דורש בדיקה אנושית";
+          }
+        } else {
+          withholdForReview = true;
+          reviewNote = "לא אומת אוטומטית (מכסת בדיקה חוזרת מוצתה להרצה זו) — דורש בדיקה אנושית";
+        }
+      }
+
       // Race-condition guard: isDuplicate() ran ~10s ago (before the
       // grounded fact-check call). If another article processing the
       // same quote won the race in the meantime, we'd now insert a
@@ -706,10 +776,23 @@ export async function processArticle(articleId: string) {
           factSourceUrl: factCheck.factSourceUrl,
           topic: claim.topic,
           date: article.publishedAt || new Date(),
-          status: "published",
+          status: withholdForReview ? "review" : "published",
           confidence: factCheck.confidence,
         },
       });
+
+      // Withheld (unverified) claims skip the verifier/editor and sit in the
+      // human-review queue — hidden from the public filter (which requires
+      // status="published") until a human decides.
+      if (withholdForReview) {
+        await prisma.claim.update({
+          where: { id: saved.id },
+          data: { editorApproved: false, verifiedAt: new Date(), verifierNotes: reviewNote },
+        });
+        console.log(`Withheld ${politicianName} claim for review: ${reviewNote}`);
+        return saved;
+      }
+
       try {
         const verification = await verifyClaim({
           quote: saved.quote,
@@ -862,6 +945,8 @@ function normalizeProcessOptions(
 
 export async function processUnprocessedArticles(input: number | ProcessArticlesOptions = 50) {
   const options = normalizeProcessOptions(input);
+  // Reset the per-run grounded re-check budget (cost control).
+  recheckBudget = Number(process.env.BADAK_RECHECK_PER_RUN ?? 2);
   const where: Prisma.ArticleWhereInput = { processed: false };
   if (options.sources?.length) where.source = { in: options.sources };
   if (options.excludeSources?.length) where.source = { notIn: options.excludeSources };
