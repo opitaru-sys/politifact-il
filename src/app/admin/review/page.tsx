@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { updateClaim } from "../_actions";
+import { decideReviewClaim } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
 import { RecheckClaimButton } from "@/components/RecheckClaimButton";
 import { RecheckAllReviewButton } from "@/components/RecheckAllReviewButton";
@@ -160,11 +160,10 @@ function ReviewCard({ claim: c }: { claim: ReviewRow }) {
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border flex-wrap">
         <RecheckClaimButton claimId={c.id} />
         {/* Dismiss: not publishable, drop it from the queue (status=rejected).
-            Reversible from the full editor. */}
-        <form action={updateClaim}>
+            Reversible from the full editor. Recorded as a human label. */}
+        <form action={decideReviewClaim}>
           <input type="hidden" name="id" value={c.id} />
-          <input type="hidden" name="status" value="rejected" />
-          <input type="hidden" name="editorApproved" value="false" />
+          <input type="hidden" name="decision" value="dismiss" />
           <button
             type="submit"
             className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-accent hover:text-accent py-1.5 px-3 cursor-pointer"
@@ -175,11 +174,10 @@ function ReviewCard({ claim: c }: { claim: ReviewRow }) {
           </button>
         </form>
         {/* Publish the current verdict as-is, for when you've judged it correct
-            without needing a re-check. */}
-        <form action={updateClaim}>
+            without needing a re-check. Recorded as a human label. */}
+        <form action={decideReviewClaim}>
           <input type="hidden" name="id" value={c.id} />
-          <input type="hidden" name="status" value="published" />
-          <input type="hidden" name="editorApproved" value="true" />
+          <input type="hidden" name="decision" value="publish" />
           <button
             type="submit"
             className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-green-700 hover:text-green-700 py-1.5 px-3 cursor-pointer"

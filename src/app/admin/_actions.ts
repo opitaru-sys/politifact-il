@@ -118,6 +118,53 @@ export async function updateClaim(formData: FormData): Promise<void> {
 }
 
 /**
+ * Record + apply an editor's decision on a withheld claim in /admin/review.
+ *   dismiss -> status="rejected" (drops from the queue, hidden from public)
+ *   publish -> status="published", editorApproved=true (goes live as-is)
+ * Either way we stamp humanDecision/humanDecisionAt so the rule-suggestion
+ * miner (scripts/suggest-rules.mts) has a clean labeled set of what the editor
+ * approves vs rejects — the basis for proposing new deterministic filter rules.
+ *
+ * Field is named "decision" (not "action") on purpose: a hidden input named
+ * "action" collides with the <form action={...}> prop under Next 16 and the
+ * submit silently fails (see the reports-page note).
+ */
+export async function decideReviewClaim(formData: FormData): Promise<void> {
+  await assertAdmin();
+
+  const id = formData.get("id");
+  const decision = formData.get("decision");
+  if (typeof id !== "string" || !id) throw new Error("Missing claim id");
+  if (decision !== "dismiss" && decision !== "publish") {
+    throw new Error("Invalid decision");
+  }
+
+  await prisma.claim.update({
+    where: { id },
+    data:
+      decision === "publish"
+        ? {
+            status: "published",
+            editorApproved: true,
+            humanDecision: "publish",
+            humanDecisionAt: new Date(),
+          }
+        : {
+            status: "rejected",
+            editorApproved: false,
+            humanDecision: "dismiss",
+            humanDecisionAt: new Date(),
+          },
+  });
+
+  revalidatePath("/admin/review");
+  revalidatePath("/admin/claims");
+  revalidatePath("/admin/status");
+  revalidatePath(`/claim/${id}`);
+  revalidatePath("/");
+}
+
+/**
  * Permanently delete a claim. Cascades to comments / reports via Prisma's
  * relation handling (or via separate calls if cascade isn't on).
  */

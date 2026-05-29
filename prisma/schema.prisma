@@ -143,6 +143,12 @@ model Claim {
   /// so enabling auto-posting didn't blast the backlog. See
   /// scripts/post-to-telegram.mts + scripts/telegram-backfill.mts.
   telegramPostedAt DateTime?
+  /// Editor's review-queue decision: "dismiss" | "publish". Set when a human
+  /// acts on a withheld claim in /admin/review. Distinguishes the editor's own
+  /// approve/reject calls from system/sweep status changes — the labeled data
+  /// scripts/suggest-rules.mts mines to propose new deterministic filter rules.
+  humanDecision    String?
+  humanDecisionAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]

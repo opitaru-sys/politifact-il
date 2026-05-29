@@ -42,6 +42,8 @@ model Claim {
   verifiedAt     DateTime? // when the second-pass verifier ran
   verifierNotes  String?  // issues raised by the verifier (if not approved)
   telegramPostedAt DateTime? // when auto-posted to the Telegram channel; null = not yet
+  humanDecision    String?   // "dismiss" | "publish" — editor's call in /admin/review
+  humanDecisionAt  DateTime? // when the editor made that call
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]
