@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
+import { rtlHe, wrapRtl } from "@/lib/og";
 
 /**
  * Per-claim share image.
@@ -40,10 +41,6 @@ async function loadHebrewFont(weight: 400 | 700 | 900): Promise<ArrayBuffer> {
   const match = css.match(/src: url\((https:[^)]+\.ttf)\)/);
   if (!match) throw new Error("Could not find Rubik font URL");
   return fetch(match[1]).then((r) => r.arrayBuffer());
-}
-
-function rtlHe(s: string): string {
-  return Array.from(s).reverse().join("");
 }
 
 // Visual mapping mirrors VerdictBadge component colors so the share image
@@ -172,19 +169,20 @@ export default async function ClaimOgImage({ params }: Props) {
             paddingBottom: "24px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              fontSize: 46,
-              fontWeight: 700,
-              color: "#1a1a1a",
-              lineHeight: 1.25,
-              maxWidth: "100%",
-              textAlign: "right",
-            }}
-          >
-            {rtlHe(`"${quoteText}"`)}
-          </div>
+          {wrapRtl(`"${quoteText}"`, 34).map((line, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                fontSize: 46,
+                fontWeight: 700,
+                color: "#1a1a1a",
+                lineHeight: 1.25,
+              }}
+            >
+              {line}
+            </div>
+          ))}
         </div>
 
         {/* Bottom rule — politician name on right (RTL start), domain on

@@ -39,9 +39,45 @@ export function ogScoreColor(pct: number): string {
   return "#16a34a";
 }
 
-/** Full-codepoint reverse so Satori-rendered Hebrew reads correctly RTL. */
+/**
+ * Reorder a SINGLE line of Hebrew for Satori (which lays out glyphs in
+ * logical order and applies no Unicode bidi). We reverse the order of
+ * "runs" but keep digit/Latin runs internally left-to-right — so numbers
+ * like "60" or "2026" don't come out as "06" / "6202". A naive full-string
+ * reverse (the old behavior) flipped them.
+ */
 export function rtlHe(s: string): string {
-  return Array.from(s).reverse().join("");
+  const tokens = s.match(/[0-9A-Za-z]+|[^0-9A-Za-z]+/g);
+  if (!tokens) return s;
+  let out = "";
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    out += /^[0-9A-Za-z]+$/.test(t) ? t : Array.from(t).reverse().join("");
+  }
+  return out;
+}
+
+/**
+ * Word-wrap Hebrew into display lines for Satori. Wrap in LOGICAL order
+ * first, then reorder each line with rtlHe — so line order stays correct
+ * (first line on top) and each line reads right-to-left. Render the result
+ * as STACKED divs, one per line. Letting Satori wrap a single fully-reversed
+ * string instead is what scrambles the line order.
+ */
+export function wrapRtl(s: string, maxChars: number): string[] {
+  const words = s.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur && cur.length + 1 + w.length > maxChars) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.map((l) => rtlHe(l));
 }
 
 /**

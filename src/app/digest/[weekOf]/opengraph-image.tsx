@@ -6,6 +6,7 @@ import {
   OG_CONTENT_TYPE,
   NEWSPRINT,
   rtlHe,
+  wrapRtl,
   loadHebrewFont,
 } from "@/lib/og";
 
@@ -119,19 +120,20 @@ export default async function DigestOgImage({ params }: Props) {
             paddingBottom: "24px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              fontSize: 64,
-              fontWeight: 900,
-              color: NEWSPRINT.ink,
-              lineHeight: 1.2,
-              textAlign: "right",
-              maxWidth: "100%",
-            }}
-          >
-            {rtlHe(title)}
-          </div>
+          {wrapRtl(title, 26).map((line, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                fontSize: 64,
+                fontWeight: 900,
+                color: NEWSPRINT.ink,
+                lineHeight: 1.2,
+              }}
+            >
+              {line}
+            </div>
+          ))}
         </div>
 
         {/* Bottom rule */}
