@@ -138,6 +138,11 @@ model Claim {
   /// When the correction happened. Null = no correction. Updated
   /// independently of `updatedAt` (which updates on every edit).
   correctedAt    DateTime?
+  /// When this claim was auto-posted to the Telegram channel (@bduk_il).
+  /// Null = not yet posted. Pre-existing claims were backfilled to "now"
+  /// so enabling auto-posting didn't blast the backlog. See
+  /// scripts/post-to-telegram.mts + scripts/telegram-backfill.mts.
+  telegramPostedAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]

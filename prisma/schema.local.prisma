@@ -41,6 +41,7 @@ model Claim {
   editorApproved Boolean  @default(false) // passed second-pass AI verification
   verifiedAt     DateTime? // when the second-pass verifier ran
   verifierNotes  String?  // issues raised by the verifier (if not approved)
+  telegramPostedAt DateTime? // when auto-posted to the Telegram channel; null = not yet
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   reports        Report[]

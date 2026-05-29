@@ -1,0 +1,51 @@
+name: Post fact-checks to Telegram (every 2h)
+
+# Sends each newly-published fact-check to the @bduk_il Telegram channel —
+# the OG verdict card + a caption + a link back to the site. Dedup via
+# Claim.telegramPostedAt (see scripts/post-to-telegram.mts), so each claim
+# posts exactly once.
+#
+# Schedule: :45 of every even hour — 30 min after fresh-process (:15) so the
+# newest fact-checks are published and their DB writes have settled. New
+# claims reach the channel within ~2h of going live on the site.
+#
+# BEFORE THE FIRST RUN: the Claim.telegramPostedAt column must exist in Neon
+# (`npm run db:push`) and the one-time backfill must have run
+# (`npx tsx scripts/telegram-backfill.mts --apply`) — otherwise the script's
+# backlog guard aborts on purpose.
+
+on:
+  schedule:
+    - cron: "45 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Prisma client (Postgres)
+        run: npm run db:gen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Post new fact-checks
+        run: npx tsx scripts/post-to-telegram.mts --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
