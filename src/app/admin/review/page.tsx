@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { updateClaim } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
 import { RecheckClaimButton } from "@/components/RecheckClaimButton";
+import { RecheckAllReviewButton } from "@/components/RecheckAllReviewButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 import { VERDICT_LABEL_HE } from "@/lib/feed";
 
@@ -52,6 +53,19 @@ export default async function AdminReviewPage({ searchParams }: PageProps) {
       </p>
 
       <AdminNav active="review" />
+
+      {claims.length > 0 && (
+        <div
+          className="mt-6 bg-card border border-border p-4 flex items-center justify-between gap-3 flex-wrap"
+          style={{ borderRadius: 4 }}
+        >
+          <div className="text-[13px] text-foreground-muted max-w-md leading-relaxed">
+            רוצה לעבד את כל התור בבת אחת? הבדיקה החוזרת תרוץ עם חיפוש מקורות והקשר
+            הכתבה. טענות שיתאמתו יפורסמו, השאר יישארו כאן לטיפול ידני.
+          </div>
+          <RecheckAllReviewButton total={claims.length} />
+        </div>
+      )}
 
       {claims.length === 0 ? (
         <div
