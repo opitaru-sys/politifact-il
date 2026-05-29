@@ -18,6 +18,11 @@ on:
   schedule:
     - cron: "45 */2 * * *"
   workflow_dispatch:
+    inputs:
+      since:
+        description: "Override cutoff (ISO 8601, e.g. 2026-05-29T08:00:00Z). Blank = default."
+        required: false
+        type: string
 
 concurrency:
   group: telegram-post
@@ -49,3 +54,6 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          # Empty on scheduled runs (uses the script default); set via the
+          # workflow_dispatch "since" input for manual test/seed runs.
+          TELEGRAM_SINCE: ${{ github.event.inputs.since }}
