@@ -5,15 +5,16 @@
  * verdict, short quote) + a link back to the site. New followers get every
  * fact-check pushed to them, and each post links back (drives traffic).
  *
- * Dedup: Claim.telegramPostedAt. We post published + editor-approved claims
- * where telegramPostedAt IS NULL, oldest first, then stamp it. Pre-existing
- * claims were backfilled to "now" (scripts/telegram-backfill.mts) so this
- * never blasts the backlog — and there's a hard guard below in case the
- * backfill was skipped.
+ * Backlog handling WITHOUT a bulk DB write: we only post claims created
+ * at/after POST_SINCE (the activation cutoff), so turning this on never
+ * blasts the pre-existing archive to the channel. Dedup within that window
+ * uses Claim.telegramPostedAt — post where it IS NULL, then stamp it. A hard
+ * guard also aborts if an unexpectedly large number are pending.
  *
  * Wired into .github/workflows/telegram.yml (every 2h at :45).
  * Env: TELEGRAM_BOT_TOKEN + DATABASE_URL (GitHub secrets); optional
- * TELEGRAM_CHANNEL (default @bduk_il) and NEXT_PUBLIC_SITE_URL / SITE_URL.
+ * TELEGRAM_SINCE (ISO cutoff), TELEGRAM_CHANNEL (default @bduk_il),
+ * NEXT_PUBLIC_SITE_URL / SITE_URL.
  *
  * Dry run by default (lists what it would post); pass --apply to send.
  */
@@ -42,9 +43,12 @@ const prisma = new PrismaClient();
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHANNEL = process.env.TELEGRAM_CHANNEL || "@bduk_il";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://bduk.co.il";
+// Activation cutoff: only claims published from this moment on are posted,
+// so the pre-existing archive is never sent. Override with TELEGRAM_SINCE.
+const POST_SINCE = new Date(process.env.TELEGRAM_SINCE || "2026-05-29T10:00:00Z");
 const APPLY = process.argv.includes("--apply");
 const BATCH = 15;
-const BACKLOG_GUARD = 50;
+const PENDING_GUARD = 50;
 
 const VERDICT_LABEL: Record<string, string> = {
   true: "אמת",
@@ -64,30 +68,37 @@ if (!TOKEN) {
   process.exit(0);
 }
 
-const PUBLIC_FILTER = { status: "published", editorApproved: true, telegramPostedAt: null } as const;
+const FILTER = {
+  status: "published",
+  editorApproved: true,
+  telegramPostedAt: null,
+  createdAt: { gte: POST_SINCE },
+} as const;
 
-// Safety: if a huge number of claims are unposted, the one-time backfill was
-// almost certainly skipped. Refuse to run rather than slowly blast the whole
-// archive to subscribers.
-const unpostedTotal = await prisma.claim.count({ where: PUBLIC_FILTER });
-if (unpostedTotal > BACKLOG_GUARD) {
+// Safety: if a surprising number are pending since the cutoff, something is
+// off (workflow was down for a long time, or the cutoff is too old). Abort
+// rather than flood the channel; raise TELEGRAM_SINCE or the guard if it's
+// genuinely expected.
+const pending = await prisma.claim.count({ where: FILTER });
+if (pending > PENDING_GUARD) {
   console.error(
-    `${unpostedTotal} unposted published claims (> ${BACKLOG_GUARD}). The one-time backfill ` +
-      `probably wasn't run. Aborting to avoid blasting the backlog.\n` +
-      `Run once first:  npx tsx scripts/telegram-backfill.mts --apply`,
+    `${pending} claims pending since ${POST_SINCE.toISOString()} (> ${PENDING_GUARD}). ` +
+      `Aborting to avoid a flood. Move TELEGRAM_SINCE forward, or raise the guard if expected.`,
   );
   await prisma.$disconnect();
   process.exit(1);
 }
 
 const claims = await prisma.claim.findMany({
-  where: PUBLIC_FILTER,
+  where: FILTER,
   include: { politician: { select: { name: true } } },
   orderBy: { createdAt: "asc" },
   take: BATCH,
 });
 
-console.log(`${claims.length} claim(s) to post to ${CHANNEL}${APPLY ? "" : " (dry run — pass --apply to send)"}`);
+console.log(
+  `${claims.length} claim(s) to post to ${CHANNEL} (since ${POST_SINCE.toISOString()})${APPLY ? "" : " — dry run, pass --apply to send"}`,
+);
 
 let posted = 0;
 for (const c of claims) {

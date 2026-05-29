@@ -9,10 +9,10 @@ name: Post fact-checks to Telegram (every 2h)
 # newest fact-checks are published and their DB writes have settled. New
 # claims reach the channel within ~2h of going live on the site.
 #
-# BEFORE THE FIRST RUN: the Claim.telegramPostedAt column must exist in Neon
-# (`npm run db:push`) and the one-time backfill must have run
-# (`npx tsx scripts/telegram-backfill.mts --apply`) — otherwise the script's
-# backlog guard aborts on purpose.
+# Backlog is excluded automatically: the script only posts claims created
+# at/after its activation cutoff (POST_SINCE / the TELEGRAM_SINCE env), so
+# the pre-existing archive is never sent. Dedup within that window uses the
+# Claim.telegramPostedAt column (added to Neon 2026-05-29).
 
 on:
   schedule:
