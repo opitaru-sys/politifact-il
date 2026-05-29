@@ -15,12 +15,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { logoutAction } from "@/app/admin/login/actions";
 
-export type AdminTabId = "status" | "claims" | "reports" | "comments" | "digest";
+export type AdminTabId =
+  | "status"
+  | "claims"
+  | "reports"
+  | "review"
+  | "comments"
+  | "digest";
 
 const TABS: { id: AdminTabId; label: string; href: string }[] = [
   { id: "status", label: "סטטוס", href: "/admin/status" },
   { id: "claims", label: "עריכת טענות", href: "/admin/claims" },
   { id: "reports", label: "דיווחים", href: "/admin/reports" },
+  { id: "review", label: "בדיקה אנושית", href: "/admin/review" },
   { id: "comments", label: "תגובות", href: "/admin/comments" },
   { id: "digest", label: "סיכומים", href: "/admin/digest" },
 ];
@@ -30,13 +37,15 @@ export async function AdminNav({ active }: { active: AdminTabId }) {
   // (the row is deleted), so this IS the unread count. Comments don't
   // have a read/unread state today, so this is total — switch to "since
   // last admin visit" if/when that becomes a real signal.
-  const [reportsCount, commentsCount] = await Promise.all([
+  const [reportsCount, reviewCount, commentsCount] = await Promise.all([
     prisma.report.count(),
+    prisma.claim.count({ where: { status: "review" } }),
     prisma.comment.count(),
   ]);
 
   const counts: Partial<Record<AdminTabId, number>> = {
     reports: reportsCount,
+    review: reviewCount,
     comments: commentsCount,
   };
 

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { dismissReport } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
 import { ApplyRecommendationButton } from "@/components/ApplyRecommendationButton";
+import { RecheckClaimButton } from "@/components/RecheckClaimButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
 import {
   actionLabel,
@@ -157,6 +158,9 @@ function ReportCard({
           <span className="text-[10px] uppercase tracking-wider font-bold text-accent">
             המלצת AI
           </span>
+          <span className="text-[10px] text-foreground-muted normal-case tracking-normal">
+            (ראשונית, ללא חיפוש מקורות)
+          </span>
           <span className={`text-[10px] uppercase tracking-wider font-bold text-white px-2 py-0.5 ${conf.cls}`} style={{ borderRadius: 2 }}>
             {actionLabel(rec.action)}
           </span>
@@ -202,6 +206,22 @@ function ReportCard({
             correctionNote={rec.correctionNote}
           />
         )}
+      </div>
+
+      {/* Grounded re-check — the authoritative "actually verify" path. The
+          recommendation above is a LITE pass with no web search; this runs a
+          real grounded fact-check and corrects / confirms / withholds the
+          claim, then resolves the report. Prefer this when the verdict is in
+          doubt. */}
+      <div className="bg-background border-2 border-green-700/40 p-3 my-3" style={{ borderRadius: 2 }}>
+        <div className="text-[10px] uppercase tracking-wider font-bold text-green-700 mb-1">
+          בדיקה חוזרת עם חיפוש (מומלץ)
+        </div>
+        <div className="text-[12px] text-foreground-muted mb-2 leading-relaxed">
+          מריץ בדיקת עובדות אמיתית עם חיפוש מקורות. אם הטענה מתאמתת, הפסק יתוקן
+          ויפורסם; אם לא, היא תועבר לבדיקה אנושית. הדיווח ייסגר בכל מקרה.
+        </div>
+        <RecheckClaimButton claimId={r.claimId} reportId={r.id} />
       </div>
 
       {/* Manual fallback actions */}
