@@ -5,6 +5,13 @@ import {
   processUnprocessedArticles,
 } from "@/lib/fact-check";
 
+// A fresh run processes up to 60 articles in chunks of 8; each grounded
+// fact-check takes ~20-25s, so a full batch needs ~200s of runtime. Without
+// this, the route ran on Vercel's short default timeout and got killed
+// mid-batch — the un-reached articles stayed processed=false and sat in the
+// queue until a later tick. 300s (Pro ceiling) lets a batch fully drain.
+export const maxDuration = 300;
+
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
