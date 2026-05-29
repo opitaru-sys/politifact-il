@@ -86,7 +86,7 @@ if (opinionClaims.length && LIMIT === undefined) {
 // 2) Re-check candidates with grounding.
 const candidates = await prisma.claim.findMany({
   where: recheckWhere,
-  select: { id: true, quote: true, topic: true, date: true, confidence: true, politician: { select: { name: true } } },
+  select: { id: true, quote: true, topic: true, date: true, confidence: true, sourceUrl: true, politician: { select: { name: true } } },
   orderBy: { createdAt: "desc" },
   ...(LIMIT !== undefined ? { take: LIMIT } : {}),
 });
@@ -101,9 +101,15 @@ for (let i = 0; i < candidates.length; i += CONCURRENCY) {
   await Promise.all(
     chunk.map(async (c) => {
       try {
+        const art = c.sourceUrl
+          ? await prisma.article.findFirst({
+              where: { url: c.sourceUrl },
+              select: { title: true, content: true },
+            })
+          : null;
         const r = await factCheckClaim(
           { politicianName: c.politician.name, quote: c.quote, topic: c.topic },
-          { claimDate: c.date },
+          { claimDate: c.date, articleTitle: art?.title, articleContext: art?.content },
         );
         if (isConfidentlyVerified(r)) {
           await prisma.claim.update({

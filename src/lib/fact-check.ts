@@ -354,10 +354,55 @@ const MAX_CLAIMS_PER_ARTICLE = 3;
 const PLACEHOLDER_EXPLANATION_RE =
   /(?:נדרשת|טעונה|דרושה)\s+בדיקה\s+ידנית|לא ניתן לבדוק טענה זו באופן אוטומטי|ההסבר חסר/;
 
+/**
+ * Build the article-context block for a fact-check prompt. The quote alone is
+ * often meaningless ("during that period... no investigation was opened") — the
+ * model needs the article to know what event, time, and target it refers to.
+ * We window around the quote when we can locate it, else take the head, and cap
+ * the length so the prompt stays focused (and cheap). Returns "" when there's
+ * no usable context, so the prompt is unchanged for older call sites.
+ */
+function buildArticleContextBlock(
+  articleTitle: string | null | undefined,
+  articleContext: string | null | undefined,
+  quote: string,
+): string {
+  const body = (articleContext ?? "").trim();
+  if (!body) return "";
+  const MAX = 4000;
+  let windowed = body;
+  if (body.length > MAX) {
+    const needle = quote.slice(0, 40).trim();
+    const idx = needle.length >= 12 ? body.indexOf(needle) : -1;
+    if (idx >= 0) {
+      const start = Math.max(0, idx - 1500);
+      windowed =
+        (start > 0 ? "…" : "") + body.slice(start, start + MAX) + "…";
+    } else {
+      windowed = body.slice(0, MAX) + "…";
+    }
+  }
+  const titleLine = articleTitle ? `כותרת הכתבה: ${articleTitle}\n` : "";
+  return `**הקשר: הכתבה שבה נאמרה הטענה.** השתמש בו כדי להבין למה הציטוט מתייחס: על איזה אירוע מדובר, מתי נאמר, ועל מה הפוליטיקאי מגיב. בדוק את **הטענה עצמה** מול העולם, לא את הכתבה. אל תתייחס לכתבה כראיה, היא רק הקשר.
+${titleLine}תוכן הכתבה:
+${windowed}
+
+`;
+}
+
 export async function factCheckClaim(
   claim: ExtractedClaim,
-  options?: { claimDate?: Date | null },
+  options?: {
+    claimDate?: Date | null;
+    articleTitle?: string | null;
+    articleContext?: string | null;
+  },
 ): Promise<FactCheckResult> {
+  const contextBlock = buildArticleContextBlock(
+    options?.articleTitle,
+    options?.articleContext,
+    claim.quote,
+  );
   // Gemini 2.5 Flash + Google Search grounding. The model autonomously
   // decides whether to invoke Google Search before answering. Grounding
   // is free up to 500 requests/day on the Gemini API. Replaces the
@@ -371,7 +416,7 @@ export async function factCheckClaim(
 טענה: "${claim.quote}"
 נושא: ${claim.topic}
 
-**⚠️ קריטי - מה אתה בודק:** אתה בודק את **התוכן העובדתי** של הטענה - האם הנתון, האירוע, הפעולה, או ההשוואה שמופיעים בציטוט נכונים בעולם האמיתי. אתה **לא** בודק אם הפוליטיקאי באמת אמר את המילים האלה (זה כבר ידוע - מישהו אחר חילץ את הציטוט מכתבה אמינה).
+${contextBlock}**⚠️ קריטי - מה אתה בודק:** אתה בודק את **התוכן העובדתי** של הטענה - האם הנתון, האירוע, הפעולה, או ההשוואה שמופיעים בציטוט נכונים בעולם האמיתי. אתה **לא** בודק אם הפוליטיקאי באמת אמר את המילים האלה (זה כבר ידוע - מישהו אחר חילץ את הציטוט מכתבה אמינה).
 
 **אסור לתת verdict "true" רק כי הציטוט מצוטט נכון.** אם הציטוט הוא דעה, סלוגן, האשמה כללית בלי נתון, רטוריקה, או מטאפורה - אין בו תוכן עובדתי לאמת, ואסור להגיד "true". במקרה הזה, החזר:
 - verdict = "half-true"
@@ -685,7 +730,11 @@ export async function processArticle(articleId: string) {
       // quote was actually said, not against today.
       let factCheck;
       try {
-        factCheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+        factCheck = await factCheckClaim(claim, {
+          claimDate: article.publishedAt,
+          articleTitle: article.title,
+          articleContext: content,
+        });
       } catch (err) {
         // factCheckClaim throws on API failure (quota, timeout, parse).
         // Previously it returned a "נדרשת בדיקה ידנית" placeholder which
@@ -732,7 +781,11 @@ export async function processArticle(articleId: string) {
       if (isUnverifiedResult(factCheck)) {
         if (takeRecheckBudget()) {
           try {
-            const recheck = await factCheckClaim(claim, { claimDate: article.publishedAt });
+            const recheck = await factCheckClaim(claim, {
+          claimDate: article.publishedAt,
+          articleTitle: article.title,
+          articleContext: content,
+        });
             if (isConfidentlyVerified(recheck)) {
               factCheck = recheck;
             } else {
