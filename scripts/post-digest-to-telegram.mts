@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * Post the latest PUBLISHED weekly digest to the @bduk_il Telegram channel:
+ * Post the latest PUBLISHED weekly digest to the @bdukcoil Telegram channel:
  * the digest OG cover card + a caption (title, intro, lead insight headings,
  * link). Manual-trigger only (no cron) — fire it after publishing a digest
  * at /admin/digest. Only posts status="published" digests (never drafts).
  *
  * Env: TELEGRAM_BOT_TOKEN + DATABASE_URL (GitHub secrets); optional
- * TELEGRAM_CHANNEL (default @bduk_il), NEXT_PUBLIC_SITE_URL / SITE_URL.
+ * TELEGRAM_CHANNEL (default @bdukcoil), NEXT_PUBLIC_SITE_URL / SITE_URL.
  * Dry run by default (prints what it would post); pass --apply to send.
  */
 import { readFileSync } from "fs";
@@ -32,7 +32,7 @@ const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHANNEL = process.env.TELEGRAM_CHANNEL || "@bduk_il";
+const CHANNEL = process.env.TELEGRAM_CHANNEL || "@bdukcoil";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://bduk.co.il";
 const APPLY = process.argv.includes("--apply");
 

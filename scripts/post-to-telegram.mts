@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Auto-post newly-published fact-checks to the Telegram channel @bduk_il.
+ * Auto-post newly-published fact-checks to the Telegram channel @bdukcoil.
  * Each post = the claim's OG verdict card (image) + a caption (politician,
  * verdict, short quote) + a link back to the site. New followers get every
  * fact-check pushed to them, and each post links back (drives traffic).
@@ -13,7 +13,7 @@
  *
  * Wired into .github/workflows/telegram.yml (every 2h at :45).
  * Env: TELEGRAM_BOT_TOKEN + DATABASE_URL (GitHub secrets); optional
- * TELEGRAM_SINCE (ISO cutoff), TELEGRAM_CHANNEL (default @bduk_il),
+ * TELEGRAM_SINCE (ISO cutoff), TELEGRAM_CHANNEL (default @bdukcoil),
  * NEXT_PUBLIC_SITE_URL / SITE_URL.
  *
  * Dry run by default (lists what it would post); pass --apply to send.
@@ -41,7 +41,7 @@ const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHANNEL = process.env.TELEGRAM_CHANNEL || "@bduk_il";
+const CHANNEL = process.env.TELEGRAM_CHANNEL || "@bdukcoil";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://bduk.co.il";
 // Activation cutoff: only claims published from this moment on are posted,
 // so the pre-existing archive is never sent. Override with TELEGRAM_SINCE.
