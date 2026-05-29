@@ -95,6 +95,10 @@ export const metadata: Metadata = {
     creator: "@opitaru",
   },
   robots: { index: true, follow: true },
+  // Google Search Console ownership via the HTML-tag method — lets us verify
+  // without touching the (buggy) registrar DNS panel. Renders
+  // <meta name="google-site-verification" content="..."> in every page head.
+  verification: { google: "FBSWYiIdLDgsVRUlb1iYVxUKLB0IjwiKMRbmbmf8dN4" },
   // RSS autodiscovery — browsers and feed readers find /feed.xml from any page.
   alternates: {
     types: {
