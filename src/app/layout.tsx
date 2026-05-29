@@ -220,6 +220,14 @@ export default async function RootLayout({
               <Link href="/corrections" className="hover:text-foreground transition-colors">תיקונים</Link>
               <a href="/feed.xml" className="hover:text-foreground transition-colors">RSS</a>
               <a
+                href="https://t.me/bduk_il"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                ערוץ טלגרם ↗
+              </a>
+              <a
                 href="https://www.linkedin.com/in/omripitaru/"
                 target="_blank"
                 rel="noopener noreferrer"

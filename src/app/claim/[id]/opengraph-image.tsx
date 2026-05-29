@@ -17,13 +17,9 @@ import { rtlHe, wrapRtl } from "@/lib/og";
  * screenshot-friendly for stories but every platform also accepts
  * landscape — keeping one ratio simplifies the visual system.
  *
- * RTL note: Satori does NOT apply Unicode bidi to Hebrew. The trick used
- * in the root opengraph-image.tsx — `rtlHe()` reversing the entire string
- * — works for pure-Hebrew runs. For this card, the quote may contain
- * mixed Hebrew/Latin (English brand names, numbers), so we apply the same
- * "reverse the whole codepoint sequence" trick AND accept that mixed
- * runs will read in reverse Latin. Long term the right fix is a real
- * bidi pass, but the corpus is overwhelmingly pure Hebrew.
+ * RTL note: Satori applies no Unicode bidi, so Hebrew is reordered for
+ * display via rtlHe()/wrapRtl() from src/lib/og.ts — run-aware reversal that
+ * keeps numbers intact, plus per-line wrapping for the multi-line quote.
  */
 
 // NOT edge — we query Prisma here. Edge runtime requires Prisma Accelerate
@@ -51,6 +47,26 @@ const VERDICT_DISPLAY: Record<string, { label: string; bg: string; fg: string }>
   false: { label: "שקר", bg: "#b3242a", fg: "#ffffff" },
 };
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
+
+// Load the politician's photo as a data URI for Satori. Mirrors
+// PoliticianAvatar's source order (explicit image URL, else the local
+// /politicians/<id>.jpg static file), and returns null on any miss so the
+// card falls back to initials rather than failing to render.
+async function loadAvatar(image: string | null, politicianId: string): Promise<string | null> {
+  const url = image && /^https?:\/\//.test(image) ? image : `${SITE_URL}/politicians/${politicianId}.jpg`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:${ct};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   // Next 16 — every dynamic route param is a Promise. Same convention as
   // the page component in this folder.
@@ -61,7 +77,7 @@ export default async function ClaimOgImage({ params }: Props) {
   const { id } = await params;
   const c = await prisma.claim.findFirst({
     where: { id, status: "published", editorApproved: true },
-    include: { politician: { select: { name: true, party: true } } },
+    include: { politician: { select: { name: true, party: true, image: true } } },
   });
 
   // If the claim isn't found (deleted, unapproved, wrong ID) we fall back
@@ -107,6 +123,8 @@ export default async function ClaimOgImage({ params }: Props) {
     month: "long",
     year: "numeric",
   });
+  const avatar = await loadAvatar(c.politician.image, c.politicianId);
+  const initials = rtlHe(c.politician.name.trim().slice(0, 2));
 
   return new ImageResponse(
     (
@@ -208,34 +226,70 @@ export default async function ClaimOgImage({ params }: Props) {
           >
             bduk.co.il
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center" }}>
             <div
               style={{
                 display: "flex",
-                fontSize: 32,
-                fontWeight: 900,
-                color: "#1a1a1a",
-                letterSpacing: -0.5,
+                flexDirection: "column",
+                alignItems: "flex-end",
               }}
             >
-              {rtlHe(c.politician.name)}
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 32,
+                  fontWeight: 900,
+                  color: "#1a1a1a",
+                  letterSpacing: -0.5,
+                }}
+              >
+                {rtlHe(c.politician.name)}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 18,
+                  color: "#4a4a4a",
+                  marginTop: 2,
+                }}
+              >
+                {rtlHe(c.politician.party)}
+              </div>
             </div>
-            <div
-              style={{
-                display: "flex",
-                fontSize: 18,
-                color: "#4a4a4a",
-                marginTop: 2,
-              }}
-            >
-              {rtlHe(c.politician.party)}
-            </div>
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatar}
+                width={76}
+                height={76}
+                style={{
+                  width: 76,
+                  height: 76,
+                  borderRadius: 38,
+                  objectFit: "cover",
+                  marginLeft: 20,
+                  border: "2px solid #d9d2c0",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  width: 76,
+                  height: 76,
+                  borderRadius: 38,
+                  marginLeft: 20,
+                  background: "#1a1a1a",
+                  color: "#f5f1e8",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 30,
+                  fontWeight: 900,
+                }}
+              >
+                {initials}
+              </div>
+            )}
           </div>
         </div>
       </div>
