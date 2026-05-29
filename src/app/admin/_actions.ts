@@ -111,6 +111,7 @@ export async function updateClaim(formData: FormData): Promise<void> {
 
   // Bust the list cache + the affected claim/politician pages.
   revalidatePath("/admin/claims");
+  revalidatePath("/admin/review");
   revalidatePath(`/claim/${id}`);
   revalidatePath("/");
   if (correctionNote) revalidatePath("/corrections");

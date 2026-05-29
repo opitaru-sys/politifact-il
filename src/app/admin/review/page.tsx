@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { updateClaim } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
 import { RecheckClaimButton } from "@/components/RecheckClaimButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
@@ -144,13 +145,42 @@ function ReviewCard({ claim: c }: { claim: ReviewRow }) {
       {/* Actions */}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border flex-wrap">
         <RecheckClaimButton claimId={c.id} />
+        {/* Dismiss: not publishable, drop it from the queue (status=rejected).
+            Reversible from the full editor. */}
+        <form action={updateClaim}>
+          <input type="hidden" name="id" value={c.id} />
+          <input type="hidden" name="status" value="rejected" />
+          <input type="hidden" name="editorApproved" value="false" />
+          <button
+            type="submit"
+            className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-accent hover:text-accent py-1.5 px-3 cursor-pointer"
+            style={{ borderRadius: 2 }}
+            title="דחה — לא יפורסם, יוסר מהתור (ניתן לשחזר בעריכה המלאה)"
+          >
+            דחה
+          </button>
+        </form>
+        {/* Publish the current verdict as-is, for when you've judged it correct
+            without needing a re-check. */}
+        <form action={updateClaim}>
+          <input type="hidden" name="id" value={c.id} />
+          <input type="hidden" name="status" value="published" />
+          <input type="hidden" name="editorApproved" value="true" />
+          <button
+            type="submit"
+            className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-green-700 hover:text-green-700 py-1.5 px-3 cursor-pointer"
+            style={{ borderRadius: 2 }}
+            title="פרסם עם הפסק הנוכחי כפי שהוא"
+          >
+            פרסם כפי שהוא
+          </button>
+        </form>
         <a
           href={`/admin/claims?id=${c.id}`}
-          className="text-[11px] font-bold uppercase tracking-wider border border-border hover:border-accent hover:text-accent py-1.5 px-3"
-          style={{ borderRadius: 2 }}
-          title="ערוך ידנית: פרסם, שנה פסק, או מחק"
+          className="text-[11px] text-foreground-muted hover:text-foreground py-1.5 px-3"
+          title="עריכה מלאה: פסק, הסבר, סטטוס"
         >
-          ערוך / פרסם ידנית ←
+          עריכה מלאה ←
         </a>
         <span className="text-[10px] text-foreground-muted opacity-50 mr-auto">
           טענה #{c.id.slice(-6)}
