@@ -95,6 +95,12 @@ export const metadata: Metadata = {
     creator: "@opitaru",
   },
   robots: { index: true, follow: true },
+  // RSS autodiscovery — browsers and feed readers find /feed.xml from any page.
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: "בדוק · פסקי דין אחרונים" }],
+    },
+  },
 };
 
 export const viewport: Viewport = {
@@ -212,6 +218,7 @@ export default async function RootLayout({
             <div className="flex flex-col items-start md:items-end gap-2 text-[11px] tracking-wider uppercase">
               <Link href="/about" className="hover:text-foreground transition-colors">אודות</Link>
               <Link href="/corrections" className="hover:text-foreground transition-colors">תיקונים</Link>
+              <a href="/feed.xml" className="hover:text-foreground transition-colors">RSS</a>
               <a
                 href="https://www.linkedin.com/in/omripitaru/"
                 target="_blank"
