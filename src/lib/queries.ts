@@ -112,6 +112,32 @@ export async function getPoliticianById(id: string) {
 }
 
 /**
+ * Related fact-checks for the claim detail page: other recent claims by
+ * the same politician, topped up with recent site-wide claims when the
+ * politician doesn't have enough. Powers the "more fact-checks" block —
+ * internal links (SEO) + pages-per-session (engagement). Cheap (indexed
+ * politicianId + recent-by-date); uncached because claim pages are
+ * long-tail with a low per-id cache hit rate.
+ */
+export async function getRelatedClaims(excludeId: string, politicianId: string, limit = 6) {
+  const samePolitician = await prisma.claim.findMany({
+    where: { ...PUBLIC_CLAIM_FILTER, politicianId, id: { not: excludeId } },
+    select: { id: true, quote: true, verdict: true, date: true, politician: { select: { name: true } } },
+    orderBy: { date: "desc" },
+    take: limit,
+  });
+  if (samePolitician.length >= limit) return samePolitician;
+  const exclude = [excludeId, ...samePolitician.map((c) => c.id)];
+  const fill = await prisma.claim.findMany({
+    where: { ...PUBLIC_CLAIM_FILTER, id: { notIn: exclude } },
+    select: { id: true, quote: true, verdict: true, date: true, politician: { select: { name: true } } },
+    orderBy: { date: "desc" },
+    take: limit - samePolitician.length,
+  });
+  return [...samePolitician, ...fill];
+}
+
+/**
  * Count of claims for this politician that were extracted and saved but
  * then filtered out of the public score — verifier rejection, editor
  * rejection, or post-hoc sweep / triage. Used on the profile page to

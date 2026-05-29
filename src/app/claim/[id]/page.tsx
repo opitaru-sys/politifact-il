@@ -9,6 +9,7 @@ import { CommentsSection } from "@/components/CommentsSection";
 import { ShareButtons } from "@/components/ShareButtons";
 import { shareTextForClaim } from "@/lib/share-text";
 import { topicDisplayLabel } from "@/lib/topics";
+import { getRelatedClaims } from "@/lib/queries";
 import type { Verdict } from "@/data/mock";
 
 export const dynamic = "force-dynamic";
@@ -80,6 +81,13 @@ const VERDICT_RATING: Record<Verdict, { value: number; alt: string }> = {
   false: { value: 1, alt: "שקר" },
 };
 
+// Verdict accent colors (CSS vars) for the related-claims list.
+const VERDICT_COLOR: Record<Verdict, string> = {
+  true: "var(--verdict-true)",
+  "half-true": "var(--verdict-half)",
+  false: "var(--verdict-false)",
+};
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const c = await getClaim(id);
@@ -105,6 +113,8 @@ export default async function ClaimPage({ params }: PageProps) {
   const { id } = await params;
   const c = await getClaim(id);
   if (!c) notFound();
+
+  const related = await getRelatedClaims(c.id, c.politician.id, 6);
 
   const verdict = c.verdict as Verdict;
   const rating = VERDICT_RATING[verdict];
@@ -411,6 +421,46 @@ export default async function ClaimPage({ params }: PageProps) {
       <section className="border-t-[1.5px] border-border-strong pt-6">
         <CommentsSection claimId={c.id} initialCount={c._count.comments} />
       </section>
+
+      {/* Related fact-checks — more from this politician, topped up with
+          recent site-wide claims. Internal links + a reason to keep reading. */}
+      {related.length > 0 && (
+        <section className="mt-12 pt-6 border-t border-border">
+          <h2 className="text-sm font-black tracking-[0.2em] uppercase mb-4 text-foreground-muted">
+            טענות נוספות
+          </h2>
+          <div className="space-y-2">
+            {related.map((r) => {
+              const rv = r.verdict as Verdict;
+              const rq = r.quote.length > 70 ? r.quote.slice(0, 67) + "…" : r.quote;
+              return (
+                <Link
+                  key={r.id}
+                  href={`/claim/${r.id}`}
+                  className="flex items-center gap-3 px-4 py-3 border border-border hover:border-foreground-muted hover:bg-muted/40 transition-colors"
+                  style={{ borderRadius: 2 }}
+                >
+                  <span
+                    className="text-[10px] font-black uppercase tracking-wider shrink-0 w-14 text-center"
+                    style={{ color: VERDICT_COLOR[rv] }}
+                  >
+                    {VERDICT_RATING[rv].alt}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-bold truncate">{r.politician.name}</span>
+                    <span className="block text-xs text-foreground-muted truncate">
+                      &ldquo;{rq}&rdquo;
+                    </span>
+                  </span>
+                  <span className="text-[10px] text-foreground-muted tabular-nums shrink-0">
+                    {formatShortDate(r.date)}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Footer navigation */}
       <div className="mt-12 pt-6 border-t border-border flex items-center gap-3 text-[11px] tracking-wider uppercase text-foreground-muted flex-wrap">
