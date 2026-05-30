@@ -1,0 +1,78 @@
+name: Weekly rule-suggestion miner
+
+# Runs scripts/suggest-rules.mts once a week. The miner reads the editor's
+# review-queue dismissals (Claim.humanDecision) and surfaces words/phrases that
+# are common in dismissed claims but rare in published ones — candidate
+# deterministic filter rules for src/lib/claim-quality.ts.
+#
+# It's a pure script (no AI / no Claude API), so it stays off the metered
+# automation path. When it finds candidates it opens a GitHub issue (the
+# "ping") for review with Claude; when it finds none it exits quietly so the
+# repo isn't spammed with empty issues. Trigger manually anytime via the
+# "Run workflow" button (workflow_dispatch) to see the current candidates.
+
+on:
+  schedule:
+    # Sunday 06:00 UTC — start of the Israeli work week, clear of the Friday digest.
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: suggest-rules
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Prisma client (Postgres)
+        run: npm run db:gen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run rule miner
+        id: miner
+        run: |
+          set -o pipefail
+          npx tsx scripts/suggest-rules.mts | tee /tmp/rules.txt
+          if grep -qE '^\s*\[(word|phrase)\]' /tmp/rules.txt; then
+            echo "has_candidates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Open issue with candidates
+        if: steps.miner.outputs.has_candidates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "The weekly rule-miner found candidate filter rules from your review-queue dismissals."
+            echo ""
+            echo "**Review with Claude before adding any to \`src/lib/claim-quality.ts\`.** High support + low fp = safest; a high \`fp\` means the rule would also hide legitimate published claims, so don't add it."
+            echo ""
+            echo '```'
+            cat /tmp/rules.txt
+            echo '```'
+          } > /tmp/body.md
+          gh issue create \
+            --title "Rule-miner candidates — $(date -u +%Y-%m-%d)" \
+            --body-file /tmp/body.md
