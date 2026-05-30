@@ -8,6 +8,7 @@
  * needed — computed from the DB on request (the route caches it for the day).
  */
 import { prisma } from "@/lib/db";
+import { cachedRead } from "@/lib/cache";
 
 export interface QuizClaim {
   id: string;
@@ -68,9 +69,7 @@ function seededShuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
-export async function getDailyQuiz(date = new Date()): Promise<DailyQuiz> {
-  const dateKey = todayKeyUTC(date);
-  const dayNumber = quizDayNumber(date);
+async function selectDailyClaimsUncached(dateKey: string): Promise<QuizClaim[]> {
   const startOfToday = new Date(`${dateKey}T00:00:00.000Z`);
 
   const pool = await prisma.claim.findMany({
@@ -123,16 +122,28 @@ export async function getDailyQuiz(date = new Date()): Promise<DailyQuiz> {
     }
   }
 
-  return {
-    dayNumber,
-    dateKey,
-    claims: picked.map((c) => ({
-      id: c.id,
-      quote: c.quote,
-      verdict: c.verdict as QuizClaim["verdict"],
-      summary: c.summary as string,
-      politicianName: c.politician.name,
-      politicianParty: c.politician.party,
-    })),
-  };
+  return picked.map((c) => ({
+    id: c.id,
+    quote: c.quote,
+    verdict: c.verdict as QuizClaim["verdict"],
+    summary: c.summary as string,
+    politicianName: c.politician.name,
+    politicianParty: c.politician.party,
+  }));
+}
+
+// Cache the day's selection so a viral /quiz doesn't re-query the claim pool on
+// every request. Payload is Date-free (cacheable); dateKey is passed as an
+// argument so it's part of the cache key — the cache busts on its own at UTC
+// midnight, and on any claim change via the "claims" tag.
+const selectDailyClaims = cachedRead(selectDailyClaimsUncached, ["daily-quiz"], {
+  revalidate: 600,
+  tags: ["claims"],
+});
+
+export async function getDailyQuiz(date = new Date()): Promise<DailyQuiz> {
+  const dateKey = todayKeyUTC(date);
+  const dayNumber = quizDayNumber(date);
+  const claims = await selectDailyClaims(dateKey);
+  return { dayNumber, dateKey, claims };
 }
