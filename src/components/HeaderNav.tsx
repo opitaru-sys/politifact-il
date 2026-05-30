@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 
 const LINKS = [
   { href: "/", label: "ראשי" },
+  { href: "/quiz", label: "בדוק היומי" },
   { href: "/digest", label: "תובנות השבוע" },
   { href: "/leaderboard", label: "טבלה" },
   { href: "/topics", label: "נושאים" },
