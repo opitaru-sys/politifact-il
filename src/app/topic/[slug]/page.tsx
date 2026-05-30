@@ -51,20 +51,14 @@ export async function generateMetadata({
   const label = slugToTopicLabel(slug);
   if (!label) return {};
   return {
-    title: `${label} · דיוק פוליטיקאים | בדוק`,
-    description: `מי הפוליטיקאים הכי מדויקים בנושא ${label}? דירוג מתוקנן לגודל מדגם, מבוסס על טענות שנבדקו אוטומטית.`,
+    title: `${label} · מי מטעה הכי הרבה | בדוק`,
+    description: `מי מטעה הכי הרבה בנושא ${label}? דירוג פוליטיקאים לפי ניקוד הטעיה, מבוסס על טענות שנבדקו.`,
     openGraph: {
-      title: `דיוק פוליטיקאים בנושא ${label}`,
+      title: `מי מטעה הכי הרבה בנושא ${label}`,
       description: `דירוג פוליטיקאים ישראליים על נושא ${label}.`,
       url: `${SITE_URL}/topic/${slug}`,
     },
   };
-}
-
-function scoreColor(pct: number): string {
-  if (pct < 40) return "var(--verdict-false)";
-  if (pct < 60) return "var(--verdict-half)";
-  return "var(--verdict-true)";
 }
 
 const MIN_FOR_RANKING = 3;
@@ -103,8 +97,13 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
   ]);
 
   const ranked = allStats.filter((s) => s.totalClaims >= MIN_FOR_RANKING);
-  const top = ranked.slice(0, TOP_BOTTOM_COUNT);
-  const bottom = [...ranked].reverse().slice(0, TOP_BOTTOM_COUNT);
+  // Ranking cards go by lie score (most misleading first); `ranked` stays
+  // credibility-sorted for the accuracy insight band below.
+  const byLies = [...ranked].sort(
+    (a, b) => b.lieScore - a.lieScore || b.falseClaims - a.falseClaims,
+  );
+  const top = byLies.slice(0, TOP_BOTTOM_COUNT);
+  const bottom = [...byLies].reverse().slice(0, TOP_BOTTOM_COUNT);
 
   // If both lists overlap (small pool), trim the bottom to politicians
   // not already in top so the reader doesn't see the same name twice.
@@ -325,15 +324,15 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
         <h1 className="text-4xl font-black tracking-tight">{label}</h1>
         <ShareButtons
           text={shareTextForRanking(
-            `${label} · דיוק פוליטיקאים`,
-            top.map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
+            `${label} · מי מטעה הכי הרבה`,
+            top.map((s) => ({ name: s.politician.name, score: s.lieScore })),
             5,
           )}
           url={`${SITE_URL}/topic/${slug}`}
         />
       </div>
       <p className="text-sm text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        דיוק עובדתי של פוליטיקאים ישראליים בנושא {label}.{" "}
+        ניקוד הטעיה של פוליטיקאים בנושא {label}.{" "}
         {totalClaims > 0 ? (
           <>
             <span className="text-foreground font-bold">{totalClaims} טענות</span>{" "}
@@ -407,15 +406,15 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
           <RankCard
-            title="הכי מדויקים בנושא"
+            title="הכי מטעים בנושא"
             stats={top}
-            tone="positive"
+            tone="negative"
           />
           {bottomDistinct.length > 0 && (
             <RankCard
-              title="הכי פחות מדויקים בנושא"
+              title="הכי מדייקים בנושא"
               stats={bottomDistinct}
-              tone="negative"
+              tone="positive"
             />
           )}
         </div>
@@ -454,7 +453,7 @@ function RankCard({
     politician: { id: string; name: string; party: string; image: string | null };
     totalClaims: number;
     truthPercentage: number;
-    credibilityScore: number;
+    lieScore: number;
   }[];
   tone: "positive" | "negative";
 }) {
@@ -492,11 +491,10 @@ function RankCard({
               <div className="text-left shrink-0">
                 <div
                   className="font-black text-base tabular-nums leading-none"
-                  style={{ color: scoreColor(stat.credibilityScore) }}
-                  title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
+                  style={{ color: accentColor }}
+                  title={`ניקוד הטעיה: ${stat.lieScore} (שקר=1, חצי=0.5). ${stat.truthPercentage}% אמת מתוך ${stat.totalClaims} טענות.`}
                 >
-                  {stat.credibilityScore}
-                  <span className="text-xs">%</span>
+                  {stat.lieScore}
                 </div>
                 <div className="text-[10px] tabular-nums text-foreground-muted mt-0.5">
                   {stat.totalClaims} טענות

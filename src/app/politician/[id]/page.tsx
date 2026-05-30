@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getPoliticianById } from "@/lib/data";
 import { MIN_CLAIMS_FOR_HERO } from "@/lib/data";
-import { wilsonLowerBound, getFilteredClaimCount } from "@/lib/queries";
+import { getFilteredClaimCount } from "@/lib/queries";
 import { getPoliticianTimeline } from "@/lib/cred-history";
 import { ClaimCard } from "@/components/ClaimCard";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
@@ -71,17 +71,8 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
   // Sample-adjusted credibility (Wilson 95% CI lower bound) — same metric
   // the leaderboard sorts by. Displayed here as the headline so the
   // profile page matches what visitors saw on the leaderboard.
-  const credibilityScore =
-    filteredClaims.length > 0
-      ? Math.round(wilsonLowerBound(weightedTrue, filteredClaims.length) * 100)
-      : 0;
-
-  const scoreColor =
-    credibilityScore < 40
-      ? "var(--verdict-false)"
-      : credibilityScore < 60
-      ? "var(--verdict-half)"
-      : "var(--verdict-true)";
+  // Headline metric: weighted lie score (false×1 + half-true×0.5).
+  const lieScore = falseClaims + halfTrue * 0.5;
   const sampleTooSmall = filteredClaims.length < MIN_CLAIMS_FOR_HERO;
   const totalAllTime = data.claims.length;
   const showAllTimeNote = totalAllTime > filteredClaims.length;
@@ -146,9 +137,8 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
             }}
           >
             <strong className="tracking-wider uppercase ml-1">מדגם קטן.</strong>
-            רק {filteredClaims.length} טענות בתקופה זו. הציון המוצג כבר מתוקנן מטה אוטומטית לפי גודל המדגם — אבל
-            עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות, המספר עדיין רעשני. הרחיבו את חלון הזמן או הסתכלו על המספרים
-            כהערכה ראשונית בלבד.
+            רק {filteredClaims.length} טענות בתקופה זו. עד שיש לפחות {MIN_CLAIMS_FOR_HERO} טענות, המספרים עדיין
+            רעשניים. הרחיבו את חלון הזמן או הסתכלו עליהם כהערכה ראשונית בלבד.
           </div>
         )}
 
@@ -175,14 +165,13 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
           <div className="px-3 py-4 text-center border-l border-border">
             <div
               className={`text-3xl font-black tabular-nums leading-none ${sampleTooSmall ? "opacity-50" : ""}`}
-              style={{ color: scoreColor }}
-              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${truthPct}% מתוך ${filteredClaims.length} טענות.${sampleTooSmall ? " מדגם קטן מדי לדירוג מהימן." : ""}`}
+              style={{ color: "var(--verdict-false)" }}
+              title={`ניקוד הטעיה: ${lieScore} (שקר=1, חצי=0.5). ${truthPct}% אמת מתוך ${filteredClaims.length} טענות.${sampleTooSmall ? " מדגם קטן." : ""}`}
             >
-              {credibilityScore}
-              <span className="text-lg">%</span>
+              {lieScore}
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              ציון דיוק עובדתי
+              ניקוד הטעיה
             </div>
             <div className="text-[9px] text-foreground-muted/70 tabular-nums mt-0.5">
               {truthPct}% אמת

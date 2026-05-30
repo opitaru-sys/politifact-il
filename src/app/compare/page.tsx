@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { getPoliticianById, getPoliticiansWithClaimsLite } from "@/lib/data";
-import { wilsonLowerBound } from "@/lib/queries";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { CompareSelector } from "@/components/CompareSelector";
@@ -10,14 +9,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "השוואה | בדוק",
-  description: "השוואה צד-לצד של דיוק עובדתי בין שני פוליטיקאים על בסיס הטענות שנבדקו.",
+  description: "השוואה צד-לצד של ניקוד ההטעיה בין שני פוליטיקאים על בסיס הטענות שנבדקו.",
 };
-
-function scoreColor(pct: number): string {
-  if (pct < 40) return "var(--verdict-false)";
-  if (pct < 60) return "var(--verdict-half)";
-  return "var(--verdict-true)";
-}
 
 interface PageProps {
   searchParams: Promise<{ a?: string; b?: string }>;
@@ -35,9 +28,8 @@ interface PoliticianStats {
   falseClaims: number;
   /** Raw weighted truth % — kept for the sub-line ("84% אמת"). */
   truthPct: number;
-  /** Sample-adjusted credibility (Wilson 95% CI lower bound) — the
-   *  headline number, same as everywhere else on the site. */
-  credibilityScore: number;
+  /** Weighted lie score (false×1 + half-true×0.5) — the headline number. */
+  lieScore: number;
   recentClaims: { quote: string; verdict: string; date: string; topic: string; id: string }[];
 }
 
@@ -51,8 +43,7 @@ async function loadStats(id: string): Promise<PoliticianStats | null> {
   const total = claims.length;
   const weightedTrue = trueClaims + halfTrueClaims * 0.5;
   const truthPct = total > 0 ? Math.round((weightedTrue / total) * 100) : 0;
-  const credibilityScore =
-    total > 0 ? Math.round(wilsonLowerBound(weightedTrue, total) * 100) : 0;
+  const lieScore = falseClaims + halfTrueClaims * 0.5;
   return {
     id: p.id,
     name: p.name,
@@ -64,7 +55,7 @@ async function loadStats(id: string): Promise<PoliticianStats | null> {
     halfTrueClaims,
     falseClaims,
     truthPct,
-    credibilityScore,
+    lieScore,
     recentClaims: claims.slice(0, 3).map((c) => ({
       id: c.id,
       quote: c.quote,
@@ -88,11 +79,10 @@ export default async function ComparePage({ searchParams }: PageProps) {
   return (
     <div>
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-3">השוואה</div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">השוואת דיוק</h1>
+      <h1 className="text-4xl font-black mb-3 tracking-tight">השוואת הטעיות</h1>
       <p className="text-sm text-foreground-muted mb-8 max-w-2xl leading-relaxed">
-        בחר שני פוליטיקאים ובחן את התפלגות פסקי הדין שלהם זה לצד זה.
-        הציון המוצג הוא <span className="text-foreground font-bold">ציון דיוק עובדתי מתוקנן לגודל מדגם</span>
-        — אותו ציון שמשמש לדירוג בטבלת הדיוק.
+        בחרו שני פוליטיקאים ובחנו את התפלגות פסקי הדין שלהם זה לצד זה.
+        הציון המוצג הוא <span className="text-foreground font-bold">ניקוד הטעיה</span>: כל טענת שקר שווה נקודה, כל חצי-אמת חצי נקודה.
       </p>
 
       <CompareSelector
@@ -153,14 +143,13 @@ function PoliticianColumn({ stats }: { stats: PoliticianStats }) {
           <>
             <div
               className={`text-5xl font-black leading-none tabular-nums ${stats.total < 3 ? "opacity-60" : ""}`}
-              style={{ color: scoreColor(stats.credibilityScore) }}
-              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stats.truthPct}% מתוך ${stats.total} טענות.`}
+              style={{ color: "var(--verdict-false)" }}
+              title={`ניקוד הטעיה: ${stats.lieScore} (שקר=1, חצי=0.5). ${stats.truthPct}% אמת מתוך ${stats.total} טענות.`}
             >
-              {stats.credibilityScore}
-              <span className="text-2xl">%</span>
+              {stats.lieScore}
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-1.5">
-              ציון דיוק עובדתי
+              ניקוד הטעיה
             </div>
             <div className={`text-[10px] tabular-nums mt-0.5 ${stats.total < 3 ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
               {stats.truthPct}% אמת · {stats.total} טענות{stats.total < 3 ? " · מדגם קטן" : ""}

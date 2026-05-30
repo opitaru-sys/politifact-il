@@ -1,20 +1,18 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
-import { wilsonLowerBound } from "@/lib/queries";
 import {
   OG_SIZE,
   OG_CONTENT_TYPE,
   NEWSPRINT,
   VERDICT_OG,
-  ogScoreColor,
   rtlHe,
   loadHebrewFont,
 } from "@/lib/og";
 
 /**
- * Per-politician share image — the "credibility card" that circulates
- * when someone shares a profile link. Shows the sample-adjusted score
- * (same Wilson metric the leaderboard ranks by) + the verdict mix.
+ * Per-politician share image — the share card that circulates when someone
+ * shares a profile link. Shows the lie score (same metric the leaderboard
+ * ranks by) + the verdict mix.
  *
  * force-dynamic: the politician page enumerates no static params but
  * other routes do; keep the image off the build-time prerender path so
@@ -78,9 +76,8 @@ export default async function PoliticianOgImage({ params }: Props) {
   const trueC = p.claims.filter((c) => c.verdict === "true").length;
   const halfC = p.claims.filter((c) => c.verdict === "half-true").length;
   const falseC = p.claims.filter((c) => c.verdict === "false").length;
-  const weighted = trueC + halfC * 0.5;
-  const score = total > 0 ? Math.round(wilsonLowerBound(weighted, total) * 100) : 0;
-  const scoreColor = ogScoreColor(score);
+  const lieScore = falseC + halfC * 0.5;
+  const scoreColor = VERDICT_OG.false.color;
 
   // Verdict columns, rendered right→left visually (Satori is LTR source-
   // ordered): false, half, true. Numbers stay outside rtlHe so they don't
@@ -144,11 +141,10 @@ export default async function PoliticianOgImage({ params }: Props) {
                 lineHeight: 1,
               }}
             >
-              {total > 0 ? score : "—"}
-              {total > 0 && <span style={{ fontSize: 64 }}>%</span>}
+              {total > 0 ? lieScore : "—"}
             </div>
             <div style={{ display: "flex", fontSize: 22, color: NEWSPRINT.muted, marginTop: 6 }}>
-              {rtlHe("ציון דיוק עובדתי")}
+              {rtlHe("ניקוד הטעיה")}
             </div>
           </div>
 
