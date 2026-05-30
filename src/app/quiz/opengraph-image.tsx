@@ -9,7 +9,7 @@ import {
 
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
-export const alt = "בדוק היומי — אמת או שקר?";
+export const alt = "בדוק היומי — מי אמר את זה?";
 
 // Invite card for the daily quiz. The colored-square row mirrors the Wordle-
 // style result so the share preview signals "it's a guessing game".
@@ -72,7 +72,7 @@ export default async function Image() {
             marginTop: 18,
           }}
         >
-          {rtlHe("אמת, חצי אמת, או שקר?")}
+          {rtlHe("מי אמר את זה?")}
         </div>
         <div
           style={{

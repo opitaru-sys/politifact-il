@@ -6,9 +6,9 @@ import { QuizGame } from "@/components/QuizGame";
 // small pool; revisit with caching if traffic spikes (that's the good problem).
 export const dynamic = "force-dynamic";
 
-const TITLE = "בדוק היומי — אמת או שקר?";
+const TITLE = "בדוק היומי — מי אמר את זה?";
 const DESCRIPTION =
-  "כל יום, 5 ציטוטים אמיתיים של פוליטיקאים. תנחשו: אמת, חצי אמת, או שקר? בדקו את עצמכם מול בדיקת העובדות, ושתפו את התוצאה.";
+  "כל יום, 5 ציטוטים אמיתיים של פוליטיקאים. תנחשו מי אמר כל אחד, וגלו את בדיקת העובדות מאחוריו. שתפו את התוצאה.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default async function QuizPage() {
   const quiz = await getDailyQuiz();
 
-  if (quiz.claims.length === 0) {
+  if (quiz.questions.length === 0) {
     return (
       <div className="max-w-xl mx-auto text-center py-16">
         <h1 className="text-2xl font-black mb-2">בדוק היומי</h1>
@@ -42,13 +42,13 @@ export default async function QuizPage() {
       <div className="text-center mb-6">
         <h1 className="text-3xl font-black tracking-tight">בדוק היומי</h1>
         <p className="text-foreground-muted text-sm mt-1 max-w-md mx-auto">
-          אמת, חצי אמת, או שקר? 5 ציטוטים אמיתיים — נראה אתכם.
+          מי אמר את זה? 5 ציטוטים אמיתיים — נחשו את הפוליטיקאי שמאחוריהם.
         </p>
       </div>
       <QuizGame
         dayNumber={quiz.dayNumber}
         dateKey={quiz.dateKey}
-        claims={quiz.claims}
+        questions={quiz.questions}
       />
     </div>
   );

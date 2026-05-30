@@ -12,8 +12,8 @@ export function quizShareText(dayNumber: number, results: boolean[]): string {
   return [
     `בדוק היומי #${dayNumber}`,
     grid,
-    `ניחשתם נכון ${score} מתוך ${results.length}`,
-    "מי באמת מבחין בין אמת לשקר בפוליטיקה?",
+    `זיהיתי נכון ${score} מתוך ${results.length}`,
+    "כמה פוליטיקאים תזהו רק לפי ציטוט?",
     SHARE_URL,
   ].join("\n");
 }

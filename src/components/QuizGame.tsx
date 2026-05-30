@@ -1,39 +1,37 @@
 "use client";
 
 /**
- * "בדוק היומי" — daily 5-claim true/half/false game. Adapted from the user's
- * "Guess the Sub" daily-puzzle pattern: same 5 claims for everyone per UTC day,
- * one guess each, reveal the real verdict + a link to the full fact-check (the
- * conversion hook), then a shareable Wordle-style result. A localStorage guard
- * makes it once-a-day and shows your result on return.
+ * "בדוק היומי" — daily "who said it?" game. Same 5 quotes for everyone per UTC
+ * day; guess which politician said each (4 options), then the reveal shows the
+ * real speaker + our verdict + a link to the full fact-check (the conversion
+ * hook). A localStorage guard makes it once-a-day and shows your result on
+ * return. Daily/flow/share infra adapted from the user's "Guess the Sub".
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 import { VERDICT_LABEL_HE } from "@/lib/feed";
 import { quizShareText, shareQuiz } from "@/lib/quiz-share";
-import type { QuizClaim } from "@/lib/daily-quiz";
+import type { QuizQuestion } from "@/lib/daily-quiz";
 
-type Verdict = "true" | "half-true" | "false";
-const VERDICTS: Verdict[] = ["true", "half-true", "false"];
-const VERDICT_VAR: Record<Verdict, string> = {
+const VERDICT_VAR: Record<string, string> = {
   true: "var(--verdict-true)",
   "half-true": "var(--verdict-half)",
   false: "var(--verdict-false)",
 };
 
 interface Answer {
-  guess: Verdict;
+  guess: string; // chosen politician name
   correct: boolean;
 }
 
 interface Props {
   dayNumber: number;
   dateKey: string;
-  claims: QuizClaim[];
+  questions: QuizQuestion[];
 }
 
-export function QuizGame({ dayNumber, dateKey, claims }: Props) {
+export function QuizGame({ dayNumber, dateKey, questions }: Props) {
   const posthog = usePostHog();
   const storageKey = `bduk_quiz_${dateKey}`;
 
@@ -45,15 +43,14 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
 
   // On mount: restore a completed result (already played today) or log start.
   // SSR-safe by design — reading localStorage in a render-time initializer
-  // would diverge from the server HTML and cause a hydration mismatch, so the
-  // post-mount setState here is intentional.
+  // would diverge from the server HTML and cause a hydration mismatch.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved) as { answers?: Answer[] };
-        if (Array.isArray(parsed.answers) && parsed.answers.length === claims.length) {
+        if (Array.isArray(parsed.answers) && parsed.answers.length === questions.length) {
           setAnswers(parsed.answers);
           setDone(true);
           return;
@@ -67,25 +64,25 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function choose(guess: Verdict) {
+  function choose(name: string) {
     if (revealed || done) return;
-    const correct = guess === claims[index].verdict;
-    setAnswers((prev) => [...prev, { guess, correct }]);
+    const correct = name === questions[index].answer.name;
+    setAnswers((prev) => [...prev, { guess: name, correct }]);
     setRevealed(true);
     posthog?.capture("quiz_answer", {
       dayNumber,
       index,
-      guess,
-      actual: claims[index].verdict,
+      guess: name,
+      actual: questions[index].answer.name,
       correct,
     });
   }
 
   function advance() {
-    if (index + 1 >= claims.length) {
+    if (index + 1 >= questions.length) {
       setDone(true);
       const score = answers.filter((a) => a.correct).length;
-      posthog?.capture("quiz_complete", { dayNumber, score, total: claims.length });
+      posthog?.capture("quiz_complete", { dayNumber, score, total: questions.length });
       try {
         localStorage.setItem(storageKey, JSON.stringify({ answers }));
       } catch {
@@ -116,18 +113,18 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
             בדוק היומי #{dayNumber}
           </div>
           <div className="text-5xl font-black tracking-tight">
-            {score}/{claims.length}
+            {score}/{questions.length}
           </div>
           <p className="text-foreground-muted mt-2 text-sm">
-            {score === claims.length
-              ? "מושלם. אתם באמת יודעים להבחין."
+            {score === questions.length
+              ? "מושלם. אתם מכירים אותם היטב."
               : score === 0
               ? "יום קשה. מחר יש עוד הזדמנות."
               : "לא רע. נראה אתכם מחר שוב."}
           </p>
         </div>
 
-        {/* On-site result grid — colored squares, no emoji (those are only in
+        {/* On-site result grid — colored squares, no emoji (those live only in
             the share text). */}
         <div className="flex justify-center gap-1.5 mb-6">
           {answers.map((a, i) => (
@@ -152,32 +149,35 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
           {shareLabel}
         </button>
 
-        {/* Per-claim recap with links to the real fact-checks (the conversion). */}
+        {/* Per-question recap with links to the real fact-checks (the conversion). */}
         <div className="mt-6 space-y-2">
-          {claims.map((c, i) => {
+          {questions.map((q, i) => {
             const a = answers[i];
             return (
               <a
-                key={c.id}
-                href={`/claim/${c.id}`}
+                key={q.id}
+                href={`/claim/${q.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block bg-card border border-border p-3 hover:border-accent transition-colors"
                 style={{ borderRadius: 4 }}
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className="text-[10px] font-bold uppercase tracking-wider text-white px-1.5 py-0.5"
                     style={{ background: a?.correct ? "var(--verdict-true)" : "var(--verdict-false)", borderRadius: 2 }}
                   >
                     {a?.correct ? "ניחשתם נכון" : "טעות"}
                   </span>
+                  <span className="text-[11px] text-foreground">
+                    אמר/ה: <strong>{q.answer.name}</strong>
+                  </span>
                   <span className="text-[11px] text-foreground-muted">
-                    הפסק: {VERDICT_LABEL_HE[c.verdict]}
+                    · הפסק: {VERDICT_LABEL_HE[q.verdict]}
                   </span>
                 </div>
                 <div className="text-[13px] text-foreground line-clamp-2">
-                  &ldquo;{c.quote}&rdquo; — {c.politicianName}
+                  &ldquo;{q.quote}&rdquo;
                 </div>
                 <div className="text-[11px] text-accent mt-1">קראו את הבדיקה המלאה ←</div>
               </a>
@@ -200,7 +200,7 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
   }
 
   // ----- Question screen -----
-  const c = claims[index];
+  const q = questions[index];
   return (
     <div className="max-w-xl mx-auto">
       {/* Progress */}
@@ -209,7 +209,7 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
           בדוק היומי #{dayNumber}
         </div>
         <div className="flex gap-1">
-          {claims.map((_, i) => (
+          {questions.map((_, i) => (
             <div
               key={i}
               className="w-6 h-1.5"
@@ -230,43 +230,49 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
       </div>
 
       <p className="text-sm text-foreground-muted mb-2">
-        שאלה {index + 1} מתוך {claims.length} · אמת, חצי אמת, או שקר?
+        שאלה {index + 1} מתוך {questions.length} · מי אמר את זה?
       </p>
 
-      {/* The claim */}
+      {/* The quote — speaker hidden (that's the answer) */}
       <div className="bg-card border border-border p-5 mb-4" style={{ borderRadius: 4 }}>
         <blockquote className="text-lg leading-relaxed text-foreground border-r-2 border-accent pr-3">
-          &ldquo;{c.quote}&rdquo;
+          &ldquo;{q.quote}&rdquo;
         </blockquote>
-        <div className="text-[13px] text-foreground-muted mt-3">
-          — {c.politicianName} · {c.politicianParty}
-        </div>
       </div>
 
-      {/* Verdict buttons */}
-      <div className="grid grid-cols-3 gap-2">
-        {VERDICTS.map((v) => {
-          const isCorrect = revealed && v === c.verdict;
+      {/* Politician options */}
+      <div className="grid gap-2">
+        {q.options.map((opt) => {
+          const isCorrect = revealed && opt.name === q.answer.name;
           const isWrongPick =
-            revealed && answers[index]?.guess === v && v !== c.verdict;
+            revealed && answers[index]?.guess === opt.name && opt.name !== q.answer.name;
           return (
             <button
-              key={v}
+              key={opt.name}
               type="button"
-              onClick={() => choose(v)}
+              onClick={() => choose(opt.name)}
               disabled={revealed}
-              className="py-3 font-bold text-white text-sm transition-opacity disabled:cursor-default cursor-pointer"
+              className="flex items-center justify-between py-3 px-4 border text-sm font-bold transition-colors disabled:cursor-default cursor-pointer text-right"
               style={{
-                background: VERDICT_VAR[v],
                 borderRadius: 4,
-                opacity: revealed && !isCorrect && !isWrongPick ? 0.35 : 1,
-                outline: isCorrect ? "3px solid var(--foreground)" : "none",
-                outlineOffset: 2,
+                borderColor: isCorrect
+                  ? "var(--verdict-true)"
+                  : isWrongPick
+                  ? "var(--verdict-false)"
+                  : "var(--border-strong)",
+                background: isCorrect
+                  ? "color-mix(in srgb, var(--verdict-true) 14%, transparent)"
+                  : isWrongPick
+                  ? "color-mix(in srgb, var(--verdict-false) 14%, transparent)"
+                  : "var(--card)",
+                opacity: revealed && !isCorrect && !isWrongPick ? 0.45 : 1,
               }}
             >
-              {VERDICT_LABEL_HE[v]}
-              {isWrongPick ? " ✗" : ""}
-              {isCorrect ? " ✓" : ""}
+              <span>
+                {opt.name}
+                <span className="text-foreground-muted font-normal"> · {opt.party}</span>
+              </span>
+              <span>{isCorrect ? "✓" : isWrongPick ? "✗" : ""}</span>
             </button>
           );
         })}
@@ -276,13 +282,17 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
       {revealed && (
         <div className="mt-4 bg-card border border-border p-4" style={{ borderRadius: 4 }}>
           <div className="text-sm font-bold mb-1">
-            {answers[index]?.correct ? "ניחשתם נכון." : "לא הפעם."} הפסק:{" "}
-            <span style={{ color: VERDICT_VAR[c.verdict] }}>{VERDICT_LABEL_HE[c.verdict]}</span>
+            {answers[index]?.correct ? "ניחשתם נכון." : "לא הפעם."} אמר/ה:{" "}
+            <span className="text-accent">{q.answer.name}</span>
           </div>
-          <p className="text-[13px] text-foreground-muted leading-relaxed">{c.summary}</p>
+          <div className="text-[12px] text-foreground-muted mb-2">
+            הפסק שלנו על הציטוט:{" "}
+            <span style={{ color: VERDICT_VAR[q.verdict] }}>{VERDICT_LABEL_HE[q.verdict]}</span>
+          </div>
+          <p className="text-[13px] text-foreground-muted leading-relaxed">{q.summary}</p>
           <div className="flex items-center justify-between mt-3 gap-3 flex-wrap">
             <a
-              href={`/claim/${c.id}`}
+              href={`/claim/${q.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[12px] text-accent font-bold"
@@ -295,7 +305,7 @@ export function QuizGame({ dayNumber, dateKey, claims }: Props) {
               className="bg-accent text-white font-bold text-sm py-2 px-5 hover:opacity-90 cursor-pointer"
               style={{ borderRadius: 4 }}
             >
-              {index + 1 >= claims.length ? "לתוצאה" : "הבא"}
+              {index + 1 >= questions.length ? "לתוצאה" : "הבא"}
             </button>
           </div>
         </div>
