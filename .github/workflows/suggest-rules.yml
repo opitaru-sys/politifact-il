@@ -59,20 +59,36 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Open issue with candidates
+      # Primary delivery: a private Telegram DM via the bot (the candidates are
+      # internal dev notes, NOT for the public @bdukcoil channel — so they go to
+      # TELEGRAM_ALERT_CHAT_ID, your private chat-id with the bot). If that
+      # secret isn't set, fall back to a GitHub issue so candidates are never lost.
+      - name: Notify candidates (Telegram, GitHub-issue fallback)
         if: steps.miner.outputs.has_candidates == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALERT_CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}
         run: |
-          {
-            echo "The weekly rule-miner found candidate filter rules from your review-queue dismissals."
-            echo ""
-            echo "**Review with Claude before adding any to \`src/lib/claim-quality.ts\`.** High support + low fp = safest; a high \`fp\` means the rule would also hide legitimate published claims, so don't add it."
-            echo ""
-            echo '```'
-            cat /tmp/rules.txt
-            echo '```'
-          } > /tmp/body.md
-          gh issue create \
-            --title "Rule-miner candidates — $(date -u +%Y-%m-%d)" \
-            --body-file /tmp/body.md
+          BODY="$(cat /tmp/rules.txt)"
+          HEADER="מועמדים לכללי סינון חדשים (מהדחיות שלך בבדיקה האנושית). לעבור עם קלוד לפני הוספה ל-claim-quality.ts; fp גבוה = לא להוסיף."
+          if [ -n "$TELEGRAM_ALERT_CHAT_ID" ] && [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            TEXT="$(printf '%s\n\n%s' "$HEADER" "$BODY")"
+            curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -n --arg chat "$TELEGRAM_ALERT_CHAT_ID" --arg text "$TEXT" '{chat_id:$chat, text:$text, disable_web_page_preview:true}')"
+            echo
+            echo "Sent candidates to Telegram chat $TELEGRAM_ALERT_CHAT_ID."
+          else
+            echo "TELEGRAM_ALERT_CHAT_ID not set -> GitHub-issue fallback. Set the secret to receive these on Telegram."
+            {
+              echo "Candidate filter rules from review-queue dismissals. Review with Claude before adding to src/lib/claim-quality.ts; high fp = don't add."
+              echo
+              echo '```'
+              echo "$BODY"
+              echo '```'
+            } > /tmp/body.md
+            gh issue create \
+              --title "Rule-miner candidates — $(date -u +%Y-%m-%d)" \
+              --body-file /tmp/body.md
+          fi
