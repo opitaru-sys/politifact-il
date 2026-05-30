@@ -197,6 +197,14 @@ export interface PoliticianStatsRow {
    * Stored as a 0-100 number for easy comparison + display alongside %.
    */
   credibilityScore: number;
+  /**
+   * Weighted "lie score": false × 1 + half-true × 0.5. The leaderboard and the
+   * site's framing now rank by THIS — most lies at top, since the most
+   * misinformation does the most damage. Replaces the Wilson credibilityScore
+   * as the headline/ranking metric; credibilityScore is kept only to feed the
+   * profile accuracy-over-time timeline.
+   */
+  lieScore: number;
 }
 
 /**
@@ -242,6 +250,8 @@ async function computePoliticianStats(windowDays?: number): Promise<PoliticianSt
       const truthPercentage =
         total > 0 ? Math.round((weightedTrue / total) * 100) : 0;
       const credibilityScore = Math.round(wilsonLowerBound(weightedTrue, total) * 100);
+      // Accountability metric: a false claim is a full point, a half-true half.
+      const lieScore = falseClaims + halfTrueClaims * 0.5;
 
       return {
         politician: {
@@ -257,16 +267,21 @@ async function computePoliticianStats(windowDays?: number): Promise<PoliticianSt
         falseClaims,
         truthPercentage,
         credibilityScore,
+        lieScore,
       };
     })
     .filter((s) => s.totalClaims > 0)
-    // Sort ascending by credibility score (Wilson lower bound), not raw %.
-    // This corrects the small-sample bias: a politician with 3 true claims
-    // (raw 100%) ranks BELOW a politician with 50 claims at 80% (raw 80%),
-    // because the latter has a much narrower confidence interval. The
-    // display layer (leaderboard / hero) still shows the raw % for
-    // familiarity — only the ORDER reflects sample-size adjustment.
-    .sort((a, b) => a.credibilityScore - b.credibilityScore);
+    // Rank by the weighted lie score, MOST lies first — the site frames the
+    // worst offenders at the top (most misinformation = most damage). A raw
+    // count sidesteps the small-sample problem a rate would create: a 2-claim
+    // politician can't out-rank one with dozens of false claims. Tie-break by
+    // raw false count, then by volume.
+    .sort(
+      (a, b) =>
+        b.lieScore - a.lieScore ||
+        b.falseClaims - a.falseClaims ||
+        b.totalClaims - a.totalClaims,
+    );
 }
 
 /**
@@ -311,14 +326,12 @@ async function computePartyStats(windowDays?: number) {
         party,
         ...stats,
         truthPercentage: Math.round((weightedTrue / stats.total) * 100),
-        // Wilson 95% CI lower bound — same sample-size adjustment we apply
-        // to per-politician credibility. A 5-claim party at 100% raw still
-        // gets a low credibilityScore because the sample's too small to
-        // confidently call them credible.
         credibilityScore: Math.round(wilsonLowerBound(weightedTrue, stats.total) * 100),
+        // Weighted lie score: false×1 + half-true×0.5. Parties ranked most-lies-first.
+        lieScore: stats.falseClaims + stats.halfTrue * 0.5,
       };
     })
-    .sort((a, b) => a.credibilityScore - b.credibilityScore);
+    .sort((a, b) => b.lieScore - a.lieScore || b.falseClaims - a.falseClaims);
 }
 
 export const getPartyStats = cachedRead(

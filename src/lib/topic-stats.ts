@@ -66,10 +66,12 @@ async function computePoliticianStatsForTopic(
       falseClaims,
       truthPercentage: Math.round((weightedTrue / total) * 100),
       credibilityScore: Math.round(wilsonLowerBound(weightedTrue, total) * 100),
+      lieScore: falseClaims + halfTrueClaims * 0.5,
     });
   }
 
-  // Default sort: most credible first. Caller can re-sort if needed.
+  // Default sort: most credible first (the topic PAGE still shows the
+  // credibility framing — it gets the lie-score reframe in a follow-up).
   rows.sort((a, b) => b.credibilityScore - a.credibilityScore);
   return rows;
 }

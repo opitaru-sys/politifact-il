@@ -122,7 +122,7 @@ export default async function Home({
               textUnderlineOffset: "8px",
             }}
           >
-            מדויק
+            מטעה
           </span>{" "}
           בפוליטיקה
           <span className="text-accent">.</span>
@@ -189,7 +189,7 @@ export default async function Home({
           {" · "}
           {windowLabel(statsWindow.value)}: {stats.reduce((s, x) => s + x.totalClaims, 0)} טענות
           <span className="mx-2 opacity-40">·</span>
-          <strong className="text-foreground">ציון דיוק עובדתי</strong> = Wilson 95% (אמת + ½·חצי).{" "}
+          <strong className="text-foreground">ניקוד הטעיה</strong> = שקר ×1 + חצי-אמת ×0.5.{" "}
           <a href="/about" className="underline hover:no-underline">איך מחושב? ←</a>
         </div>
       )}

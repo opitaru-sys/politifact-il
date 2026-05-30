@@ -12,15 +12,9 @@ import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "טבלת הדיוק | בדוק",
-  description: "דירוג פוליטיקאים ישראליים לפי דיוק עובדתי של טענותיהם",
+  title: "טבלת ההטעיות | בדוק",
+  description: "דירוג פוליטיקאים ישראליים לפי כמה הטעו את הציבור — שקרים והטעיות שנבדקו עובדתית",
 };
-
-function scoreColor(pct: number): string {
-  if (pct < 40) return "var(--verdict-false)";
-  if (pct < 60) return "var(--verdict-half)";
-  return "var(--verdict-true)";
-}
 
 interface PageProps {
   searchParams: Promise<{ window?: string }>;
@@ -37,14 +31,12 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     getKnessetActivityMap(),
   ]);
 
-  // Sort by Wilson lower bound (credibilityScore) instead of raw
-  // truthPercentage. This corrects the small-sample bias — a politician
-  // with 3 claims at 100% no longer outranks a politician with 50
-  // claims at 80%. The raw % stays as the displayed number for
-  // familiarity; only the ordering reflects sample-size adjustment.
-  // Participation % is shown as an info column but doesn't filter the
-  // ranking — every qualifying MK appears.
-  const stats = [...ascending].sort((a, b) => b.credibilityScore - a.credibilityScore);
+  // Rank by the weighted lie score, most misleading at the top (getPoliticianStats
+  // already orders this way; re-sort defensively). Participation % is an info
+  // column, not a filter — every qualifying MK appears.
+  const stats = [...ascending].sort(
+    (a, b) => b.lieScore - a.lieScore || b.falseClaims - a.falseClaims,
+  );
 
   const windowLabel = windowLabelFn(selected.value);
 
@@ -53,17 +45,17 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         דירוג · {windowLabel}
       </div>
-      <h1 className="text-4xl font-black mb-3 tracking-tight">טבלת הדיוק</h1>
+      <h1 className="text-4xl font-black mb-3 tracking-tight">מי מטעה הכי הרבה</h1>
       <p className="text-sm text-foreground-muted mb-3 max-w-2xl leading-relaxed">
-        דירוג של {stats.length} פוליטיקאים לפי <strong className="text-foreground">דיוק עובדתי</strong> של הטענות שלהם
+        דירוג של {stats.length} פוליטיקאים לפי <strong className="text-foreground">כמה הטעו את הציבור</strong>
         {" "}<span className="text-foreground font-bold">{windowLabel === "מכל הזמנים" ? "בכל הזמנים" : `ב-${windowLabel}`}</span>.
-        המספר הגדול הוא ציון מתוקנן לגודל מדגם — פוליטיקאי עם 3 טענות נכונות מקבל ציון נמוך יותר מפוליטיקאי עם 30 טענות נכונות, גם אם שניהם ב-100% גולמי.
-        אחוז האמת הגולמי <span className="text-foreground font-bold">(אמת + ½ × חצי) ÷ סה״כ</span> מוצג כקו תחתון.
+        המספר הגדול הוא <span className="text-foreground font-bold">ניקוד הטעיה</span>: כל טענת שקר שווה נקודה, כל חצי-אמת חצי נקודה. ככל שהניקוד גבוה יותר, הפוליטיקאי הפיץ יותר מידע מוטעה.
+        אחוז האמת <span className="text-foreground font-bold">(אמת + ½ × חצי) ÷ סה״כ</span> מוצג כקו תחתון.
         עמודת <span className="text-foreground font-bold">השתתפות</span> מציגה את אחוז ישיבות המליאה ב-90 הימים האחרונים שבהן הח״כ דיבר.
       </p>
       <p className="text-[11px] text-foreground-muted mb-6 max-w-2xl leading-relaxed">
-        הציון מודד <strong>דיוק עובדתי</strong> בלבד — לא יושרה, מוסריות, שחיתות, הסתה או איכות פוליטית.
-        דעות, קללות, ברכות וסיסמאות סוננו ולא נספרו.
+        הניקוד מודד <strong>דיוק עובדתי</strong> בלבד — לא יושרה, מוסריות, שחיתות, הסתה או איכות פוליטית.
+        דעות, קללות, ברכות וסיסמאות סוננו ולא נספרו. פוליטיקאים שמדברים יותר נבדקים יותר, ולכן עשויים לצבור ניקוד גבוה יותר.
       </p>
 
       {/* Window selector — shared component, same options on the home
@@ -91,7 +83,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         <div className="grid grid-cols-[2rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto_auto_auto] gap-x-4 px-5 py-2.5 border-b-[1.5px] border-border-strong text-[10px] font-bold text-foreground-muted uppercase tracking-[0.18em]">
           <span>#</span>
           <span>פוליטיקאי</span>
-          <span>דיוק</span>
+          <span>הטעיות</span>
           <span className="hidden sm:inline">השתתפות</span>
           <span className="hidden sm:inline">טענות</span>
         </div>
@@ -124,14 +116,13 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                   </div>
                   <div
                     className="text-left"
-                    title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
+                    title={`ניקוד הטעיה: ${stat.lieScore} (שקר=1, חצי-אמת=0.5). ${stat.truthPercentage}% אמת מתוך ${stat.totalClaims} טענות.`}
                   >
                     <div
                       className="font-black text-xl tabular-nums leading-none"
-                      style={{ color: scoreColor(stat.credibilityScore) }}
+                      style={{ color: "var(--verdict-false)" }}
                     >
-                      {stat.credibilityScore}
-                      <span className="text-sm">%</span>
+                      {stat.lieScore}
                     </div>
                     <div className="text-[10px] tabular-nums text-foreground-muted/80 mt-0.5">
                       {stat.truthPercentage}% אמת

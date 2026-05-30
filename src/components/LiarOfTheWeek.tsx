@@ -86,17 +86,13 @@ export async function LiarOfTheWeek({
   const qualified = stats.filter((s) => s.totalClaims >= MIN_CLAIMS_FOR_HERO);
   if (qualified.length === 0) return null;
 
-  // Pick by `credibilityScore` (Wilson lower bound) instead of raw
-  // `truthPercentage`. Wilson penalizes small samples — a politician
-  // with 3 true claims (raw 100%) no longer outranks one with 50 claims
-  // at 80%. The "more claims wins" tiebreaker we used to apply manually
-  // is now intrinsic to the metric — Wilson lower bound increases with
-  // sample size at constant rate, so ties basically don't exist.
-  const top = qualified.reduce((best, q) =>
-    q.credibilityScore > best.credibilityScore ? q : best,
+  // The hero is the WORST offender — highest weighted lie score (false×1 +
+  // half-true×0.5). The contrast card is the cleanest record (lowest score).
+  const top = qualified.reduce((worst, q) =>
+    q.lieScore > worst.lieScore ? q : worst,
   );
-  const bottom = qualified.reduce((best, q) =>
-    q.credibilityScore < best.credibilityScore ? q : best,
+  const bottom = qualified.reduce((cleanest, q) =>
+    q.lieScore < cleanest.lieScore ? q : cleanest,
   );
   const qualifiedCount = qualified.length;
   const showBottom = bottom.politician.id !== top.politician.id;
@@ -134,7 +130,7 @@ export async function LiarOfTheWeek({
         {/* Eyebrow: position, not superlative */}
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold tracking-[0.25em] uppercase text-accent">
-            במקום הראשון
+            המטעה המוביל
           </span>
           <span className="text-[10px] tracking-widest text-foreground-muted uppercase tabular-nums">
             1 / {qualifiedCount}
@@ -173,14 +169,13 @@ export async function LiarOfTheWeek({
           <div>
             <div
               className="text-5xl font-black leading-none tracking-tight tabular-nums"
-              style={{ color: scoreColor(top.credibilityScore) }}
-              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${top.truthPercentage}% מתוך ${top.totalClaims} טענות.`}
+              style={{ color: "var(--verdict-false)" }}
+              title={`ניקוד הטעיה: ${top.lieScore} (שקר=1, חצי-אמת=0.5). ${top.truthPercentage}% אמת מתוך ${top.totalClaims} טענות.`}
             >
-              {top.credibilityScore}
-              <span className="text-2xl">%</span>
+              {top.lieScore}
             </div>
             <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-2">
-              ציון דיוק עובדתי · מתוקנן לגודל מדגם
+              ניקוד הטעיה · שקר=1, חצי-אמת=0.5
             </div>
             <div className="text-[10px] tracking-wider text-foreground-muted/80 mt-0.5 tabular-nums">
               {top.truthPercentage}% אמת מתוך {top.totalClaims} טענות
@@ -283,9 +278,9 @@ export async function LiarOfTheWeek({
           <ShareButtons
             text={shareTextForHero(
               top.politician.name,
-              top.credibilityScore,
+              top.lieScore,
               showBottom ? bottom.politician.name : null,
-              showBottom ? bottom.credibilityScore : null,
+              showBottom ? bottom.lieScore : null,
             )}
             url={SITE_URL}
           />
@@ -307,7 +302,7 @@ export async function LiarOfTheWeek({
           />
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-foreground-muted">
-              במקום האחרון <span className="text-foreground-muted/60 tabular-nums">· {qualifiedCount} / {qualifiedCount}</span>
+              הכי מעט הטעיות <span className="text-foreground-muted/60 tabular-nums">· {qualifiedCount} / {qualifiedCount}</span>
             </div>
             <div className="text-sm font-bold truncate mt-0.5">
               {bottom.politician.name}
@@ -327,11 +322,10 @@ export async function LiarOfTheWeek({
           <div className="text-left shrink-0">
             <div
               className="font-black text-2xl tabular-nums leading-none"
-              style={{ color: scoreColor(bottom.credibilityScore) }}
-              title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${bottom.truthPercentage}% מתוך ${bottom.totalClaims} טענות.`}
+              style={{ color: "var(--verdict-true)" }}
+              title={`ניקוד הטעיה: ${bottom.lieScore} (שקר=1, חצי-אמת=0.5). ${bottom.truthPercentage}% אמת מתוך ${bottom.totalClaims} טענות.`}
             >
-              {bottom.credibilityScore}
-              <span className="text-sm">%</span>
+              {bottom.lieScore}
             </div>
             <div className="text-[9px] text-foreground-muted/70 tabular-nums mt-0.5">
               {bottom.truthPercentage}% אמת

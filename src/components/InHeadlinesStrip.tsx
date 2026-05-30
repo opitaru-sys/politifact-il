@@ -22,12 +22,6 @@ import { shareTextForRanking } from "@/lib/share-text";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
-function scoreColor(pct: number): string {
-  if (pct < 40) return "var(--verdict-false)";
-  if (pct < 60) return "var(--verdict-half)";
-  return "var(--verdict-true)";
-}
-
 export function InHeadlinesStrip({
   stats,
   windowDays,
@@ -55,7 +49,7 @@ export function InHeadlinesStrip({
         <ShareButtons
           text={shareTextForRanking(
             `מי בכותרות · ${caption}`,
-            stats.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
+            stats.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.lieScore })),
             5,
           )}
           url={SITE_URL}
@@ -68,7 +62,7 @@ export function InHeadlinesStrip({
             key={stat.politician.id}
             href={`/politician/${stat.politician.id}`}
             className="group flex flex-col items-center text-center px-3 py-4 hover:bg-muted/40 transition-colors"
-            title={`${stat.politician.name} (${stat.politician.party}) · ${stat.totalClaims} טענות · ציון דיוק עובדתי ${stat.credibilityScore}%`}
+            title={`${stat.politician.name} (${stat.politician.party}) · ${stat.totalClaims} טענות · ניקוד הטעיה ${stat.lieScore}`}
           >
             <PoliticianAvatar
               id={stat.politician.id}
@@ -85,10 +79,9 @@ export function InHeadlinesStrip({
             <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
               <span
                 className="text-sm font-black leading-none"
-                style={{ color: scoreColor(stat.credibilityScore) }}
+                style={{ color: "var(--verdict-false)" }}
               >
-                {stat.credibilityScore}
-                <span className="text-[10px]">%</span>
+                {stat.lieScore}
               </span>
               <span className="text-[9px] text-foreground-muted/70">
                 {stat.totalClaims} טענות

@@ -27,8 +27,8 @@ export function shareTextForClaim(
 }
 
 /**
- * Share text for the "ישר השבוע" hero card (top + bottom of the
- * credibility ranking).
+ * Share text for the weekly hero card — the worst offender (most misleading)
+ * up top, the cleanest record as the contrast.
  */
 export function shareTextForHero(
   topName: string,
@@ -36,12 +36,12 @@ export function shareTextForHero(
   bottomName: string | null,
   bottomScore: number | null,
 ): string {
-  const top = `🏆 במקום הראשון: ${topName} · ציון דיוק עובדתי ${topScore}%`;
+  const top = `המטעה המוביל: ${topName} · ${topScore} נקודות הטעיה`;
   const bottom =
     bottomName !== null && bottomScore !== null
-      ? `\n📉 במקום האחרון: ${bottomName} · ${bottomScore}%`
+      ? `\nהכי מדויק: ${bottomName} · ${bottomScore} נקודות`
       : "";
-  return `${top}${bottom}\n\nטבלת הדיוק של פוליטיקאים ישראליים — בדוק:`;
+  return `${top}${bottom}\n\nמי מטעה את הציבור הכי הרבה. בדוק:`;
 }
 
 /**
@@ -55,8 +55,8 @@ export function shareTextForRanking(
 ): string {
   const lines = items
     .slice(0, limit)
-    .map((it, i) => `${i + 1}. ${it.name} · ${it.score}%`);
-  return `${heading}\n\n${lines.join("\n")}\n\nכל הדירוג — בדוק:`;
+    .map((it, i) => `${i + 1}. ${it.name} · ${it.score}`);
+  return `${heading}\n\n${lines.join("\n")}\n\nכל הדירוג. בדוק:`;
 }
 
 /**

@@ -6,14 +6,7 @@ import { shareTextForRanking } from "@/lib/share-text";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
-function scoreColor(pct: number): string {
-  if (pct < 40) return "var(--verdict-false)";
-  if (pct < 60) return "var(--verdict-half)";
-  return "var(--verdict-true)";
-}
-
-// Below this many claims, treat the score as preliminary and mute the visual
-// confidence. Matches MIN_CLAIMS_FOR_HERO in lib/data.ts.
+// Below this many claims, treat the score as preliminary and mute it visually.
 const LOW_SAMPLE_THRESHOLD = 5;
 
 export function LeaderboardPreview({
@@ -31,11 +24,10 @@ export function LeaderboardPreview({
    *  same accountability dimension the full leaderboard does. */
   activityMap?: Map<string, ActivitySnapshot>;
 }) {
-  // Sort for display: highest credibility-score first. credibilityScore
-  // is the Wilson lower bound at 95% confidence — it intrinsically
-  // weights for sample size, so a 3-claim politician at "100%" sits
-  // below a 50-claim politician at "80%" (which is what we want).
-  const sorted = [...stats].sort((a, b) => b.credibilityScore - a.credibilityScore);
+  // Most misleading first — ranks by the weighted lie score (false×1 + half×0.5).
+  const sorted = [...stats].sort(
+    (a, b) => b.lieScore - a.lieScore || b.falseClaims - a.falseClaims,
+  );
   const caption = windowDays === 1
     ? "24 השעות האחרונות"
     : `${windowDays ?? 30} ימים אחרונים`;
@@ -50,7 +42,7 @@ export function LeaderboardPreview({
     >
       <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-black text-base tracking-tight">טבלת הדיוק</h2>
+          <h2 className="font-black text-base tracking-tight">מי מטעה הכי הרבה</h2>
           <div className="text-[10px] uppercase tracking-wider text-foreground-muted mt-0.5">
             {caption}
           </div>
@@ -58,8 +50,8 @@ export function LeaderboardPreview({
         <div className="flex items-center gap-3 shrink-0">
           <ShareButtons
             text={shareTextForRanking(
-              `טבלת הדיוק · ${caption}`,
-              sorted.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.credibilityScore })),
+              `מי מטעה הכי הרבה · ${caption}`,
+              sorted.slice(0, 5).map((s) => ({ name: s.politician.name, score: s.lieScore })),
               5,
             )}
             url={`${SITE_URL}${leaderboardLink}`}
@@ -99,16 +91,12 @@ export function LeaderboardPreview({
                   <div
                     className="font-black text-base tabular-nums leading-none"
                     style={{
-                      color: scoreColor(stat.credibilityScore),
-                      // Mute visually for small samples — credibility score
-                      // already penalizes them but the italic+muted label
-                      // below makes the uncertainty explicit too.
+                      color: "var(--verdict-false)",
                       opacity: lowSample ? 0.65 : 1,
                     }}
-                    title={`ציון מתוקנן לגודל מדגם. אחוז האמת הגולמי: ${stat.truthPercentage}% מתוך ${stat.totalClaims} טענות.`}
+                    title={`ניקוד הטעיה: ${stat.lieScore} (שקר=1, חצי=0.5). ${stat.truthPercentage}% אמת מתוך ${stat.totalClaims} טענות.`}
                   >
-                    {stat.credibilityScore}
-                    <span className="text-xs">%</span>
+                    {stat.lieScore}
                   </div>
                   <div className={`text-[10px] tabular-nums mt-0.5 ${lowSample ? "text-foreground-muted/70 italic" : "text-foreground-muted"}`}>
                     {stat.truthPercentage}% אמת · {stat.totalClaims} טענות
