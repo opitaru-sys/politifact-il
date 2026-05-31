@@ -14,7 +14,7 @@ export interface ClaimQualityInput {
 }
 
 export interface ClaimQualityIssue {
-  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial" | "metaphor-idiom" | "private-conversation" | "knesset-procedural";
+  code: "news-narrative" | "self-reference" | "opinion-insult" | "eulogy-memorial" | "ceremonial" | "metaphor-idiom" | "private-conversation" | "knesset-procedural" | "rhetorical-question" | "biographical-credentials";
   reason: string;
 }
 
@@ -516,6 +516,51 @@ function knessetProcedural(input: ClaimQualityInput): ClaimQualityIssue | null {
   return null;
 }
 
+// Rhetorical questions — a quote that is essentially a question has no factual
+// assertion to verify ("haven't we won?", "is this reasonable?"). The model
+// otherwise treats the implied stance as a checkable claim and stamps a verdict
+// on it. Added 2026-05-31 (Netanyahu "לא השגנו ניצחון על חיזבאללה?" got false
+// AND half-true on two extractions).
+//
+// Gate: the quote ENDS with "?" (after stripping trailing quote marks) AND
+// contains no digit. A digit is a factual anchor — "האבטלה 3%?" might carry a
+// checkable number, so we let those through to normal processing.
+function rhetoricalQuestion(input: ClaimQualityInput): ClaimQualityIssue | null {
+  const trimmed = input.quote.replace(/["״׳'\s]+$/, "");
+  if (!trimmed.endsWith("?")) return null;
+  if (/\d/.test(input.quote)) return null;
+  return {
+    code: "rhetorical-question",
+    reason: "הציטוט הוא בעיקרו שאלה רטורית — אין בו קביעה עובדתית לאמת",
+  };
+}
+
+// Third-party CV / credentials — biographical description of an appointee or
+// other person's career, tenure, or expertise, lifted from an appointment
+// announcement. Verifiable but not an accountability claim the politician
+// carries. Added 2026-05-31 (three "Shmuel Ben Ezra has 30 years experience /
+// served 4 years as head of division / has experience with US gov" claims got
+// rated true and posted). Gated on NOT-first-person so the politician's own
+// "יש לי ניסיון" (PR, caught elsewhere) doesn't trip it — this targets 3rd-party
+// bios ("יש לו", "מביא איתו", "בעל ניסיון").
+const CREDENTIAL_PATTERNS: { rx: RegExp; reason: string }[] = [
+  { rx: /\d+\s*שנות ניסיון/, reason: 'תיאור קורות חיים ("X שנות ניסיון") — הודעת מינוי/ביוגרפיה' },
+  { rx: /מביא(?:ה)? אית(?:ו|ה)[^.?!]{0,45}ניסיון/, reason: 'תיאור מינוי ("מביא איתו ... ניסיון")' },
+  {
+    rx: /(?:יש לו|יש לה|בעל|בעלת)\s+ניסיון\s+(?:רב|עשיר|מקצועי|מוכח|ניהולי|ביטחוני)/,
+    reason: 'תיאור כישורים של אדם שלישי ("ניסיון רב")',
+  },
+];
+function biographicalCredentials(input: ClaimQualityInput): ClaimQualityIssue | null {
+  if (hasFirstPersonMarker(input.quote)) return null;
+  for (const pat of CREDENTIAL_PATTERNS) {
+    if (pat.rx.test(input.quote)) {
+      return { code: "biographical-credentials", reason: pat.reason };
+    }
+  }
+  return null;
+}
+
 export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIssue[] {
   return [
     newsNarrative(input),
@@ -526,6 +571,8 @@ export function findClaimQualityIssues(input: ClaimQualityInput): ClaimQualityIs
     metaphorIdiom(input),
     privateConversation(input),
     knessetProcedural(input),
+    rhetoricalQuestion(input),
+    biographicalCredentials(input),
   ].filter(Boolean) as ClaimQualityIssue[];
 }
 
