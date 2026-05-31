@@ -62,18 +62,28 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// Normalize a quote for de-dup comparison (strip punctuation, collapse spaces).
+function normQuote(s: string): string {
+  return s.replace(/["'״׳.,:;!?\-–—()\[\]]/g, "").replace(/\s+/g, " ").trim();
+}
+
 if (!TOKEN) {
   console.error("TELEGRAM_BOT_TOKEN not set — nothing to do.");
   await prisma.$disconnect();
   process.exit(0);
 }
 
+// Only post "lies": שקר (false) + חצי אמת (half-true). "true" verdicts (bio
+// facts, confirmations, fragments of a speech) were flooding the channel with
+// low-signal posts. The channel is about who misleads the public, not a fact
+// ticker — so true claims are no longer pushed.
 const FILTER = {
   status: "published",
   editorApproved: true,
   telegramPostedAt: null,
+  verdict: { in: ["false", "half-true"] },
   createdAt: { gte: POST_SINCE },
-} as const;
+};
 
 // Safety: if a surprising number are pending since the cutoff, something is
 // off (workflow was down for a long time, or the cutoff is too old). Abort
@@ -96,12 +106,41 @@ const claims = await prisma.claim.findMany({
   take: BATCH,
 });
 
+// De-dup against everything already telegram-handled: never push the same line
+// twice for a politician. The pipeline can mint the same quote from two source
+// articles (different days, sometimes different verdicts), and the old per-claim
+// dedup let each one post — which is exactly the duplicate spam on the channel.
+const postedRaw = await prisma.claim.findMany({
+  where: { telegramPostedAt: { not: null } },
+  select: { politicianId: true, quote: true },
+});
+const postedByPol = new Map<string, string[]>();
+for (const p of postedRaw) {
+  const arr = postedByPol.get(p.politicianId) ?? [];
+  arr.push(normQuote(p.quote));
+  postedByPol.set(p.politicianId, arr);
+}
+const isAlreadyPosted = (politicianId: string, quote: string): boolean => {
+  const nq = normQuote(quote);
+  const prior = postedByPol.get(politicianId) ?? [];
+  return prior.some(
+    (pq) => pq === nq || (nq.length >= 15 && pq.includes(nq)) || (pq.length >= 15 && nq.includes(pq)),
+  );
+};
+
 console.log(
   `${claims.length} claim(s) to post to ${CHANNEL} (since ${POST_SINCE.toISOString()})${APPLY ? "" : " — dry run, pass --apply to send"}`,
 );
 
 let posted = 0;
 for (const c of claims) {
+  if (isAlreadyPosted(c.politicianId, c.quote)) {
+    console.log(`  ↷ skip dup ${c.id} (${c.politician.name}) — matching quote already posted`);
+    // A dedup skip is a terminal telegram decision (we will never post a repeat),
+    // so stamp it to keep it out of future batches rather than re-checking forever.
+    if (APPLY) await prisma.claim.update({ where: { id: c.id }, data: { telegramPostedAt: new Date() } });
+    continue;
+  }
   const verdict = VERDICT_LABEL[c.verdict] ?? c.verdict;
   const quote = c.quote.length > 280 ? c.quote.slice(0, 277) + "…" : c.quote;
   const url = `${SITE_URL}/claim/${c.id}`;
@@ -127,6 +166,10 @@ for (const c of claims) {
     if (!data.ok) throw new Error(data.description || `HTTP ${res.status}`);
     await prisma.claim.update({ where: { id: c.id }, data: { telegramPostedAt: new Date() } });
     posted++;
+    // Track within this run too, so two pending dups don't both post.
+    const seen = postedByPol.get(c.politicianId) ?? [];
+    seen.push(normQuote(c.quote));
+    postedByPol.set(c.politicianId, seen);
     console.log(`  ✓ posted ${c.id} (${c.politician.name})`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
