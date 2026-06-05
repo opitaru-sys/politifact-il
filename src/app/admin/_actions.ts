@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { assertAdmin } from "@/lib/admin-auth";
+import { LOW_CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/review-config";
 
 /**
  * Server actions for admin claim management.
@@ -161,6 +162,48 @@ export async function decideReviewClaim(formData: FormData): Promise<void> {
   revalidatePath("/admin/claims");
   revalidatePath("/admin/status");
   revalidatePath(`/claim/${id}`);
+  revalidatePath("/");
+}
+
+/**
+ * Bulk-dismiss every withheld claim (status="review") whose AI confidence
+ * is at or below LOW_CONFIDENCE_REVIEW_THRESHOLD (0.30). These are the
+ * "the automatic check basically gave up" claims — dominated by
+ * quota-exhaustion withholds and genuinely unverifiable statements — and
+ * they almost never get published after a human looks. The review queue
+ * fills up with them, so this clears the low-value tail in one click.
+ *
+ * Sets status="rejected" + humanDecision="dismiss" (same end state as the
+ * per-claim "דחה" button) so the rule-suggestion miner still sees a clean
+ * labeled "editor rejected this" signal. No correctionNote is written:
+ * these were status="review", never publicly visible, so there's nothing
+ * to log on /corrections.
+ *
+ * The threshold is hardcoded server-side (not read from the form) so a
+ * tampered request can't widen the net and dismiss high-confidence claims.
+ *
+ * Reversible: each row is still in the DB; the full editor (/admin/claims)
+ * can flip status back if a dismiss was wrong.
+ */
+export async function bulkDismissLowConfidenceReview(): Promise<void> {
+  await assertAdmin();
+
+  await prisma.claim.updateMany({
+    where: {
+      status: "review",
+      confidence: { lte: LOW_CONFIDENCE_REVIEW_THRESHOLD },
+    },
+    data: {
+      status: "rejected",
+      editorApproved: false,
+      humanDecision: "dismiss",
+      humanDecisionAt: new Date(),
+    },
+  });
+
+  revalidatePath("/admin/review");
+  revalidatePath("/admin/claims");
+  revalidatePath("/admin/status");
   revalidatePath("/");
 }
 

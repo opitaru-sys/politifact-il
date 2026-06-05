@@ -3,7 +3,9 @@ import { decideReviewClaim } from "../_actions";
 import { AdminNav } from "@/components/AdminNav";
 import { RecheckClaimButton } from "@/components/RecheckClaimButton";
 import { RecheckAllReviewButton } from "@/components/RecheckAllReviewButton";
+import { BulkDismissLowConfidenceButton } from "@/components/BulkDismissLowConfidenceButton";
 import { bootstrapLegacyKey, requireAdmin } from "@/lib/admin-auth";
+import { LOW_CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/review-config";
 import { VERDICT_LABEL_HE } from "@/lib/feed";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +32,27 @@ export default async function AdminReviewPage({ searchParams }: PageProps) {
   // confidence, so they were pulled from the public site (status="review")
   // instead of being published as a misleading "half-true". This is the
   // "ask a human" pile — the AI declined to guess.
-  const claims = await prisma.claim.findMany({
-    where: { status: "review" },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: { politician: true },
-  });
+  //
+  // Fetch the page of claims AND the count of the low-confidence tail in
+  // parallel. The count drives the bulk-dismiss button (it's a full count,
+  // not just the 100 shown, so the button can clear the whole tail even
+  // when the queue is longer than one page).
+  const [claims, lowConfidenceCount] = await Promise.all([
+    prisma.claim.findMany({
+      where: { status: "review" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: { politician: true },
+    }),
+    prisma.claim.count({
+      where: {
+        status: "review",
+        confidence: { lte: LOW_CONFIDENCE_REVIEW_THRESHOLD },
+      },
+    }),
+  ]);
+
+  const thresholdPct = Math.round(LOW_CONFIDENCE_REVIEW_THRESHOLD * 100);
 
   return (
     <div>
@@ -64,6 +81,27 @@ export default async function AdminReviewPage({ searchParams }: PageProps) {
             הכתבה. טענות שיתאמתו יפורסמו, השאר יישארו כאן לטיפול ידני.
           </div>
           <RecheckAllReviewButton total={claims.length} />
+        </div>
+      )}
+
+      {/* Low-confidence bulk dismiss. Separate card so it reads as a
+          distinct, more destructive action than "recheck all". Only the
+          confidence ≤ threshold tail is targeted — claims the auto-check
+          had real uncertainty about are left for a human or a recheck. */}
+      {lowConfidenceCount > 0 && (
+        <div
+          className="mt-3 bg-card border border-border p-4 flex items-center justify-between gap-3 flex-wrap"
+          style={{ borderRadius: 4 }}
+        >
+          <div className="text-[13px] text-foreground-muted max-w-md leading-relaxed">
+            ניקוי מהיר: {lowConfidenceCount} טענות בתור קיבלו ביטחון אוטומטי של{" "}
+            {thresholdPct}% ומטה. אלו כמעט אף פעם לא מתפרסמות. אפשר לדחות את כולן
+            בבת אחת (הפיך דרך העריכה המלאה).
+          </div>
+          <BulkDismissLowConfidenceButton
+            count={lowConfidenceCount}
+            thresholdPct={thresholdPct}
+          />
         </div>
       )}
 
