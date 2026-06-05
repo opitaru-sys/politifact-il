@@ -85,6 +85,7 @@ console.log(`\nStep 1: analyzing week data...`);
 const analysis = await analyzeWeek(weekOf);
 console.log(`  ${analysis.totalClaims} claims / ${analysis.distinctPoliticians} politicians`);
 console.log(`  truth %: ${analysis.truthPercentage}% (last week: ${analysis.prevWeekTruthPercentage ?? "n/a"})`);
+console.log(`  top misleaders: ${analysis.topMisleaders.slice(0, 3).map((m) => `${m.politicianName}=${m.lieScore}`).join(", ") || "none (no one ≥3 claims)"}`);
 console.log(`  movers: ${analysis.topGainers.length}↑ / ${analysis.topLosers.length}↓`);
 console.log(`  topic distribution: ${analysis.topicDistribution.slice(0, 5).map((t) => `${t.label}=${t.count}`).join(", ")}`);
 console.log(`  worst topic: ${analysis.worstTopic ? `${analysis.worstTopic.label} ${analysis.worstTopic.truthPercentage}%` : "n/a"}`);
@@ -139,10 +140,20 @@ try {
 // card → topic link. Editor can reorder/delete via the admin JSON.
 const sections: SectionShape[] = [];
 
+// Lead the stats card with the week's top misleader, mirroring the
+// homepage hero ("המטעה המוביל"). Falls back to a clean verdict
+// breakdown when no one cleared the 3-claim bar.
+const leadMisleader = analysis.topMisleaders[0];
+const statsBody =
+  `${analysis.totalClaims} טענות · ${analysis.distinctPoliticians} פוליטיקאים · ` +
+  `${analysis.verdictCounts.true} אמת · ${analysis.verdictCounts.halfTrue} חצי · ${analysis.verdictCounts.false} שקר.` +
+  (leadMisleader
+    ? ` המטעה המוביל השבוע: ${leadMisleader.politicianName} (ניקוד הטעיה ${leadMisleader.lieScore} מתוך ${leadMisleader.claimCount} טענות).`
+    : "");
 sections.push({
   type: "headline_stats",
   heading: "השבוע במספרים",
-  body: `${analysis.totalClaims} טענות · ${analysis.distinctPoliticians} פוליטיקאים · ${analysis.verdictCounts.true} אמת · ${analysis.verdictCounts.halfTrue} חצי · ${analysis.verdictCounts.false} שקר · ${analysis.truthPercentage}% אמת משוקלל.`,
+  body: statsBody,
 });
 
 sections.push(...insightSections);
@@ -173,8 +184,8 @@ if (analysis.topGainers.length > 0 || analysis.topLosers.length > 0) {
   }
   sections.push({
     type: "movers",
-    heading: "מי עלה ומי ירד באמינות",
-    body: `שינויי ציון האמינות (חלון נע של 30 ימים) ב-7 הימים האחרונים. מינימום 10 טענות בכל אנכור כדי להיכלל.`,
+    heading: "מי השתפר ומי הידרדר בדיוק",
+    body: `שינויי ציון הדיוק העובדתי (חלון נע של 30 ימים) ב-7 הימים האחרונים. מינימום 10 טענות בכל אנכור כדי להיכלל.`,
     items,
   });
 }

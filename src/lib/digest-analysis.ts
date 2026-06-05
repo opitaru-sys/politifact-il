@@ -53,6 +53,24 @@ export interface WeeklyAnalysis {
   /** Topic with the highest truth % among those with ≥3 claims. */
   bestTopic: { slug: string; label: string; truthPercentage: number; count: number } | null;
 
+  // ── Misleaders (the digest's lead) ────────────────────────────────
+  /** Politicians ranked by THIS WEEK's weighted lie score (false×1 +
+   *  half-true×0.5), highest first. This is the lead story: who misled
+   *  the public most this week. Mirrors the homepage hero's "המטעה
+   *  המוביל". Minimum 3 claims to qualify so a lone false claim can't
+   *  top the list. */
+  topMisleaders: {
+    politicianId: string;
+    politicianName: string;
+    party: string;
+    claimCount: number;
+    lieScore: number;
+    falseCount: number;
+    halfCount: number;
+    trueCount: number;
+    truthPercentage: number;
+  }[];
+
   // ── Volume vs. accuracy ───────────────────────────────────────────
   /** Top-N most-quoted politicians this week (raw claim count). */
   topByVolume: {
@@ -221,8 +239,15 @@ export async function analyzeWeek(weekOf: Date): Promise<WeeklyAnalysis> {
   }
   const allPolThisWeek = Array.from(polMap.values()).map((p) => {
     const w = p.trueC + p.half * 0.5;
+    // False count is whatever's left after true + half. lieScore mirrors
+    // the site-wide weighted lie score: a full false is 1, a half-true is
+    // 0.5, a true is 0.
+    const falseC = p.total - p.trueC - p.half;
+    const lieScore = Math.round((falseC + p.half * 0.5) * 10) / 10;
     return {
       ...p,
+      falseC,
+      lieScore,
       truthPercentage: p.total > 0 ? Math.round((w / p.total) * 100) : 0,
     };
   });
@@ -230,6 +255,26 @@ export async function analyzeWeek(weekOf: Date): Promise<WeeklyAnalysis> {
     allPolThisWeek.length > 0
       ? Math.round(allPolThisWeek.reduce((s, x) => s + x.truthPercentage, 0) / allPolThisWeek.length)
       : null;
+
+  // ── Misleaders: this week's worst offenders by weighted lie score ──
+  // The digest leads with these. Min 3 claims so a single false statement
+  // doesn't crown someone the week's top misleader on a sample of one.
+  const MISLEADER_MIN_CLAIMS = 3;
+  const topMisleaders = [...allPolThisWeek]
+    .filter((p) => p.total >= MISLEADER_MIN_CLAIMS && p.lieScore > 0)
+    .sort((a, b) => b.lieScore - a.lieScore)
+    .slice(0, 5)
+    .map((p) => ({
+      politicianId: p.id,
+      politicianName: p.name,
+      party: p.party,
+      claimCount: p.total,
+      lieScore: p.lieScore,
+      falseCount: p.falseC,
+      halfCount: p.half,
+      trueCount: p.trueC,
+      truthPercentage: p.truthPercentage,
+    }));
 
   const topByVolumeRaw = [...allPolThisWeek].sort((a, b) => b.total - a.total).slice(0, VOLUME_TOP_N);
   const topByVolume = topByVolumeRaw.map((p) => ({
@@ -351,6 +396,7 @@ export async function analyzeWeek(weekOf: Date): Promise<WeeklyAnalysis> {
     topicDistribution,
     worstTopic,
     bestTopic,
+    topMisleaders,
     topByVolume,
     topVolumeAvgTruth,
     weekAvgTruth,
