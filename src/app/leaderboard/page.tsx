@@ -8,12 +8,16 @@ import { getDataCollectionStart } from "@/lib/queries";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { WindowSelector } from "@/components/WindowSelector";
 import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
+import { safeJsonLd } from "@/lib/jsonld";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bduk.co.il";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "טבלת ההטעיות | בדוק",
   description: "דירוג פוליטיקאים ישראליים לפי כמה הטעו את הציבור — שקרים והטעיות שנבדקו עובדתית",
+  alternates: { canonical: "/leaderboard" },
 };
 
 interface PageProps {
@@ -40,8 +44,29 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
 
   const windowLabel = windowLabelFn(selected.value);
 
+  // ItemList structured data — helps Google understand this is a ranked
+  // list and may surface individual list items in rich results.
+  const itemListJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `דירוג פוליטיקאים לפי הטעיות · ${windowLabel}`,
+    description: "דירוג פוליטיקאים ישראליים לפי ניקוד הטעיה עובדתי",
+    url: `${SITE_URL}/leaderboard`,
+    numberOfItems: stats.length,
+    itemListElement: stats.slice(0, 20).map((stat, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      url: `${SITE_URL}/politician/${stat.politician.id}`,
+      name: stat.politician.name,
+    })),
+  };
+
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListJsonLd) }}
+      />
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         דירוג · {windowLabel}
       </div>

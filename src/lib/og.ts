@@ -80,16 +80,28 @@ export function wrapRtl(s: string, maxChars: number): string[] {
   return lines.map((l) => rtlHe(l));
 }
 
+// Module-level cache so repeated OG image requests within the same
+// function instance don't each re-fetch from Google Fonts (2 round-trips
+// per weight). The cache persists for the lifetime of the edge function
+// instance, typically several minutes of idle before eviction.
+const fontCache = new Map<number, ArrayBuffer>();
+
 /**
  * Fetch a Rubik weight (Hebrew subset) as an ArrayBuffer for next/og's
  * `fonts` option. Without a Hebrew-capable font, glyphs render as tofu.
+ * Results are cached in-process to avoid repeated Google Fonts fetches.
  */
 export async function loadHebrewFont(weight: 400 | 700 | 900): Promise<ArrayBuffer> {
+  const cached = fontCache.get(weight);
+  if (cached) return cached;
+
   const css = await fetch(
     `https://fonts.googleapis.com/css2?family=Rubik:wght@${weight}&display=swap&subset=hebrew`,
     { headers: { "User-Agent": "Mozilla/5.0" } },
   ).then((r) => r.text());
   const match = css.match(/src: url\((https:[^)]+\.ttf)\)/);
   if (!match) throw new Error("Could not find Rubik font URL");
-  return fetch(match[1]).then((r) => r.arrayBuffer());
+  const buffer = await fetch(match[1]).then((r) => r.arrayBuffer());
+  fontCache.set(weight, buffer);
+  return buffer;
 }

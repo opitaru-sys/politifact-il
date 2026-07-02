@@ -29,6 +29,7 @@ import { ClaimCard } from "@/components/ClaimCard";
 import { ShareButtons } from "@/components/ShareButtons";
 import { InsightBody } from "@/components/InsightBody";
 import { shareTextForRanking } from "@/lib/share-text";
+import { safeJsonLd } from "@/lib/jsonld";
 import { resolveWindow, windowLabel as windowLabelFn } from "@/lib/window";
 import type { Claim, Verdict } from "@/data/mock";
 
@@ -53,6 +54,7 @@ export async function generateMetadata({
   return {
     title: `${label} · מי מטעה הכי הרבה | בדוק`,
     description: `מי מטעה הכי הרבה בנושא ${label}? דירוג פוליטיקאים לפי ניקוד הטעיה, מבוסס על טענות שנבדקו.`,
+    alternates: { canonical: `/topic/${slug}` },
     openGraph: {
       title: `מי מטעה הכי הרבה בנושא ${label}`,
       description: `דירוג פוליטיקאים ישראליים על נושא ${label}.`,
@@ -315,8 +317,22 @@ export default async function TopicPage({ params, searchParams }: PageProps) {
     _commentCount?: number;
   })[];
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "דף הבית", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "נושאים", item: `${SITE_URL}/topics` },
+      { "@type": "ListItem", position: 3, name: label, item: `${SITE_URL}/topic/${slug}` },
+    ],
+  };
+
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
+      />
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">
         נושא · {windowLabel}
       </div>

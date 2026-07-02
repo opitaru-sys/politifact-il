@@ -93,9 +93,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const c = await getClaim(id);
   if (!c) return {};
   const shortQuote = c.quote.length > 80 ? c.quote.slice(0, 77) + "..." : c.quote;
+  const title = `${c.politician.name}: ${shortQuote} | בדוק`;
+  const description = c.summary ?? `${c.politician.name}: "${shortQuote}" — פסק דין: ${c.verdict}.`;
   return {
-    title: `${c.politician.name}: ${shortQuote} | בדוק`,
-    description: c.summary ?? `${c.politician.name}: "${shortQuote}" — פסק דין: ${c.verdict}.`,
+    title,
+    description,
+    alternates: { canonical: `/claim/${id}` },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: `${SITE_URL}/claim/${id}`,
+      siteName: "בדוק",
+      locale: "he_IL",
+      publishedTime: c.createdAt.toISOString(),
+      modifiedTime: c.updatedAt.toISOString(),
+      authors: [c.politician.name],
+      tags: ["בדיקת עובדות", "פוליטיקה ישראלית", c.topic].filter(Boolean),
+    },
   };
 }
 
@@ -154,6 +169,36 @@ export default async function ClaimPage({ params }: PageProps) {
     },
   };
 
+  // NewsArticle — Google is phasing out ClaimReview from Search results
+  // (June 2025) but continues supporting Article/NewsArticle for content
+  // classification. We keep both: ClaimReview stays for Fact Check Explorer,
+  // NewsArticle takes over as the primary Search signal.
+  const newsArticleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: `${c.politician.name}: "${c.quote.slice(0, 110)}${c.quote.length > 110 ? "..." : ""}"`,
+    description: c.summary ?? undefined,
+    url: `${SITE_URL}/claim/${c.id}`,
+    datePublished: c.createdAt.toISOString(),
+    dateModified: c.updatedAt.toISOString(),
+    inLanguage: "he-IL",
+    author: {
+      "@type": "Person",
+      name: c.politician.name,
+      "@id": `${SITE_URL}/politician/${c.politician.id}#person`,
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "בדוק",
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/icon` },
+    },
+    about: { "@type": "Person", name: c.politician.name },
+    ...(isSpecificUrl(c.sourceUrl)
+      ? { isBasedOn: { "@type": "NewsArticle", url: c.sourceUrl, publisher: { "@type": "Organization", name: c.source } } }
+      : {}),
+  };
+
   // BreadcrumbList mirrors the on-page breadcrumb (home / politician /
   // claim) so Google can render the trail in the SERP snippet.
   const breadcrumbJsonLd = {
@@ -173,8 +218,14 @@ export default async function ClaimPage({ params }: PageProps) {
 
   return (
     <article dir="rtl">
-      {/* JSON-LD for Google ClaimReview. Rendered inline as a script tag so it
-          ships with the SSR response and is indexable. */}
+      {/* NewsArticle — primary Search signal; ClaimReview is being deprecated
+          from Google Search (kept for Fact Check Explorer only). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonForScript(newsArticleJsonLd) }}
+      />
+      {/* ClaimReview — still live in Fact Check Explorer and third-party
+          fact-check aggregators. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonForScript(jsonLd) }}

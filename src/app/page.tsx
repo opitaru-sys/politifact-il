@@ -22,6 +22,19 @@ import { topicDisplayLabel } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
+// Canonical points to the bare homepage so every filtered variation
+// (?topic=, ?politician=, ?window=) doesn't create duplicate-content URLs.
+// Also re-declare RSS types — page-level `alternates` replaces (not merges)
+// the root layout's alternates, so we carry forward what we need.
+export const metadata = {
+  alternates: {
+    canonical: "/",
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: "בדוק · פסקי דין אחרונים" }],
+    },
+  },
+};
+
 export default async function Home({
   searchParams,
 }: {

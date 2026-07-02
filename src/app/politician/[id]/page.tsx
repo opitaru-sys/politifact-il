@@ -22,9 +22,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const data = await getPoliticianById(id);
   if (!data) return {};
+  const nameParts = data.name.trim().split(/\s+/);
   return {
     title: `${data.name} | בדוק`,
-    description: `בדיקת עובדות לטענות של ${data.name} (${data.party})`,
+    description: `בדיקת עובדות לטענות של ${data.name} (${data.party}). מה אמר, מה נמצא שקר, ומה אחוז האמת שלו.`,
+    alternates: { canonical: `/politician/${id}` },
+    openGraph: {
+      type: "profile",
+      ...(nameParts.length >= 2
+        ? { firstName: nameParts[0], lastName: nameParts.slice(1).join(" ") }
+        : {}),
+    },
   };
 }
 
@@ -82,6 +90,7 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
   const personJsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
+    "@id": `${SITE_URL}/politician/${id}#person`,
     name: data.name,
     url: `${SITE_URL}/politician/${id}`,
     ...(data.role ? { jobTitle: data.role } : {}),
@@ -89,11 +98,24 @@ export default async function PoliticianPage({ params, searchParams }: PageProps
     ...(data.image && data.image.startsWith("http") ? { image: data.image } : {}),
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "דף הבית", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: data.name, item: `${SITE_URL}/politician/${id}` },
+    ],
+  };
+
   return (
     <div>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       <div
         className="bg-card border border-border-strong p-7 mb-8"

@@ -1,13 +1,66 @@
 import type { Metadata } from "next";
+import { safeJsonLd } from "@/lib/jsonld";
 
 export const metadata: Metadata = {
   title: "אודות | בדוק",
   description: "מי אנחנו, איך אנחנו בודקים עובדות, ולמה החלטנו שזה חשוב",
+  alternates: { canonical: "/about" },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "מה בדוק עושה?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "בדוק אוסף טענות פומביות של פוליטיקאים ישראליים ובודק האם הן נכונות, חצי-נכונות או שגויות. כל טענה מקושרת למקור שבו נאמרה, וההסבר מציין את המקור הרשמי שעליו התבססה הבדיקה.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "איך בדוק בודק עובדות?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "מערכת אוטומטית סורקת מקורות חדשותיים, פרוטוקולי כנסת וערוצי טלגרם של פוליטיקאים. כל טענה עוברת ארבעה שלבים: חילוץ, בדיקת עובדות, אימות ספקני, וסקירה עורכת. רק טענות שעוברות את כל השלבים מתפרסמות.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "מה ניקוד הטעיה?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "ניקוד הטעיה מודד כמה פוליטיקאי הטעה את הציבור: כל טענת שקר שווה נקודה אחת, כל חצי-אמת חצי נקודה. ככל שהניקוד גבוה יותר, הפוליטיקאי הפיץ יותר מידע מוטעה. הניקוד מודד דיוק עובדתי בלבד, לא יושרה או מוסר.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "האם בדוק מוטה פוליטית?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "לא. לבדוק אין שיוך, מימון או אינטרס מאף מפלגה, גוף פוליטי או תורם. כל פוליטיקאי נבדק באותה מידה, באותו פרוטוקול, באותם כלים. האתר הוא פרויקט אישי ללא מימון חיצוני.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "מצאתי שגיאה — מה עושים?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "לחצו על כפתור 'דיווח על שגיאה' בעמוד של הטענה הספציפית. הדיווחים נשמרים בתור בדיקה, והטענות מתוקנות או מוסרות במידת הצורך. כל הסרה מתועדת פומבית בעמוד תיקונים.",
+      },
+    },
+  ],
 };
 
 export default function AboutPage() {
   return (
     <article className="prose prose-sm max-w-2xl mx-auto" dir="rtl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }}
+      />
       <div className="text-[11px] tracking-[0.3em] uppercase text-accent font-bold mb-2">אודות</div>
       <h1 className="text-4xl font-black mb-3">בָּ<span style={{ marginInlineEnd: "0.08em" }}>ד</span>וּק<span className="text-accent">.</span></h1>
       <p className="text-foreground-muted mb-8 leading-relaxed">

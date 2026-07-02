@@ -44,32 +44,43 @@ const SITE_URL = (() => {
   return "https://bduk.co.il";
 })();
 
-// Site-wide structured data. Organization + WebSite give Google an entity
-// to attach the brand, founder, and social profiles to (knowledge panel).
-// No SearchAction sitelinks box — search is an autocomplete that jumps
-// straight to a politician profile, there's no /search results URL to
-// point the box at.
-const SITE_JSONLD = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "בדוק",
-    alternateName: "Baduk",
-    url: SITE_URL,
-    logo: `${SITE_URL}/icon`,
-    description: DESCRIPTION,
-    founder: { "@type": "Person", name: "Omri Pitaru", url: "https://www.linkedin.com/in/omripitaru/" },
-    sameAs: ["https://x.com/opitaru", "https://www.linkedin.com/in/omripitaru/"],
+// Site-wide structured data. NewsMediaOrganization signals to Google
+// that this is a journalistic/fact-checking entity — required for the
+// fact-check label program and eligibility for rich results. WebSite
+// anchors the domain for knowledge-panel association.
+const ORG = {
+  "@type": ["Organization", "NewsMediaOrganization"],
+  "@id": `${SITE_URL}/#organization`,
+  name: "בדוק",
+  alternateName: "Baduk",
+  url: SITE_URL,
+  logo: {
+    "@type": "ImageObject",
+    url: `${SITE_URL}/icon`,
+    width: 64,
+    height: 64,
   },
+  description: DESCRIPTION,
+  inLanguage: "he-IL",
+  areaServed: "IL",
+  founder: { "@type": "Person", name: "Omri Pitaru", url: "https://www.linkedin.com/in/omripitaru/" },
+  publishingPrinciples: `${SITE_URL}/about`,
+  ownershipFundingInfo: `${SITE_URL}/about`,
+  sameAs: ["https://x.com/opitaru", "https://www.linkedin.com/in/omripitaru/", "https://t.me/bdukcoil"],
+};
+
+const SITE_JSONLD = [
+  { "@context": "https://schema.org", ...ORG },
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
     name: "בדוק",
     alternateName: "Baduk",
     url: SITE_URL,
     inLanguage: "he-IL",
     description: DESCRIPTION,
-    publisher: { "@type": "Organization", name: "בדוק", url: SITE_URL },
+    publisher: { "@id": `${SITE_URL}/#organization` },
   },
 ];
 
@@ -99,8 +110,12 @@ export const metadata: Metadata = {
   // without touching the (buggy) registrar DNS panel. Renders
   // <meta name="google-site-verification" content="..."> in every page head.
   verification: { google: "FBSWYiIdLDgsVRUlb1iYVxUKLB0IjwiKMRbmbmf8dN4" },
-  // RSS autodiscovery — browsers and feed readers find /feed.xml from any page.
   alternates: {
+    // RSS autodiscovery — browsers and feed readers find /feed.xml from any page.
+    // Note: pages that export their own `alternates` (for canonical) override
+    // this entirely, since Next.js replaces rather than deep-merges `alternates`.
+    // hreflang is intentionally omitted — single-language site; lang="he" dir="rtl"
+    // on <html> is sufficient for Google to identify the language.
     types: {
       "application/rss+xml": [{ url: "/feed.xml", title: "בדוק · פסקי דין אחרונים" }],
     },
