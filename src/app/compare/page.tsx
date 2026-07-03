@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "השוואה | בדוק",
   description: "השוואה צד-לצד של ניקוד ההטעיה בין שני פוליטיקאים על בסיס הטענות שנבדקו.",
+  alternates: { canonical: "/compare" },
 };
 
 interface PageProps {

@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   title: "תובנות השבוע | בדוק",
   description:
     "סיכום שבועי של מה שקרה בעולם בדיקת העובדות הפוליטיות בישראל: תובנות מהותיות על מגמות דיוק, נושאים בולטים ודפוסי דיוק בקרב פוליטיקאים.",
+  alternates: { canonical: "/digest" },
 };
 
 const ARCHIVE_LIMIT = 12;

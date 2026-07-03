@@ -28,9 +28,19 @@ export async function generateMetadata({
     select: { title: true, intro: true, status: true },
   });
   if (!digest || digest.status !== "published") return {};
+  const slug = weekOf;
   return {
     title: `${digest.title} | בדוק`,
     description: digest.intro,
+    alternates: { canonical: `/digest/${slug}` },
+    openGraph: {
+      title: `${digest.title} | בדוק`,
+      description: digest.intro ?? undefined,
+      type: "article",
+      url: `/digest/${slug}`,
+      siteName: "בדוק",
+      locale: "he_IL",
+    },
   };
 }
 

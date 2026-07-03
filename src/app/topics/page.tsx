@@ -21,6 +21,7 @@ export const metadata: Metadata = {
   title: "כל הנושאים | בדוק",
   description:
     "דיוק עובדתי של פוליטיקאים ישראליים לפי נושא: ביטחון, כלכלה, משפט, חינוך, בריאות ועוד. דירוג מתוקנן לגודל מדגם.",
+  alternates: { canonical: "/topics" },
 };
 
 interface PageProps {

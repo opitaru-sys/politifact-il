@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "כניסת אדמין | בדוק",
-  robots: { index: false, follow: false },
 };
 
 interface PageProps {

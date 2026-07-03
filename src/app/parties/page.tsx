@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "השוואת מפלגות | בדוק",
   description: "איזו מפלגה מטעה הכי הרבה? דירוג מפלגות ישראליות לפי ניקוד הטעיה",
+  alternates: { canonical: "/parties" },
 };
 
 export default async function PartiesPage() {

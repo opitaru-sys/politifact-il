@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "תיקונים | בדוק",
   description: "כל הטענות שהוסרו או תוקנו מהאתר, מסיבה ותאריך.",
+  alternates: { canonical: "/corrections" },
 };
 
 /**
